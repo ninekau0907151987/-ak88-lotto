@@ -1584,7 +1584,23 @@ export default function AdminDashboard() {
               จัดการระบบหลังบ้าน {tabs.find(t => t.id === activeTab)?.label.toLowerCase()}
             </p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <Link
+              to="/"
+              className="px-3.5 py-2 rounded-xl font-black text-xs shadow-sm flex items-center gap-1.5 transition hover:brightness-105"
+              style={{ background: '#f5c518', color: '#0a192f' }}
+            >
+              <span className="material-symbols-outlined text-sm">storefront</span>
+              ดูหน้าบ้านสมาชิก
+            </Link>
+            <Link
+              to="/portal"
+              className="px-3 py-2 rounded-xl font-bold text-xs border flex items-center gap-1 transition"
+              style={{ borderColor: 'var(--admin-border)', color: 'var(--admin-text)' }}
+            >
+              <span className="material-symbols-outlined text-sm">dashboard_customize</span>
+              Portal
+            </Link>
             <div className="text-right hidden md:block">
               <div className="text-sm font-black" style={{ color: 'var(--admin-text)' }}>Super Admin</div>
               <div className="text-[10px] font-bold flex items-center justify-end gap-1" style={{ color: '#2e7d32' }}>
@@ -1592,8 +1608,8 @@ export default function AdminDashboard() {
                 Online
               </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'var(--admin-subtle)' }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--admin-accent-dark)' }}>person</span>
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: 'var(--admin-subtle)' }}>
+              <span className="material-symbols-outlined text-lg" style={{ color: 'var(--admin-accent-dark)' }}>person</span>
             </div>
           </div>
         </header>

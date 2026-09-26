@@ -214,7 +214,21 @@ export default function YeekeeAdmin() {
           <h1 className="text-lg font-black tracking-wide">ศูนย์ควบคุมหวยยี่กี 88 รอบ (Owner Center)</h1>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs bg-[#F4C430]/20 text-[#F4C430] border border-[#F4C430]/40 px-2.5 py-1 rounded-full font-bold">
+          <Link
+            to="/"
+            className="bg-[#F4C430] hover:bg-amber-400 text-[#1A2238] font-black text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 shadow transition"
+          >
+            <span className="material-symbols-outlined text-sm font-black">storefront</span>
+            ดูหน้าบ้านสมาชิก
+          </Link>
+          <Link
+            to="/portal"
+            className="bg-white/10 hover:bg-white/20 text-white text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition"
+          >
+            <span className="material-symbols-outlined text-sm">dashboard_customize</span>
+            ทางเข้า Portal
+          </Link>
+          <span className="text-xs bg-[#F4C430]/20 text-[#F4C430] border border-[#F4C430]/40 px-2.5 py-1 rounded-full font-bold hidden sm:inline">
             ระบบจับยี่กี 15 นาที
           </span>
           <button onClick={() => { fetchRounds(); fetchConfig(); }} className="bg-white/10 hover:bg-white/20 text-white text-xs px-3 py-1.5 rounded-lg flex items-center gap-1 transition">

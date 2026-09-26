@@ -55,11 +55,15 @@ import Game20Report from '@/backend/pages/Game20Report';
 // ★ หลังบ้าน: ศูนย์ควบคุมหวยยี่กี 88 รอบ
 import YeekeeAdmin from '@/backend/pages/YeekeeAdmin';
 
+import Portal from '@/frontend/pages/Portal';
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* ================= Auth (ไม่มี bottom-nav) ================= */}
+        {/* ================= Portal / Gateway / Auth (ไม่มี bottom-nav) ================= */}
+        <Route path="/portal" element={<Portal />} />
+        <Route path="/gateway" element={<Portal />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
