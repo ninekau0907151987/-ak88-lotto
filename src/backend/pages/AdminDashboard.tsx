@@ -815,15 +815,18 @@ export default function AdminDashboard() {
       console.warn('[login] staff lookup failed, falling back:', e);
     }
 
-    // 2) fallback: บัญชีผู้ดูแลหลัก (ระบบเดิม)
-    if (adminUser === '1234' && adminPass === '12345678') {
+    // 2) fallback: บัญชีผู้ดูแลหลัก (ระบบเดิม + บัญชี owner)
+    if (
+      (adminUser === '1234' && adminPass === '12345678') ||
+      (adminUser.toLowerCase() === 'owner' && (adminPass === '0614284727' || adminPass === '06142847'))
+    ) {
       const sess: StaffSession = {
-        uid: 'owner', username: '1234', displayName: 'ผู้ดูแลระบบ', role: 'owner',
+        uid: 'owner', username: adminUser || 'owner', displayName: 'เจ้าของระบบ', role: 'owner',
       };
       saveSession(sess);
       setSession(sess);
       setIsAdminLoggedIn(true);
-      await logActivity('เข้าสู่ระบบ', 'ผู้ดูแลระบบหลัก', 'security');
+      await logActivity('เข้าสู่ระบบ', 'เจ้าของระบบ (Owner)', 'security');
     } else {
       alert('Username หรือ รหัสผ่านไม่ถูกต้อง');
     }
