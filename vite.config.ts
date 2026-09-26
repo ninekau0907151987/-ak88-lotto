@@ -17,6 +17,7 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
+      allowedHosts: true,
       // ★ ปิด HMR สนิทเมื่อสั่ง DISABLE_HMR=true
       //   ต้องเป็น false (ไม่ใช่ undefined) ไม่งั้น Vite จะยังเปิด WebSocket
       //   ที่ port 24678 ซึ่งชนกับ server อื่น → middleware ค้าง ตอบไม่กลับ
