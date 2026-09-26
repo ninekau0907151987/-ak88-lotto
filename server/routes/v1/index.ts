@@ -93,6 +93,44 @@ export function createV1Router(db: any) {
     ok(res, out, { message: out.message });
   }));
 
+  // ---- แจ้งถอนเงินสาธารณะสำหรับสมาชิกหน้าบ้าน (ตัดเครดิต Escrow ทันที) ----
+  api.post('/finance/withdraw', asyncHandler(async (req, res) => {
+    const { requestWithdraw } = await import('../../domains/finance/finance.service');
+    const out = await requestWithdraw(db, req.body || {});
+    ok(res, out, { message: 'ส่งคำขอถอนเงินเรียบร้อยแล้ว รอระบบประมวลผล' });
+  }));
+
+  // ---- ยอดเงินคงเหลือสมาชิก ----
+  api.get('/finance/balance/:userId', asyncHandler(async (req, res) => {
+    const { wallet } = await import('../../lib/wallet');
+    const balance = await wallet.peek(db, req.params.userId);
+    ok(res, { userId: req.params.userId, balance, status: 'active' });
+  }));
+
+  // ---- ระบบ SMS OTP & รีเซ็ตรหัสผ่านสมาชิก ----
+  api.post('/auth/otp/send', asyncHandler(async (req, res) => {
+    const { sendOtp } = await import('../../domains/auth/otp.service');
+    const out = await sendOtp(req.body?.phone || req.body?.phoneNumber);
+    ok(res, out, { message: out.message });
+  }));
+
+  api.post('/auth/otp/verify', asyncHandler(async (req, res) => {
+    const { verifyOtp } = await import('../../domains/auth/otp.service');
+    const out = await verifyOtp(req.body?.phone || req.body?.phoneNumber, req.body?.code);
+    ok(res, out, { message: out.message });
+  }));
+
+  api.post('/auth/password/reset', asyncHandler(async (req, res) => {
+    const { resetPasswordWithOtp } = await import('../../domains/auth/otp.service');
+    const out = await resetPasswordWithOtp(
+      db,
+      req.body?.phone || req.body?.phoneNumber,
+      req.body?.code,
+      req.body?.newPassword
+    );
+    ok(res, out, { message: out.message });
+  }));
+
   // ---------- 2) ต้องใช้ API Key ทุกเส้นด้านล่าง ----------
   const auth = Router();
   auth.use(authenticate);

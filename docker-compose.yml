@@ -1,0 +1,29 @@
+services:
+  ak88-lotto:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ak88-lotto-production
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - BANK_PROMPTPAY_PHONE=0812345678
+      - BANK_NAME=ธนาคารกสิกรไทย (KBANK)
+      - BANK_ACCOUNT=123-4-56789-0
+      - BANK_RECEIVER_NAME=AK88 LOTTO AUTO SYSTEM
+      - SLIP_VERIFY_API_KEY=${SLIP_VERIFY_API_KEY:-}
+      - SMS_API_KEY=${SMS_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
