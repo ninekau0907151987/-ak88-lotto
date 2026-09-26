@@ -10,14 +10,16 @@ export default function Deposit() {
   const [userData, setUserData] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const currentUserId = localStorage.getItem('userId') || 'demo_user';
+
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'users', 'demo_user'), (doc) => {
+    const unsubscribe = onSnapshot(doc(db, 'users', currentUserId), (doc) => {
       if (doc.exists()) {
         setUserData(doc.data());
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [currentUserId]);
 
   const handleDeposit = async () => {
     if (amount <= 0) {
@@ -27,7 +29,7 @@ export default function Deposit() {
 
     setIsProcessing(true);
     try {
-      const userRef = doc(db, 'users', 'demo_user');
+      const userRef = doc(db, 'users', currentUserId);
       const userSnap = await getDoc(userRef);
       
       if (userSnap.exists()) {
@@ -39,7 +41,7 @@ export default function Deposit() {
 
         // Add to Transaction History
         await addDoc(collection(db, 'transactions'), {
-          userId: 'demo_user',
+          userId: currentUserId,
           type: 'deposit',
           amount: amount,
           status: 'success',

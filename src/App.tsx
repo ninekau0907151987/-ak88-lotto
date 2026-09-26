@@ -54,6 +54,7 @@ import BackofficeManual from '@/backend/pages/BackofficeManual';
 import Game20Report from '@/backend/pages/Game20Report';
 // ★ หลังบ้าน: ศูนย์ควบคุมหวยยี่กี 88 รอบ
 import YeekeeAdmin from '@/backend/pages/YeekeeAdmin';
+import AdminLogin from '@/backend/pages/AdminLogin';
 
 import Portal from '@/frontend/pages/Portal';
 
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* ================= หลังบ้าน (ไม่มี bottom-nav หน้าบ้าน) ================= */}
+        <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
         <Route path="/admin/api" element={<DeveloperApi />} />
         <Route path="/admin/api/docs" element={<ApiDocs />} />

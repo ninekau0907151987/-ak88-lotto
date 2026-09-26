@@ -14,7 +14,8 @@ export default function Home() {
       setLotterySettings(types);
     });
 
-    const unsubscribeUser = onSnapshot(doc(db, 'users', 'demo_user'), (doc) => {
+    const currentUserId = localStorage.getItem('userId') || 'demo_user';
+    const unsubscribeUser = onSnapshot(doc(db, 'users', currentUserId), (doc) => {
       if (doc.exists()) {
         setUserData(doc.data());
       }

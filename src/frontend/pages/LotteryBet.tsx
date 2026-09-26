@@ -185,17 +185,16 @@ export default function LotteryBet() {
     if (showHistoryModal) {
       const fetchTickets = async () => {
         try {
+          const currentUserId = localStorage.getItem('userId') || 'demo_user';
           const q = query(
             collection(db, 'tickets'), 
-            where('userId', '==', 'demo_user'), 
+            where('userId', '==', currentUserId), 
             limit(20)
           );
           const snap = await getDocs(q);
           
           let tickets = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-          // Sort manually since we might not have a composite index for where + orderBy
           tickets.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          
           setPastTickets(tickets);
         } catch(err) {
           console.error('Error fetching past tickets:', err);
@@ -342,7 +341,8 @@ export default function LotteryBet() {
       }
     });
 
-    const unsubscribeUser = onSnapshot(doc(db, 'users', 'demo_user'), (doc) => {
+    const currentUserId = localStorage.getItem('userId') || 'demo_user';
+    const unsubscribeUser = onSnapshot(doc(db, 'users', currentUserId), (doc) => {
       if (doc.exists()) {
         setUserData(doc.data());
       }
@@ -1040,6 +1040,8 @@ export default function LotteryBet() {
         expiresAt: expires,
       };
 
+      const currentUserId = localStorage.getItem('userId') || 'demo_user';
+
       // Save to Firestore
       await addDoc(collection(db, 'tickets'), {
         ticketId,
@@ -1048,7 +1050,7 @@ export default function LotteryBet() {
         status: 'pending_cancellation',
         createdAt: new Date(now).toISOString(),
         expiresAt: new Date(expires).toISOString(),
-        userId: 'demo_user',
+        userId: currentUserId,
         lotteryType: displayName,
         lotterySlug: type || 'thai',
         customerName: customerName.trim() || 'ลูกค้าทั่วไป'
@@ -1071,14 +1073,15 @@ export default function LotteryBet() {
     setIsSubmitting(true);
     try {
       const total = info.total;
+      const currentUserId = localStorage.getItem('userId') || 'demo_user';
 
       // 1. Check Balance
-      const userRef = doc(db, 'users', 'demo_user');
+      const userRef = doc(db, 'users', currentUserId);
       const userSnap = await getDoc(userRef);
       
       let currentBalance = 0;
       if (!userSnap.exists()) {
-        // Auto-create demo user for testing
+        // Auto-create user doc if missing
         await setDoc(userRef, {
           balance: 10000,
           role: 'user',
@@ -1102,7 +1105,7 @@ export default function LotteryBet() {
       
       // 3. Record Transaction
       await addDoc(collection(db, 'transactions'), {
-        userId: 'demo_user',
+        userId: currentUserId,
         type: 'bet',
         amount: total,
         description: `แทงหวย ${displayName}`,
@@ -1129,7 +1132,7 @@ export default function LotteryBet() {
         status: 'pending_cancellation',
         createdAt: new Date(now).toISOString(),
         expiresAt: new Date(expires).toISOString(),
-        userId: 'demo_user',
+        userId: currentUserId,
         lotteryType: displayName,
         lotterySlug: type || 'thai',
         customerName: info.customerName

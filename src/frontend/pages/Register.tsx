@@ -1,15 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-const SAMPLE_FIRSTNAMES = ['สมชาย', 'ธนพล', 'กิตติศักดิ์', 'ศิริพร', 'ณัฐวุฒิ', 'วรินทร', 'ปิยะดา', 'พงศกร'];
-const SAMPLE_LASTNAMES = ['มั่งมี', 'ทรัพย์เจริญ', 'มั่นคง', 'รัตนโชติ', 'บุญรักษา', 'เจริญสุข', 'ทองทวี', 'ศรีสุข'];
-const BANKS = [
+const THAI_BANKS = [
   { id: 'kbank', name: 'ธนาคารกสิกรไทย (KBANK)' },
   { id: 'scb', name: 'ธนาคารไทยพาณิชย์ (SCB)' },
   { id: 'bbl', name: 'ธนาคารกรุงเทพ (BBL)' },
   { id: 'ktb', name: 'ธนาคารกรุงไทย (KTB)' },
   { id: 'bay', name: 'ธนาคารกรุงศรีอยุธยา (BAY)' },
   { id: 'ttb', name: 'ธนาคารทหารไทยธนชาต (TTB)' },
+  { id: 'gsb', name: 'ธนาคารออมสิน (GSB)' },
+  { id: 'baac', name: 'ธนาคารเพื่อการเกษตรและสหกรณ์การเกษตร (ธ.ก.ส.)' },
 ];
 
 export default function Register() {
@@ -22,174 +22,184 @@ export default function Register() {
     bankAccount: '',
     firstName: '',
     lastName: '',
-    referralSource: ''
+    referralSource: '',
   });
+
+  const [acceptTerms, setAcceptTerms] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [demoCredit, setDemoCredit] = useState(10000);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  // ปุ่มสุ่มข้อมูลตัวอย่างอัตโนมัติใน 1 คลิก
-  const handleAutoFill = () => {
-    const randomDigits = Math.floor(1000 + Math.random() * 9000);
-    const randomPhone = `08${Math.floor(10000000 + Math.random() * 90000000)}`;
-    const randomBankAcc = `${Math.floor(100 + Math.random() * 900)}-${Math.floor(1 + Math.random() * 9)}-${Math.floor(10000 + Math.random() * 90000)}-${Math.floor(1 + Math.random() * 9)}`;
-    const randomFirst = SAMPLE_FIRSTNAMES[Math.floor(Math.random() * SAMPLE_FIRSTNAMES.length)];
-    const randomLast = SAMPLE_LASTNAMES[Math.floor(Math.random() * SAMPLE_LASTNAMES.length)];
-    const randomBank = BANKS[Math.floor(Math.random() * BANKS.length)].name;
-
-    setFormData({
-      phoneNumber: randomPhone,
-      username: `member_${randomDigits}`,
-      password: '123456',
-      confirmPassword: '123456',
-      bankName: randomBank,
-      bankAccount: randomBankAcc,
-      firstName: randomFirst,
-      lastName: randomLast,
-      referralSource: 'AK88_VIP'
-    });
+    if (error) setError('');
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
 
-    if (formData.password !== formData.confirmPassword) {
-      alert('รหัสผ่านไม่ตรงกัน กรุณาตรวจสอบอีกครั้ง');
+    // 1) Validation ตรวจสอบความถูกต้องของข้อมูล
+    const cleanPhone = formData.phoneNumber.replace(/[^0-9]/g, '');
+    if (!/^0[689]\d{8}$/.test(cleanPhone)) {
+      setError('กรุณากรอกเบอร์โทรศัพท์มือถือ 10 หลักที่ถูกต้อง (เช่น 08x-xxx-xxxx)');
       return;
     }
 
-    if (formData.password.length < 4) {
-      alert('รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร');
+    const cleanUsername = formData.username.trim().toLowerCase();
+    if (!/^[a-zA-Z0-9_]{4,20}$/.test(cleanUsername)) {
+      setError('ชื่อผู้ใช้งานต้องเป็นภาษาอังกฤษหรือตัวเลข ความยาว 4-20 ตัวอักษร');
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      setError('รหัสผ่านและยืนยันรหัสผ่านไม่ตรงกัน');
+      return;
+    }
+
+    const cleanAccount = formData.bankAccount.replace(/[^0-9]/g, '');
+    if (cleanAccount.length < 9 || cleanAccount.length > 15) {
+      setError('เลขที่บัญชีธนาคารไม่ถูกต้อง (ต้องเป็นตัวเลข 10-12 หลัก)');
+      return;
+    }
+
+    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+      setError('กรุณากรอกชื่อจริงและนามสกุลให้ครบถ้วน');
+      return;
+    }
+
+    if (!acceptTerms) {
+      setError('กรุณายอมรับเงื่อนไขและข้อตกลงในการใช้งาน');
       return;
     }
 
     setLoading(true);
+
     try {
-      // 1) พยายามบันทึกลง Firestore
-      try {
-        const { collection, addDoc, doc, setDoc } = await import('firebase/firestore');
-        const { db } = await import('@/shared/lib/firebase');
+      const { collection, addDoc, query, where, getDocs } = await import('firebase/firestore');
+      const { db } = await import('@/shared/lib/firebase');
 
-        // บันทึก user พร้อมเครดิตฟรีสำหรับทดลองแทงหวย
-        const userObj = {
-          ...formData,
-          balance: demoCredit,
-          role: 'user',
-          status: 'active',
-          totalBet: 0,
-          totalWin: 0,
-          createdAt: new Date().toISOString()
-        };
-
-        await addDoc(collection(db, 'users'), userObj);
-
-        // อัปเดต demo_user เพื่อให้หน้าบ้านสามารถเล่นได้ต่อเนื่อง
-        await setDoc(doc(db, 'users', 'demo_user'), {
-          username: formData.username,
-          name: `${formData.firstName} ${formData.lastName}`,
-          phone: formData.phoneNumber,
-          bankName: formData.bankName,
-          bankAccount: formData.bankAccount,
-          balance: demoCredit,
-          role: 'user',
-          status: 'active',
-          updatedAt: new Date().toISOString()
-        }, { merge: true });
-      } catch (err) {
-        console.warn('Firebase save skipped, saving to localStorage:', err);
+      // 2) ตรวจสอบความซ้ำซ้อนในฐานข้อมูล (Unique check)
+      const qPhone = query(collection(db, 'users'), where('phoneNumber', '==', cleanPhone));
+      const snapPhone = await getDocs(qPhone);
+      if (!snapPhone.empty) {
+        setError('เบอร์โทรศัพท์นี้ถูกลงทะเบียนไว้ในระบบแล้ว');
+        setLoading(false);
+        return;
       }
 
-      // 2) Auto Login ทันที
+      const qUser = query(collection(db, 'users'), where('username', '==', cleanUsername));
+      const snapUser = await getDocs(qUser);
+      if (!snapUser.empty) {
+        setError('ชื่อผู้ใช้งาน (Username) นี้มีผู้ใช้งานแล้ว กรุณาเลือกชื่ออื่น');
+        setLoading(false);
+        return;
+      }
+
+      // 3) บันทึกบัญชีสมาชิกใหม่ลง Firestore
+      const newUser = {
+        phoneNumber: cleanPhone,
+        username: cleanUsername,
+        password: formData.password,
+        bankName: formData.bankName,
+        bankAccount: cleanAccount,
+        firstName: formData.firstName.trim(),
+        lastName: formData.lastName.trim(),
+        name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+        referralSource: formData.referralSource.trim() || 'Direct',
+        role: 'user',
+        status: 'active',
+        balance: 0,
+        totalBet: 0,
+        totalWin: 0,
+        createdAt: new Date().toISOString(),
+      };
+
+      const docRef = await addDoc(collection(db, 'users'), newUser);
+
+      // 4) เข้าสู่ระบบอัตโนมัติ (Auto Login)
       localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('userRole', 'user');
-      localStorage.setItem('username', formData.username);
+      localStorage.setItem('userId', docRef.id);
+      localStorage.setItem('username', cleanUsername);
       localStorage.setItem('currentUser', JSON.stringify({
-        username: formData.username,
+        userId: docRef.id,
+        username: cleanUsername,
+        name: newUser.name,
+        phone: cleanPhone,
+        balance: 0,
         role: 'user',
-        name: `${formData.firstName} ${formData.lastName}`,
-        balance: demoCredit,
-        phone: formData.phoneNumber,
-        bankName: formData.bankName,
-        bankAccount: formData.bankAccount
+        loginAt: new Date().toISOString()
       }));
 
-      alert(`🎉 สมัครสมาชิกสำเร็จ!\nยินดีต้อนรับคุณ ${formData.firstName} ${formData.lastName}\nได้รับเครดิตทดลองเล่น ฿${demoCredit.toLocaleString()} เรียบร้อยแล้ว`);
+      alert(`🎉 สมัครสมาชิกสำเร็จ!\nยินดีต้อนรับคุณ ${newUser.name}\nบัญชีของท่านพร้อมใช้งานแล้วครับ`);
       navigate('/');
-    } catch (error) {
-      console.error('Registration error:', error);
-      alert('เกิดข้อผิดพลาดในการสมัครสมาชิก กรุณาลองใหม่อีกครั้ง');
+    } catch (err) {
+      console.error('Registration error:', err);
+      setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#071326] via-[#0a192f] to-[#040d1a] flex flex-col p-4 pb-12">
-      <div className="w-full max-w-lg mx-auto space-y-6 mt-2 relative z-10">
+    <div className="min-h-screen bg-gradient-to-b from-[#071326] via-[#0a192f] to-[#040d1a] flex flex-col p-4 pb-12 font-sans">
+      <div className="w-full max-w-lg mx-auto space-y-6 mt-2">
         {/* Brand header */}
         <div className="text-center">
-          <Link to="/" className="inline-flex items-center gap-1.5 mb-2 hover:scale-105 transition transform">
+          <Link to="/" className="inline-flex items-center gap-1.5 mb-2 hover:opacity-95 transition">
             <span className="text-4xl font-black text-white tracking-wider">AK</span>
             <span className="text-4xl font-black text-[#F4C430] drop-shadow-[0_0_20px_rgba(244,196,48,0.4)]">88</span>
           </Link>
-          <h1 className="text-xl font-black text-white">สมัครสมาชิกใหม่ (เปิดยูสเซอร์)</h1>
-          <p className="text-gray-300 text-xs mt-1">รับเครดิตทดลองแทงหวยฟรี ฿{demoCredit.toLocaleString()} ทันทีที่สมัคร</p>
-
-          {/* Quick 1-Click Demo Fill Button */}
-          <div className="mt-3">
-            <button
-              type="button"
-              onClick={handleAutoFill}
-              className="inline-flex items-center gap-1.5 bg-[#F4C430] hover:bg-amber-400 text-[#0a192f] text-xs font-black px-4 py-2 rounded-full shadow-lg hover:shadow-[#F4C430]/30 transition transform active:scale-95"
-            >
-              <span className="material-symbols-outlined text-sm font-black">auto_awesome</span>
-              ⚡ คลิกที่นี่: กรอกข้อมูลทดสอบอัตโนมัติ (1-Click Demo Fill)
-            </button>
-          </div>
+          <h1 className="text-2xl font-black text-white">สมัครสมาชิก</h1>
+          <p className="text-gray-300 text-xs mt-1">กรอกข้อมูลเพื่อเปิดบัญชีแทงหวยออนไลน์กับ AK88</p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           {/* Section 1: ข้อมูลเข้าสู่ระบบ */}
-          <div className="bg-white/95 backdrop-blur-md p-5 rounded-2xl border border-gray-200 shadow-xl space-y-3.5">
+          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xl space-y-3.5">
             <div className="flex items-center gap-2 border-b border-gray-100 pb-2.5">
               <span className="material-symbols-outlined text-[#0a192f] text-lg font-bold">badge</span>
               <h2 className="text-[#0a192f] font-black text-sm">1. ข้อมูลเข้าสู่ระบบ</h2>
             </div>
 
             <div>
-              <label className="text-gray-700 text-xs font-bold mb-1 block">เบอร์โทรศัพท์ (ใช้เป็นเบอร์ติดต่อ)</label>
+              <label className="text-gray-700 text-xs font-bold mb-1 block">เบอร์โทรศัพท์ (ใช้ยืนยันและเข้าสู่ระบบ) *</label>
               <input 
                 type="tel" 
                 name="phoneNumber"
                 value={formData.phoneNumber}
                 onChange={handleChange}
                 required
+                maxLength={12}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#F4C430]" 
                 placeholder="08x-xxx-xxxx" 
               />
             </div>
 
             <div>
-              <label className="text-gray-700 text-xs font-bold mb-1 block">ยูสเซอร์เนม (Username)</label>
+              <label className="text-gray-700 text-xs font-bold mb-1 block">ยูสเซอร์เนม (Username ภาษาอังกฤษ/ตัวเลข 4-20 ตัว) *</label>
               <input 
                 type="text" 
                 name="username"
                 value={formData.username}
                 onChange={handleChange}
                 required
+                maxLength={20}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#F4C430]" 
-                placeholder="เช่น ak88_winner หรือ user123" 
+                placeholder="ตั้งชื่อผู้ใช้งาน เช่น user789" 
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-gray-700 text-xs font-bold mb-1 block">รหัสผ่าน</label>
+                <label className="text-gray-700 text-xs font-bold mb-1 block">รหัสผ่าน (อย่างน้อย 6 ตัว) *</label>
                 <input 
                   type="password" 
                   name="password"
@@ -201,7 +211,7 @@ export default function Register() {
                 />
               </div>
               <div>
-                <label className="text-gray-700 text-xs font-bold mb-1 block">ยืนยันรหัสผ่าน</label>
+                <label className="text-gray-700 text-xs font-bold mb-1 block">ยืนยันรหัสผ่าน *</label>
                 <input 
                   type="password" 
                   name="confirmPassword"
@@ -215,27 +225,27 @@ export default function Register() {
             </div>
 
             <div>
-              <label className="text-gray-700 text-xs font-bold mb-1 block">รหัสแนะนำ / เอเย่นต์ (ถ้ามี)</label>
+              <label className="text-gray-700 text-xs font-bold mb-1 block">รหัสผู้แนะนำ (ถ้ามี)</label>
               <input 
                 type="text" 
                 name="referralSource"
                 value={formData.referralSource}
                 onChange={handleChange}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2 px-3 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#F4C430]" 
-                placeholder="ระบุรหัสแนะนำ เช่น AK88_VIP" 
+                placeholder="กรอกรหัสผู้แนะนำ (ไม่บังคับ)" 
               />
             </div>
           </div>
 
           {/* Section 2: ข้อมูลบัญชีธนาคารสำหรับฝาก-ถอน */}
-          <div className="bg-white/95 backdrop-blur-md p-5 rounded-2xl border border-gray-200 shadow-xl space-y-3.5">
+          <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-xl space-y-3.5">
             <div className="flex items-center gap-2 border-b border-gray-100 pb-2.5">
               <span className="material-symbols-outlined text-emerald-700 text-lg font-bold">account_balance</span>
-              <h2 className="text-[#0a192f] font-black text-sm">2. ข้อมูลบัญชีธนาคาร (ฝาก-ถอน อัตโนมัติ)</h2>
+              <h2 className="text-[#0a192f] font-black text-sm">2. ข้อมูลบัญชีธนาคารสำหรับฝาก-ถอน</h2>
             </div>
 
             <div>
-              <label className="text-gray-700 text-xs font-bold mb-1 block">เลือกธนาคาร</label>
+              <label className="text-gray-700 text-xs font-bold mb-1 block">เลือกธนาคาร *</label>
               <select 
                 name="bankName"
                 value={formData.bankName}
@@ -243,28 +253,29 @@ export default function Register() {
                 required
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#F4C430]"
               >
-                {BANKS.map(b => (
+                {THAI_BANKS.map(b => (
                   <option key={b.id} value={b.name}>{b.name}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="text-gray-700 text-xs font-bold mb-1 block">เลขที่บัญชี</label>
+              <label className="text-gray-700 text-xs font-bold mb-1 block">เลขที่บัญชีธนาคาร *</label>
               <input 
                 type="text" 
                 name="bankAccount"
                 value={formData.bankAccount}
                 onChange={handleChange}
                 required
+                maxLength={15}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#F4C430]" 
-                placeholder="กรอกเลขที่บัญชีธนาคาร" 
+                placeholder="กรอกเลขที่บัญชีธนาคาร (เฉพาะตัวเลข)" 
               />
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-gray-700 text-xs font-bold mb-1 block">ชื่อจริง</label>
+                <label className="text-gray-700 text-xs font-bold mb-1 block">ชื่อจริง *</label>
                 <input 
                   type="text" 
                   name="firstName"
@@ -276,7 +287,7 @@ export default function Register() {
                 />
               </div>
               <div>
-                <label className="text-gray-700 text-xs font-bold mb-1 block">นามสกุล</label>
+                <label className="text-gray-700 text-xs font-bold mb-1 block">นามสกุล *</label>
                 <input 
                   type="text" 
                   name="lastName"
@@ -284,56 +295,60 @@ export default function Register() {
                   onChange={handleChange}
                   required
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#F4C430]" 
-                  placeholder="นามสกุล" 
+                  placeholder="นามสกุล (ภาษาไทย)" 
                 />
               </div>
             </div>
 
-            <div className="p-2.5 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-[11px] flex items-center gap-2">
-              <span className="material-symbols-outlined text-sm text-amber-600">info</span>
-              <span>ชื่อ-นามสกุล ต้องตรงกับบัญชีธนาคารเพื่อความสะดวกในการรับยอดเงินรางวัล</span>
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+              <span className="material-symbols-outlined text-base text-amber-600 shrink-0 mt-0.5">info</span>
+              <span><strong>ข้อกำหนดสำคัญ:</strong> ชื่อ-นามสกุล ต้องตรงกับชื่อบัญชีธนาคารเท่านั้น เพื่อให้ระบบโอนเงินรางวัลและยอดถอนเข้าบัญชีของท่านโดยอัตโนมัติ</span>
             </div>
+
+            <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600 pt-1 select-none">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                className="rounded text-[#F4C430] focus:ring-[#F4C430]"
+              />
+              <span>ข้าพเจ้ายืนยันว่าข้อมูลข้างต้นเป็นความจริง และยอมรับเงื่อนไขการใช้งาน</span>
+            </label>
           </div>
 
-          {/* เครดิตทดลองฟรี */}
-          <div className="bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/30 p-3.5 rounded-xl flex items-center justify-between text-white">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-black">
-                ฿
-              </div>
-              <div>
-                <div className="text-xs font-bold text-emerald-300">โบนัสทดลองเล่นฟรีทันที</div>
-                <div className="text-base font-black text-white">฿{demoCredit.toLocaleString()} บาท</div>
-              </div>
+          {error && (
+            <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-200 text-center flex items-center justify-center gap-1.5">
+              <span className="material-symbols-outlined text-base">error</span>
+              <span>{error}</span>
             </div>
-            <span className="text-[10px] bg-emerald-500/30 border border-emerald-400/40 text-emerald-200 px-2 py-1 rounded font-bold">
-              เปิดให้เล่นทันที
-            </span>
-          </div>
+          )}
 
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full bg-gradient-to-r from-amber-400 via-[#F4C430] to-amber-500 text-[#0a192f] font-black rounded-xl py-3.5 text-lg shadow-xl hover:brightness-105 active:scale-95 transition transform disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-gradient-to-r from-amber-400 via-[#F4C430] to-amber-500 text-[#0a192f] font-black rounded-xl py-3.5 text-base shadow-xl hover:brightness-105 active:scale-95 transition transform disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
           >
             {loading ? (
-              <>กำลังเปิดบัญชีผู้ใช้...</>
+              <>กำลังลงทะเบียนข้อมูล...</>
             ) : (
               <>
-                <span className="material-symbols-outlined text-xl">check_circle</span>
-                <span>ยืนยันการสมัคร & เข้าสู่ระบบทันที</span>
+                <span className="material-symbols-outlined text-xl">how_to_reg</span>
+                <span>ยืนยันการสมัครสมาชิก</span>
               </>
             )}
           </button>
         </form>
 
         <div className="text-center pt-2 space-y-2">
-          <Link to="/login" className="text-gray-300 text-sm hover:text-white transition">
-            มีบัญชีอยู่แล้ว? <span className="text-[#F4C430] font-bold underline">เข้าสู่ระบบที่นี่</span>
-          </Link>
+          <p className="text-gray-300 text-xs">
+            มีบัญชีผู้ใช้งานอยู่แล้ว?{' '}
+            <Link to="/login" className="text-[#F4C430] font-bold hover:underline ml-1">
+              เข้าสู่ระบบที่นี่
+            </Link>
+          </p>
           <div>
-            <Link to="/" className="text-xs text-gray-500 hover:text-gray-400">
-              ← กลับไปหน้าหลัก
+            <Link to="/" className="text-xs text-gray-400 hover:text-gray-300">
+              ← กลับสู่หน้าหลัก
             </Link>
           </div>
         </div>
