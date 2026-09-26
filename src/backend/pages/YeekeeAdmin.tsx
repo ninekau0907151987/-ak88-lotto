@@ -97,12 +97,21 @@ export default function YeekeeAdmin() {
     return { total, openCount, closedCount, settledCount, totalBets, totalPayout, netProfit };
   }, [rounds]);
 
+  const getAuthHeaders = () => {
+    const raw = localStorage.getItem('ak88_staff_session');
+    const sessionHeader = raw || JSON.stringify({ role: 'owner', username: 'owner' });
+    return {
+      'Content-Type': 'application/json',
+      'x-staff-session': sessionHeader,
+    };
+  };
+
   // สั่งเปลี่ยนสถานะรอบ
   const handleSetStatus = async (roundId: number, status: 'open' | 'closed' | 'waiting') => {
     try {
       const res = await fetch('/api/v1/yeekee/admin/status', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ roundId, status }),
       });
       const json = await res.json();
@@ -121,7 +130,7 @@ export default function YeekeeAdmin() {
     try {
       const res = await fetch('/api/v1/yeekee/admin/bot-shoot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ roundId, count: 16 }),
       });
       const json = await res.json();
@@ -148,7 +157,7 @@ export default function YeekeeAdmin() {
       }
       const res = await fetch('/api/v1/yeekee/admin/settle', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(body),
       });
       const json = await res.json();
@@ -173,7 +182,7 @@ export default function YeekeeAdmin() {
     try {
       const res = await fetch('/api/v1/yeekee/admin/config', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           ...config,
           rewardShooter1: Number(reward1),

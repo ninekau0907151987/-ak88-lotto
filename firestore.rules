@@ -98,5 +98,16 @@ service cloud.firestore {
     match /transactions/{txId} {
       allow read, write: if true;
     }
+
+    // Yeekee 88 Rounds
+    match /yeekee_rounds/{id} {
+      allow read, write: if true;
+    }
+    match /yeekee_shoots/{id} {
+      allow read, write: if true;
+    }
+    match /yeekee_config/{id} {
+      allow read, write: if true;
+    }
   }
 }
