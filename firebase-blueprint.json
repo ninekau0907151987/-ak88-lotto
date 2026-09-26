@@ -1,0 +1,70 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "User account information and role",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "username": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "bankName": { "type": "string" },
+        "bankAccount": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "referralSource": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "username", "role"]
+    },
+    "tickets": {
+      "title": "Lottery Ticket",
+      "description": "Lottery ticket submitted by user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "ticketId": { "type": "string" },
+        "bets": { "type": "array" },
+        "totalAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "cancelled", "confirmed", "win", "lose"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "expiresAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "adminLogs": {
+      "title": "Admin Activity Log",
+      "description": "Record of admin actions for auditing",
+      "type": "object",
+      "properties": {
+        "admin": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" },
+        "type": { "type": "string", "enum": ["credit", "settings", "lottery", "system", "result"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "users",
+      "description": "User profiles"
+    },
+    "/tickets/{ticketId}": {
+      "schema": "tickets",
+      "description": "Lottery tickets"
+    },
+    "/adminLogs/{logId}": {
+      "schema": "adminLogs",
+      "description": "Admin activity logs"
+    },
+    "/transactions/{txId}": {
+      "schema": "object",
+      "description": "Financial transactions (deposit/withdraw)"
+    },
+    "/settings/global": {
+      "schema": "object",
+      "description": "Global system settings"
+    }
+  }
+}

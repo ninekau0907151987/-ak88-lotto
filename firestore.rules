@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==================================================================
+    // AK88 Lotto — Firestore Security Rules
+    // ------------------------------------------------------------------
+    // หมายเหตุ: ระบบนี้ใช้ Server (Express) เป็นตัวกลางเรียก Firestore
+    // โดยไม่มี Firebase Auth context → จึงต้องเปิด read/write ให้
+    // collection ที่ API ใช้ ไม่งั้น server จะเจอ permission-denied
+    //
+    // ⚠️ ถ้าจะไป production จริง ควรย้ายไปใช้ Firebase Admin SDK
+    //    (service account) แทน แล้วปิด rules เหล่านี้ให้เหลือแค่ admin
+    // ==================================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         request.auth.token.email == "ninekau.do@gmail.com");
+    }
+
+    // Agents
+    match /agents/{agentId} {
+      allow read, write: if true;
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Tickets (โพยหวย)
+    match /tickets/{ticketId} {
+      allow read, write: if true;
+      allow delete: if true;
+    }
+
+    // API Keys — server ต้องอ่านได้เพื่อตรวจ key
+    match /api_keys/{keyId} {
+      allow read, write: if true;
+    }
+
+    // API Tenants
+    match /api_tenants/{tenantId} {
+      allow read, write: if true;
+    }
+
+    // Lottery Results
+    match /lotteryResults/{resultId} {
+      allow read, write: if true;
+    }
+
+    // Lottery Types
+    match /lotteryTypes/{typeId} {
+      allow read, write: if true;
+    }
+
+    // Lottery Settings
+    match /lotterySettings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Lottery Rounds (รอบหวย)
+    match /lotteryRounds/{roundId} {
+      allow read, write: if true;
+    }
+
+    // Blocked Numbers (เลขอั้น)
+    match /blocked_numbers/{blockId} {
+      allow read, write: if true;
+    }
+
+    // Bet Queue (คิวโพย)
+    match /bet_queue/{queueId} {
+      allow read, write: if true;
+    }
+
+    // Admin Logs
+    match /adminLogs/{logId} {
+      allow read, write: if true;
+    }
+
+    // Global Settings
+    match /settings/{settingId} {
+      allow read, write: if true;
+    }
+
+    // Transactions
+    match /transactions/{txId} {
+      allow read, write: if true;
+    }
+  }
+}

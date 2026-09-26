@@ -1,0 +1,504 @@
+@import "tailwindcss";
+
+:root {
+    --navy-deep: #0a192f;
+    --navy-text: #051121;
+    --gold-vibrant: #f5c518;
+    --gold-accent: #e5b600;
+    --bg-main: #fcfcfc;
+    --bg-content: #ffffff;
+    --bg-grey-light: #f1f5f9;
+    --grey-border: #e2e8f0;
+    --success-vibrant: #00c853;
+    --danger-vibrant: #ff1744;
+    --inactive-btn: #e2e8f0;
+    --selection-blue: #0D47A1;
+
+    /* ============================================================
+     * ★ ธีมหลังบ้าน — โทนครีม/บ้านๆ (Cream & Warm Neutrals)
+     * ใช้กับหลังบ้าน (AdminDashboard, MasterDashboard, AgentProfile)
+     * หน้าบ้านยังใช้สีเดิม (navy + gold) ไม่กระทบ
+     * ============================================================ */
+    --admin-bg: #faf6ef;          /* พื้นหลังหลัก */
+    --admin-card: #fffdf8;        /* การ์ด */
+    --admin-subtle: #f5efe2;      /* พื้นรอง */
+    --admin-border: #e8dfcc;      /* เส้นขอบ */
+    --admin-border-strong: #d9cdb4;
+    --admin-text: #3d3226;        /* น้ำตาลเข้ม ไม่ดำสนิท */
+    --admin-text-muted: #8a7d6b;
+    --admin-text-faint: #b3a897;
+    --admin-accent: #a67c52;      /* น้ำตาลทอง */
+    --admin-accent-dark: #7d5a38;
+    --admin-accent-soft: #f0e6d6;
+    --admin-accent-text: #7d5a38;
+}
+
+/* ---- ธีมหลังบ้าน: พื้นหลังครีมทั้งหน้า ---- */
+.admin-cream {
+    background-color: var(--admin-bg);
+    color: var(--admin-text);
+}
+.admin-cream body,
+body.admin-cream {
+    background-color: var(--admin-bg);
+}
+
+/* การ์ดหลังบ้าน */
+.admin-card {
+    background: var(--admin-card);
+    border: 1px solid var(--admin-border);
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px rgba(61, 50, 38, 0.06);
+}
+
+/* หัวข้อหลังบ้าน */
+.admin-title {
+    color: var(--admin-text);
+    font-weight: 900;
+}
+.admin-subtitle {
+    color: var(--admin-text-muted);
+    font-size: 0.75rem;
+}
+
+/* ตารางหลังบ้าน — หัวตารางโทนครีม */
+.admin-table th {
+    background: var(--admin-subtle);
+    color: var(--admin-text-muted);
+    font-weight: 900;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.admin-table td {
+    border-color: var(--admin-border);
+    color: var(--admin-text);
+}
+.admin-table tbody tr:hover {
+    background: var(--admin-subtle);
+}
+
+/* ตัวเลขในตาราง — หลักตรงกัน */
+.tabular-nums {
+    font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+ * ★ พิมพ์บิล — ซ่อนทุกอย่างนอกจากตัวบิล
+ * ============================================================ */
+@media print {
+    body * { visibility: hidden; }
+    .bill-printable, .bill-printable * { visibility: visible; }
+    .bill-printable {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        max-width: 80mm;
+        box-shadow: none !important;
+        border: none !important;
+    }
+    .no-print { display: none !important; }
+    @page { margin: 5mm; size: 80mm auto; }
+}
+
+/* Hide scrollbars globally */
+*::-webkit-scrollbar {
+    display: none;
+}
+* {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* ============================================================
+ * ★ THEME "หวยชุด" — พื้นขาว เป็นกรอบ (Light Frame Theme)
+ * ------------------------------------------------------------
+ * ผู้ใช้ขอ: "ทำพื้นสีขาว ออกแบบเป็นกรอบ กดเลข เลือกใส่เงิน"
+ *           "ตรีม หวยอื่นๆ หวยชุดมันมืดมาก"
+ * หลักการ: พื้นขาว + การ์ดมีกรอบชัด + เงาบาง 1px
+ * ============================================================ */
+:root {
+    --bet-bg: #ffffff;
+    --bet-surface: #ffffff;
+    --bet-subtle: #f8f9fb;
+    --bet-frame: #d7dbe2;       /* กรอบหลัก */
+    --bet-frame-strong: #b8c0cb;
+    --bet-divider: #e8ebf0;
+    --bet-text: #1f2733;
+    --bet-text-muted: #6b7684;
+    --bet-text-faint: #9aa4b2;
+    --bet-primary: #1e5fa8;      /* ฟ้าเข้ม = สีหลัก */
+    --bet-primary-soft: #eaf1fa;
+    --bet-primary-border: #cfe1f5;
+    --bet-primary-text: #1a4f8a;
+    --bet-muted: var(--bet-text-muted);
+    --bet-accent: #d97706;
+    --bet-success: #059669;
+    --bet-danger: #dc2626;
+    --bet-ink: #101826;          /* เลข/ตัวอักษรเน้น */
+    /* สีหมวด */
+    --cat-lek: #2563eb;          /* เล็ก — ฟ้า */
+    --cat-lek-bg: #eaf1fe;
+    --cat-klang: #d97706;        /* กลาง — เหลืองทอง */
+    --cat-klang-bg: #fef5e7;
+    --cat-yai: #dc2626;          /* ใหญ่ — แดง */
+    --cat-yai-bg: #fdeceb;
+}
+
+/* พื้นหลังกระดานหวย — ขาวสะอาด */
+.bet-board {
+    background-color: var(--bet-bg);
+    color: var(--bet-text);
+}
+
+/* กรอบมาตรฐาน — ทุกบล็อกมีขอบชัด ดูเป็นกรอบจริง */
+.bet-frame {
+    background: var(--bet-surface);
+    border: 1px solid var(--bet-frame);
+    border-radius: 0.875rem;
+    box-shadow: 0 1px 2px rgba(16, 24, 38, 0.04);
+}
+
+/* กรอบเน้น — สำหรับส่วนที่ต้องเด่น */
+.bet-frame-strong {
+    background: var(--bet-surface);
+    border: 1.5px solid var(--bet-primary);
+    border-radius: 0.875rem;
+    box-shadow: 0 2px 8px rgba(30, 95, 168, 0.10);
+}
+
+/* ช่องกรอกเลข — กรอบชัด กดแล้วเห็นชัด */
+.bet-digit {
+    background: #ffffff;
+    border: 1.5px solid var(--bet-frame-strong);
+    color: var(--bet-ink);
+    font-variant-numeric: tabular-nums;
+    transition: border-color .15s, box-shadow .15s, transform .1s;
+}
+.bet-digit:focus {
+    border-color: var(--bet-primary);
+    box-shadow: 0 0 0 3px rgba(30, 95, 168, 0.15);
+    outline: none;
+}
+.bet-digit--filled {
+    background: var(--bet-primary);
+    border-color: var(--bet-primary);
+    color: #ffffff;
+    border-style: solid;
+}
+
+/* ปุ่มเลือกหมวดเงิน — เล็ก/กลาง/ใหญ่ ให้กดง่ายบนมือถือ */
+.bet-cat-btn {
+    background: #ffffff;
+    border: 1.5px dashed var(--bet-frame-strong);
+    color: var(--bet-text-faint);
+    transition: all .15s;
+}
+.bet-cat-btn:active { transform: scale(0.94); }
+
+.bet-cat-btn--lek.is-on   { background: var(--cat-lek);   border: 1.5px solid var(--cat-lek);   color: #fff; border-style: solid; }
+.bet-cat-btn--klang.is-on { background: var(--cat-klang); border: 1.5px solid var(--cat-klang); color: #fff; border-style: solid; }
+.bet-cat-btn--yai.is-on   { background: var(--cat-yai);   border: 1.5px solid var(--cat-yai);   color: #fff; border-style: solid; }
+
+/* แถวที่กรอกครบแล้ว — ไฮไลต์เบาๆ */
+.bet-row--ready { background: var(--bet-primary-soft); }
+
+/* หัวตาราง */
+.bet-thead {
+    background: var(--bet-subtle);
+    border-bottom: 1.5px solid var(--bet-frame);
+    color: var(--bet-text-muted);
+}
+
+/* เส้นแบ่ง */
+.bet-divide > * + * { border-top: 1px solid var(--bet-divider); }
+
+/* การ์ดสรุปตัวเลข (ชุด/ตัว/เงิน) */
+.bet-stat {
+    background: #ffffff;
+    border: 1px solid var(--bet-frame);
+    border-radius: 0.75rem;
+}
+.bet-stat--hero {
+    background: var(--bet-primary-soft);
+    border: 1.5px solid var(--bet-primary);
+}
+
+/* ปุ่มยืนยันหลัก */
+.bet-submit {
+    background: var(--bet-primary);
+    color: #fff;
+    border: none;
+    box-shadow: 0 4px 14px rgba(30, 95, 168, 0.28);
+}
+.bet-submit:hover:not(:disabled) { background: #1a5296; }
+.bet-submit:disabled {
+    background: #e8ebf0;
+    color: var(--bet-text-faint);
+    box-shadow: none;
+}
+
+/* ---- เลือก "ยอดเงิน" ของแต่ละหมวด (ป๊อปอัป/แถบล่าง) ---- */
+.bet-money-opt {
+    background: #fff;
+    border: 1.5px solid var(--bet-frame);
+    color: var(--bet-text);
+    transition: all .12s;
+}
+.bet-money-opt.is-on {
+    background: var(--bet-primary);
+    border-color: var(--bet-primary);
+    color: #fff;
+}
+
+body {
+    font-family: 'Kanit', sans-serif;
+    background-color: var(--bg-main);
+    color: var(--navy-text);
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+}
+
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ============================================================
+ * ★ ครัวเรือนหวย 20 ช่อง 6 หลัก — ส่วนขยายธีมขาว/กรอบ
+ * ใช้ร่วมกับ .bet-board ของหวยชุด (พื้นขาว กรอบเทา ฟ้าเข้ม)
+ * ============================================================ */
+
+/* กรอบมาตรฐานของการ์ด */
+.bet-frame__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--bet-frame);
+    background: var(--bet-subtle);
+}
+.bet-frame__title {
+    font-size: 13.5px;
+    font-weight: 800;
+    color: var(--bet-text);
+    letter-spacing: -0.1px;
+}
+.bet-frame__sub {
+    font-size: 11.5px;
+    color: var(--bet-text-muted);
+    margin-top: 1px;
+    line-height: 1.5;
+}
+.bet-frame__body { padding: 14px; }
+
+/* การ์ดสถิติ/ตัวเลข */
+.bet-stat__label {
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--bet-text-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.bet-stat__value {
+    font-size: 17px;
+    font-weight: 800;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    color: var(--bet-text);
+    font-variant-numeric: tabular-nums;
+}
+
+/* กรอบ SVG — ให้รูปอยู่ในการ์ดพื้นขาว */
+.bet-svgbox {
+    background: #fff;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.bet-svgbox svg { display: block; }
+
+/* ปุ่มหมวดแบบ active */
+.bet-cat-btn--active {
+    background: var(--bet-primary-soft);
+    color: var(--bet-primary-text);
+    font-weight: 800;
+}
+
+/* ตารางอัตราจ่าย — การ์ดบนมือถือ อัตโนมัติเป็นคอลัมน์บนจอใหญ่ */
+.bet-payout-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+}
+@media (min-width: 768px) {
+    .bet-payout-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (min-width: 1200px) {
+    .bet-payout-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
+/* ป้ายเตือนแบบแถบ */
+.bet-note {
+    display: flex;
+    gap: 7px;
+    align-items: flex-start;
+    border-radius: 8px;
+    padding: 9px 11px;
+    font-size: 12px;
+    line-height: 1.55;
+    border: 1px solid transparent;
+}
+.bet-note--info    { background: #eff6ff; border-color: #bfdbfe66; color: #1e40af; }
+.bet-note--warn    { background: #fffbeb; border-color: #fcd34d66; color: #92400e; }
+.bet-note--danger  { background: #fef2f2; border-color: #fecaca66; color: #991b1b; }
+.bet-note--success { background: #ecfdf5; border-color: #a7f3d066; color: #065f46; }
+
+/* ปุ่มมาตรฐาน */
+.bet-btn {
+    border: 1px solid var(--bet-frame);
+    background: #fff;
+    color: var(--bet-text);
+    border-radius: 8px;
+    padding: 8px 13px;
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background .12s, border-color .12s;
+}
+.bet-btn:hover { background: var(--bet-subtle); border-color: var(--bet-primary); }
+.bet-btn:active { transform: scale(0.97); }
+.bet-btn:disabled { opacity: .45; cursor: not-allowed; }
+.bet-btn--primary {
+    background: var(--bet-primary);
+    border-color: var(--bet-primary);
+    color: #fff;
+}
+.bet-btn--primary:hover { background: var(--bet-primary-text); }
+.bet-btn--danger { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.bet-btn--danger:hover { background: #fee2e2; }
+
+/* ช่องกรอกแบบมีกรอบ */
+.bet-input {
+    border: 1.5px solid var(--bet-frame);
+    border-radius: 8px;
+    padding: 8px 11px;
+    font-size: 13px;
+    color: var(--bet-text);
+    background: #fff;
+    outline: none;
+    width: 100%;
+    font-variant-numeric: tabular-nums;
+}
+.bet-input:focus {
+    border-color: var(--bet-primary);
+    box-shadow: 0 0 0 3px var(--bet-primary-soft);
+}
+.bet-input--mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+
+/* ตารางข้อมูล */
+.bet-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.bet-table thead th {
+    background: var(--bet-subtle);
+    border-bottom: 1.5px solid var(--bet-frame);
+    padding: 9px 10px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--bet-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.bet-table tbody td {
+    border-bottom: 1px solid var(--bet-divider);
+    padding: 9px 10px;
+    color: var(--bet-text);
+    vertical-align: middle;
+}
+.bet-table tbody tr:hover { background: var(--bet-subtle); }
+.bet-table .num {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+.bet-table__wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+/* ป้ายสถานะ */
+.bet-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    padding: 2.5px 9px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+.bet-badge--success { background: #ecfdf5; color: #065f46; border-color: #a7f3d0; }
+.bet-badge--warn    { background: #fffbeb; color: #92400e; border-color: #fcd34d; }
+.bet-badge--danger  { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+.bet-badge--info    { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+.bet-badge--muted   { background: var(--bet-subtle); color: var(--bet-text-muted); border-color: var(--bet-frame); }
+
+/* เลข 20 ช่องแบบย่อ (แสดงผล) */
+.bet-slotgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+    gap: 5px;
+}
+.bet-slot {
+    border: 1px solid var(--bet-frame);
+    border-radius: 6px;
+    padding: 4px 2px;
+    text-align: center;
+    background: #fff;
+}
+.bet-slot--used { border-color: var(--bet-primary); background: var(--bet-primary-soft); }
+.bet-slot--sub  { border-color: var(--bet-danger); background: #fef2f2; }
+.bet-slot__i { font-size: 8.5px; color: var(--bet-text-faint); }
+.bet-slot__v {
+    font-size: 10.5px;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-weight: 700;
+    color: var(--bet-text-muted);
+}
+.bet-slot--used .bet-slot__v { color: var(--bet-primary-text); }
+.bet-slot--sub .bet-slot__v  { color: var(--bet-danger); }
+
+/* สลับแท็บแบบแนวนอน เลื่อนได้บนมือถือ */
+.bet-tabs {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+.bet-tabs::-webkit-scrollbar { display: none; }
+.bet-tabs__item {
+    flex: 0 0 auto;
+    padding: 10px 15px;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--bet-text-muted);
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.bet-tabs__item--active {
+    color: var(--bet-primary-text);
+    border-bottom-color: var(--bet-primary);
+}
+
+/* สลับก่อนพิมพ์ — ซ่อนปุ่ม */
+@media print {
+    .no-print { display: none !important; }
+    .bet-frame { break-inside: avoid; border-color: #ccc; }
+    .bet-svgbox { overflow: visible; }
+    body { background: #fff; }
+}

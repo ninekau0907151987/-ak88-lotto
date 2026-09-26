@@ -1,0 +1,8 @@
+{
+  "name": "ตรีมหวย นิก",
+  "description": "ระบบหวยและเกมพร้อมระบบคำนวณภาษีหัก ณ ที่จ่าย และการตั้งค่าภาษีแบบเปิด-ปิดได้",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
