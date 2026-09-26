@@ -97,17 +97,7 @@ export default function Login() {
         return;
       }
 
-      // 3) กรณีบัญชีจำลองเริ่มต้น demo_user (เพื่อความสะดวกในการทดสอบ)
-      if ((loginInput === 'user' || loginInput === 'demo' || loginInput === 'member') && (passInput === '1234' || passInput === '123456')) {
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userRole', 'user');
-        localStorage.setItem('userId', 'demo_user');
-        localStorage.setItem('username', 'User_AK88');
-        navigate('/');
-        return;
-      }
-
-      // หากไม่ตรงกับเงื่อนไขใดเลย แสดงข้อผิดพลาดจริง
+      // หากไม่ตรงกับบัญชีใดในระบบ แสดงข้อผิดพลาดจริง
       setError('ชื่อผู้ใช้งาน เบอร์โทรศัพท์ หรือรหัสผ่านไม่ถูกต้อง');
     } catch (err) {
       console.error('Login error:', err);

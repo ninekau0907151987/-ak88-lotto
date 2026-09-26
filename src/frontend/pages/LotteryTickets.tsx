@@ -11,10 +11,24 @@ export default function LotteryTickets() {
   const [currentTime, setCurrentTime] = useState(Date.now());
   const ticketRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
+  const currentUserId = localStorage.getItem('userId');
+  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+
   useEffect(() => {
-    const q = query(collection(db, 'tickets'), where('userId', '==', 'demo_user'), orderBy('createdAt', 'desc'));
+    if (!isLoggedIn || !currentUserId) {
+      setTickets([]);
+      return;
+    }
+
+    const q = query(
+      collection(db, 'tickets'),
+      where('userId', '==', currentUserId),
+      orderBy('createdAt', 'desc')
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setTickets(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => {
+      console.warn('Tickets subscription warning:', err);
     });
 
     const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
@@ -23,7 +37,7 @@ export default function LotteryTickets() {
       unsubscribe();
       clearInterval(timer);
     };
-  }, []);
+  }, [currentUserId, isLoggedIn]);
 
   const getStatusDisplay = (ticket: any) => {
     if (ticket.status === 'cancelled') return { label: 'ยกเลิกแล้ว', color: 'bg-gray-100 text-gray-500' };

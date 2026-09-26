@@ -215,3 +215,8 @@ export const wallet = {
     return memoryBalances.get(userId) || 0;
   },
 };
+
+export function clearMemoryBalances() {
+  memoryBalances.clear();
+}
+

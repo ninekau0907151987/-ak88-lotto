@@ -14,9 +14,15 @@ export default function Withdraw() {
   const [withdrawHistory, setWithdrawHistory] = useState<any[]>([]);
   const [successNotice, setSuccessNotice] = useState<any>(null);
 
-  const currentUserId = localStorage.getItem('userId') || 'demo_user';
+  const currentUserId = localStorage.getItem('userId');
+  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
 
   useEffect(() => {
+    if (!isLoggedIn || !currentUserId) {
+      navigate('/login');
+      return;
+    }
+
     // 1) Subscribe to user data
     const unsubscribe = onSnapshot(doc(db, 'users', currentUserId), (snap) => {
       if (snap.exists()) {

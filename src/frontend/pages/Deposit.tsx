@@ -18,10 +18,16 @@ export default function Deposit() {
   const [successResult, setSuccessResult] = useState<any>(null);
   const [depositHistory, setDepositHistory] = useState<any[]>([]);
 
-  const currentUserId = localStorage.getItem('userId') || 'demo_user';
+  const currentUserId = localStorage.getItem('userId');
+  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
   const username = localStorage.getItem('username') || userData?.username || 'สมาชิก';
 
   useEffect(() => {
+    if (!isLoggedIn || !currentUserId) {
+      navigate('/login');
+      return;
+    }
+
     // Listen user balance
     const unsubscribe = onSnapshot(doc(db, 'users', currentUserId), (snap) => {
       if (snap.exists()) {

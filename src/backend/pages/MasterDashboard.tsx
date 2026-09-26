@@ -782,41 +782,6 @@ export default function MasterDashboard() {
                             <span className="material-symbols-outlined">save</span>
                             บันทึกผลรางวัล
                           </button>
-                          <button
-                            onClick={async () => {
-                              if(!window.confirm('คุณต้องการจำลองผลรางวัลสำหรับหวยทั้งหมดในวันนี้หรือไม่?')) return;
-                              try {
-                                for(const lottery of lotteryTypes) {
-                                  const r3Up = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-                                  const r2Down = String(Math.floor(Math.random() * 100)).padStart(2, '0');
-                                  const r3Front = String(Math.floor(Math.random() * 1000)).padStart(3, '0') + ' ' + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-                                  const r3Back = String(Math.floor(Math.random() * 1000)).padStart(3, '0') + ' ' + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-                                  
-                                  await addDoc(collection(db, 'lotteryResults'), {
-                                    lotteryId: lottery.id,
-                                    lotteryName: lottery.name,
-                                    date: new Date().toLocaleDateString('en-CA'),
-                                    results: {
-                                      threeUp: r3Up,
-                                      twoDown: r2Down,
-                                      threeFront: lottery.name === 'หวยรัฐบาล' ? r3Front : '',
-                                      threeBack: lottery.name === 'หวยรัฐบาล' ? r3Back : ''
-                                    },
-                                    createdAt: new Date().toISOString(),
-                                    status: 'published'
-                                  });
-                                }
-                                alert('จำลองผลรางวัลสำเร็จทั้งหมด');
-                              } catch (e) {
-                                console.error(e);
-                                alert('เกิดข้อผิดพลาดในการจำลองผล');
-                              }
-                            }}
-                            className="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl font-bold transition shadow-lg shadow-blue-600/20 text-lg flex items-center justify-center gap-2 whitespace-nowrap"
-                          >
-                            <span className="material-symbols-outlined">auto_fix_high</span>
-                            จำลองผลทุกหวย
-                          </button>
                         </div>
                       </div>
                     ) : (

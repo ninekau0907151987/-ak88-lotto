@@ -1198,8 +1198,10 @@ export default function AdminDashboard() {
           settledAt: new Date().toISOString()
         });
         
+        if (!winner.userId) continue;
+        
         // Update user balance and record transaction
-        const userRef = doc(db, 'users', winner.userId || 'demo_user');
+        const userRef = doc(db, 'users', winner.userId);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
           const currentBalance = userSnap.data().balance || 0;
@@ -1210,8 +1212,8 @@ export default function AdminDashboard() {
             : '';
 
           await addDoc(collection(db, 'transactions'), {
-            userId: winner.userId || 'demo_user',
-            username: winner.username || 'Demo User',
+            userId: winner.userId,
+            username: winner.username || 'สมาชิก',
             type: 'win',
             amount: finalWinAmount,
             grossAmount: winner.grossWinAmount || finalWinAmount,
@@ -1973,42 +1975,6 @@ export default function AdminDashboard() {
                               className="w-full bg-[var(--navy-deep)] text-[var(--gold-vibrant)] py-4 rounded-xl font-black shadow-xl hover:scale-105 transition active:scale-95 disabled:opacity-50"
                             >
                               {isSettling ? 'กำลังคำนวณ...' : 'คำนวณยอดเงินถูกรางวัล'}
-                            </button>
-                            <button
-                              disabled={isSettling}
-                              onClick={async () => {
-                                if(!window.confirm('คุณต้องการจำลองผลรางวัลสำหรับหวยทั้งหมดในวันนี้หรือไม่?')) return;
-                                try {
-                                  for(const lotType of Object.keys(lotterySettings)) {
-                                    const r3Up = String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-                                    const r2Down = String(Math.floor(Math.random() * 100)).padStart(2, '0');
-                                    const r3Front = String(Math.floor(Math.random() * 1000)).padStart(3, '0') + ' ' + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-                                    const r3Back = String(Math.floor(Math.random() * 1000)).padStart(3, '0') + ' ' + String(Math.floor(Math.random() * 1000)).padStart(3, '0');
-                                    
-                                    await addDoc(collection(db, 'lotteryResults'), {
-                                      lotteryId: lotType,
-                                      lotteryName: lotType,
-                                      date: new Date().toLocaleDateString('en-CA'),
-                                      results: {
-                                        threeUp: r3Up,
-                                        twoDown: r2Down,
-                                        threeFront: lotType === 'หวยรัฐบาล' ? r3Front : '',
-                                        threeBack: lotType === 'หวยรัฐบาล' ? r3Back : ''
-                                      },
-                                      createdAt: new Date().toISOString(),
-                                      status: 'published'
-                                    });
-                                  }
-                                  alert('จำลองผลรางวัลสำเร็จทั้งหมด');
-                                } catch (e) {
-                                  console.error(e);
-                                  alert('เกิดข้อผิดพลาดในการจำลองผล');
-                                }
-                              }}
-                              className="bg-blue-600 text-white px-4 rounded-xl font-black shadow-xl hover:scale-105 transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
-                            >
-                              <span className="material-symbols-outlined">auto_fix_high</span>
-                              จำลองผลทุกหวย
                             </button>
                           </div>
                        </div>
@@ -4394,7 +4360,7 @@ export default function AdminDashboard() {
                 </thead>
                 <tbody>
                   {filteredTransactions
-                    .filter(tx => tx.userId === selectedUserForHistory?.id || (selectedUserForHistory?.id === 'demo_user' && tx.userId === 'demo_user'))
+                    .filter(tx => tx.userId === selectedUserForHistory?.id)
                     .map(tx => (
                       <tr key={tx.id} className="border-b transition">
                         <td className="p-4 text-gray-500">{new Date(tx.createdAt).toLocaleString('th-TH')}</td>
@@ -4414,7 +4380,7 @@ export default function AdminDashboard() {
                         <td className="p-4 text-gray-500 italic">{tx.description}</td>
                       </tr>
                     ))}
-                  {transactions.filter(tx => tx.userId === selectedUserForHistory?.id || (selectedUserForHistory?.id === 'demo_user' && tx.userId === 'demo_user')).length === 0 && (
+                  {transactions.filter(tx => tx.userId === selectedUserForHistory?.id).length === 0 && (
                     <tr>
                       <td colSpan={4} className="p-12 text-center text-gray-400">ไม่พบประวัติการทำรายการ</td>
                     </tr>

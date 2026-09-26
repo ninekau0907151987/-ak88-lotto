@@ -185,7 +185,8 @@ export default function LotteryBet() {
     if (showHistoryModal) {
       const fetchTickets = async () => {
         try {
-          const currentUserId = localStorage.getItem('userId') || 'demo_user';
+          const currentUserId = localStorage.getItem('userId');
+          if (!currentUserId) return;
           const q = query(
             collection(db, 'tickets'), 
             where('userId', '==', currentUserId), 
@@ -341,12 +342,15 @@ export default function LotteryBet() {
       }
     });
 
-    const currentUserId = localStorage.getItem('userId') || 'demo_user';
-    const unsubscribeUser = onSnapshot(doc(db, 'users', currentUserId), (doc) => {
-      if (doc.exists()) {
-        setUserData(doc.data());
-      }
-    });
+    const currentUserId = localStorage.getItem('userId');
+    let unsubscribeUser = () => {};
+    if (currentUserId) {
+      unsubscribeUser = onSnapshot(doc(db, 'users', currentUserId), (snap) => {
+        if (snap.exists()) {
+          setUserData(snap.data());
+        }
+      });
+    }
 
     return () => {
       unsubscribe();
@@ -1040,7 +1044,12 @@ export default function LotteryBet() {
         expiresAt: expires,
       };
 
-      const currentUserId = localStorage.getItem('userId') || 'demo_user';
+      const currentUserId = localStorage.getItem('userId');
+      if (!currentUserId || localStorage.getItem('isLoggedIn') !== 'true') {
+        alert('กรุณาเข้าสู่ระบบก่อนทำการแทงหวย');
+        navigate('/login');
+        return;
+      }
 
       // Save to Firestore
       await addDoc(collection(db, 'tickets'), {
@@ -1073,27 +1082,28 @@ export default function LotteryBet() {
     setIsSubmitting(true);
     try {
       const total = info.total;
-      const currentUserId = localStorage.getItem('userId') || 'demo_user';
+      const currentUserId = localStorage.getItem('userId');
+      if (!currentUserId || localStorage.getItem('isLoggedIn') !== 'true') {
+        alert('กรุณาเข้าสู่ระบบก่อนทำการส่งโพยแทงหวย');
+        navigate('/login');
+        setIsSubmitting(false);
+        return;
+      }
 
       // 1. Check Balance
       const userRef = doc(db, 'users', currentUserId);
       const userSnap = await getDoc(userRef);
       
-      let currentBalance = 0;
       if (!userSnap.exists()) {
-        // Auto-create user doc if missing
-        await setDoc(userRef, {
-          balance: 10000,
-          role: 'user',
-          createdAt: new Date().toISOString()
-        });
-        currentBalance = 10000;
-      } else {
-        currentBalance = userSnap.data().balance || 0;
+        alert('ไม่พบข้อมูลบัญชีผู้ใช้งาน กรุณาเข้าสู่ระบบใหม่');
+        navigate('/login');
+        setIsSubmitting(false);
+        return;
       }
       
+      const currentBalance = userSnap.data().balance || 0;
       if (currentBalance < total) {
-        alert('ยอดเงินคงเหลือไม่เพียงพอ กรุณาเติมเงิน');
+        alert(`ยอดเงินคงเหลือไม่เพียงพอ (มี ฿${currentBalance.toLocaleString()} / ต้องใช้ ฿${total.toLocaleString()}) กรุณาเติมเงินก่อนส่งโพย`);
         setIsSubmitting(false);
         return;
       }
@@ -1165,8 +1175,11 @@ export default function LotteryBet() {
   const cancelTicket = async (ticketId: string, amount: number) => {
     if (window.confirm('คุณต้องการยกเลิกโพยนี้ใช่หรือไม่? ยอดเงินจะถูกคืนเข้าบัญชี')) {
       try {
+        const currentUserId = localStorage.getItem('userId');
+        if (!currentUserId) return;
+
         // 1. Refund Balance
-        const userRef = doc(db, 'users', 'demo_user');
+        const userRef = doc(db, 'users', currentUserId);
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
           await updateDoc(userRef, {
@@ -1175,7 +1188,7 @@ export default function LotteryBet() {
           
           // Record Refund Transaction
           await addDoc(collection(db, 'transactions'), {
-            userId: 'demo_user',
+            userId: currentUserId,
             type: 'refund',
             amount: amount,
             description: `คืนเงินยกเลิกโพย ${ticketId}`,

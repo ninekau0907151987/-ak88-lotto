@@ -21,10 +21,10 @@ export default function Layout() {
   // ตรวจสอบสถานะการล็อกอินและซิงค์ยอดเงินจริงจาก Firestore
   useEffect(() => {
     const logged = localStorage.getItem('isLoggedIn') === 'true';
-    const uid = localStorage.getItem('userId') || 'demo_user';
-    const uname = localStorage.getItem('username') || '';
+    const uid = logged ? (localStorage.getItem('userId') || '') : '';
+    const uname = logged ? (localStorage.getItem('username') || '') : '';
 
-    setIsLoggedIn(logged);
+    setIsLoggedIn(logged && !!uid);
     setUserId(uid);
     setUsername(uname);
 

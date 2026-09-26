@@ -125,27 +125,34 @@ export default function LotterySetBet() {
     return () => unsubscribeBlocked();
   }, [lotterySetType]);
 
+  const currentUserId = localStorage.getItem('userId');
+  const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+
   // User Profile & Balance Sync
   useEffect(() => {
-    const unsubscribeUser = onSnapshot(doc(db, 'users', 'demo_user'), (snapshot) => {
+    if (!isLoggedIn || !currentUserId) {
+      setUserData(null);
+      return;
+    }
+
+    const unsubscribeUser = onSnapshot(doc(db, 'users', currentUserId), (snapshot) => {
       if (snapshot.exists()) {
         setUserData(snapshot.data());
-      } else {
-        setDoc(doc(db, 'users', 'demo_user'), {
-          balance: 25000,
-          role: 'user',
-          createdAt: new Date().toISOString()
-        });
       }
     });
     return () => unsubscribeUser();
-  }, []);
+  }, [currentUserId, isLoggedIn]);
 
   // Sync Tickets History
   useEffect(() => {
+    if (!isLoggedIn || !currentUserId) {
+      setRecentTickets([]);
+      return;
+    }
+
     const q = query(
       collection(db, 'tickets'),
-      where('userId', '==', 'demo_user'),
+      where('userId', '==', currentUserId),
       where('ticketType', '==', 'set')
     );
     const unsubscribeTickets = onSnapshot(q, (snapshot) => {
@@ -412,6 +419,12 @@ export default function LotterySetBet() {
       return;
     }
 
+    if (!currentUserId || !isLoggedIn) {
+      alert('กรุณาเข้าสู่ระบบก่อนทำการแทงหวยชุด');
+      navigate('/login');
+      return;
+    }
+
     const currentBalance = userData?.balance || 0;
     if (currentBalance < totalCost) {
       alert(`ยอดเงินเครดิตไม่เพียงพอ (มี ฿${currentBalance.toLocaleString()} / ต้องใช้ ฿${totalCost.toLocaleString()})\nกรุณาเติมเงินก่อนทำรายการ`);
@@ -422,7 +435,7 @@ export default function LotterySetBet() {
     try {
       // 1. Deduct Balance
       const newBalance = currentBalance - totalCost;
-      await updateDoc(doc(db, 'users', 'demo_user'), {
+      await updateDoc(doc(db, 'users', currentUserId), {
         balance: newBalance
       });
 
@@ -433,7 +446,7 @@ export default function LotterySetBet() {
 
       const ticketDoc = {
         ticketId: newTicketId,
-        userId: 'demo_user',
+        userId: currentUserId,
         ticketType: 'set',
         lotteryType: lotterySetType,
         bets: preparedBets,
@@ -470,7 +483,8 @@ export default function LotterySetBet() {
     }
 
     try {
-      const userRef = doc(db, 'users', 'demo_user');
+      if (!currentUserId) return;
+      const userRef = doc(db, 'users', currentUserId);
       const userSnap = await getDoc(userRef);
       if (userSnap.exists()) {
         const curBal = userSnap.data().balance || 0;

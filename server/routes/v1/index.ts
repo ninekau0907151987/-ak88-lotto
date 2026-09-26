@@ -131,6 +131,13 @@ export function createV1Router(db: any) {
     ok(res, out, { message: out.message });
   }));
 
+  // ---- ล้างข้อมูลทดสอบเพื่อเปิดระบบจริง ----
+  api.post('/system/purge-test-data', asyncHandler(async (_req, res) => {
+    const { purgeTestData } = await import('../../domains/system/purge.service');
+    const out = await purgeTestData(db);
+    ok(res, out, { message: out.message });
+  }));
+
   // ---------- 2) ต้องใช้ API Key ทุกเส้นด้านล่าง ----------
   const auth = Router();
   auth.use(authenticate);
