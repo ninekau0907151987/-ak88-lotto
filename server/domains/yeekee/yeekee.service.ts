@@ -298,17 +298,19 @@ export class YeekeeService {
     // ค้นหาโพยยี่กีของรอบนี้
     let totalBets = 0;
     let totalPayout = 0;
+    const settledTicketIds = new Set<string>();
 
     try {
       if (this.db) {
         const qTickets = query(
           collection(this.db, COL.TICKETS),
           where('lotterySlug', '==', `yeekee-${roundId}`),
-          where('status', 'in', ['pending', 'pending_cancellation', 'active'])
+          where('status', 'in', ['pending', 'pending_cancellation', 'active', 'confirmed'])
         );
         const ticketSnap = await getDocs(qTickets);
 
         for (const tDoc of ticketSnap.docs) {
+          settledTicketIds.add(tDoc.id);
           const ticket: any = tDoc.data();
           const betItems = ticket.bets || [];
           const evaluated = evaluateYeekeeTicket(betItems, res, config.payoutRates);
@@ -336,6 +338,37 @@ export class YeekeeService {
       }
     } catch (e) {
       console.warn('[yeekee] tickets settlement firestore fallback:', (e as Error).message);
+    }
+
+    // ตรวจสอบโพยจาก memoryTickets ควบคู่
+    try {
+      const { memoryTickets } = await import('../betting/betting.service');
+      for (const [id, ticket] of memoryTickets.entries()) {
+        if (settledTicketIds.has(id)) continue;
+        if (ticket.lotterySlug === `yeekee-${roundId}` && ['pending', 'pending_cancellation', 'active', 'confirmed'].includes(ticket.status)) {
+          settledTicketIds.add(id);
+          const betItems = ticket.bets || [];
+          const evaluated = evaluateYeekeeTicket(betItems, res, config.payoutRates);
+
+          totalBets += ticket.totalAmount || 0;
+          totalPayout += evaluated.totalWin;
+
+          ticket.status = evaluated.isWinner ? 'won' : 'lost';
+          ticket.totalWin = evaluated.totalWin;
+          ticket.bets = evaluated.bets;
+          ticket.settledAt = new Date().toISOString();
+
+          if (evaluated.isWinner && ticket.userId) {
+            await wallet.credit(this.db, ticket.userId, evaluated.totalWin, {
+              type: 'win',
+              ref: id,
+              note: `ถูกรางวัลหวยยี่กี รอบที่ ${roundId} (${res.result3Top})`,
+            }).catch(() => {});
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[yeekee] memoryTickets settlement fallback warning:', (err as Error).message);
     }
 
     // ให้รางวัลพิเศษคนยิงลำดับที่ 1 และ 16

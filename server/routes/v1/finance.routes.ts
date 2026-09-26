@@ -76,15 +76,12 @@ export function financeRoutes(db: any) {
   // GET /api/v1/finance/balance/:userId
   r.get('/balance/:userId', asyncHandler(async (req, res) => {
     const { wallet } = await import('../../lib/wallet');
-    const { doc, getDoc } = await import('firebase/firestore');
-    const snap = await getDoc(doc(db, COL.USERS, req.params.userId));
-    if (!snap.exists()) throw new AppError(ERR.NOT_FOUND, 'ไม่พบผู้ใช้', 404);
-    const d: any = snap.data();
+    const balance = await wallet.peek(db, req.params.userId);
     ok(res, {
       userId: req.params.userId,
-      username: d.username,
-      balance: Number(d.balance ?? 0),
-      status: d.status || 'active',
+      username: req.params.userId,
+      balance,
+      status: 'active',
     });
   }));
 

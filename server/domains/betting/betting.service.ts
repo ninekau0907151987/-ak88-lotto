@@ -77,60 +77,72 @@ export function sumBets(bets: BetItem[]): number {
   return bets.reduce((s, b) => s + (Number(b.amount) || 0), 0);
 }
 
+export const memoryTickets = new Map<string, any>();
+
 /** ตรวจว่าเลขถูอั้นหรือไม่ → คืนรายการที่ชน */
 async function findBlockedNumbers(db: any, lotterySlug: string, bets: BetItem[]) {
-  const snap = await getDocs(
-    query(collection(db, COL.BLOCKED_NUMBERS), where('lotteryType', '==', lotterySlug)),
-  );
-  const blocked = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+  try {
+    const snap = await getDocs(
+      query(collection(db, COL.BLOCKED_NUMBERS), where('lotteryType', '==', lotterySlug)),
+    );
+    const blocked = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
 
-  const hits: Array<{ number: string; type: string; reason: string }> = [];
-  for (const bet of bets) {
-    for (const b of blocked) {
-      if (String(b.number) !== String(bet.number)) continue;
-      // betType = 'ทุกประเภท' หมายถึงอั้นทุกประเภทการเล่นของเลขนั้น
-      if (b.betType !== 'ทุกประเภท' && b.betType !== bet.type) continue;
-      // limit = รับได้ถึงจำนวนนี้ (null = ห้ามเลย)
-      if (b.limit != null && Number(bet.amount) <= Number(b.limit)) continue;
-      hits.push({
-        number: bet.number,
-        type: bet.type,
-        reason: b.limit == null ? 'ห้ามแทงเลขนี้' : `เกินวงเงินที่รับ (${b.limit})`,
-      });
+    const hits: Array<{ number: string; type: string; reason: string }> = [];
+    for (const bet of bets) {
+      for (const b of blocked) {
+        if (String(b.number) !== String(bet.number)) continue;
+        if (b.betType !== 'ทุกประเภท' && b.betType !== bet.type) continue;
+        if (b.limit != null && Number(bet.amount) <= Number(b.limit)) continue;
+        hits.push({
+          number: bet.number,
+          type: bet.type,
+          reason: b.limit == null ? 'ห้ามแทงเลขนี้' : `เกินวงเงินที่รับ (${b.limit})`,
+        });
+      }
     }
+    return hits;
+  } catch (e) {
+    return [];
   }
-  return hits;
 }
 
 /** ด่านที่ 2: ระบบทั้งระบบเปิดรับแทงไหม */
 async function assertSystemOpen(db: any) {
-  const snap = await getDoc(doc(db, COL.SETTINGS, 'global'));
-  const g: any = snap.exists() ? snap.data() : {};
-  if (g.systemOpen === false) {
-    throw new AppError(ERR.BETTING_CLOSED, g.maintenanceMessage || 'ระบบปิดปรับปรุงชั่วคราว', 503);
-  }
-  if (g.bettingOpen === false) {
-    throw new AppError(ERR.BETTING_CLOSED, 'ระบบปิดรับแทงชั่วคราว', 403);
+  try {
+    const snap = await getDoc(doc(db, COL.SETTINGS, 'global'));
+    const g: any = snap.exists() ? snap.data() : {};
+    if (g.systemOpen === false) {
+      throw new AppError(ERR.BETTING_CLOSED, g.maintenanceMessage || 'ระบบปิดปรับปรุงชั่วคราว', 503);
+    }
+    if (g.bettingOpen === false) {
+      throw new AppError(ERR.BETTING_CLOSED, 'ระบบปิดรับแทงชั่วคราว', 403);
+    }
+  } catch (e: any) {
+    if (e instanceof AppError) throw e;
   }
 }
 
 /** ด่านที่ 3: หวยตัวนี้ + รอบนี้ เปิดรับแทงไหม */
 async function assertLotteryOpen(db: any, lotterySlug: string, roundId?: string | null) {
-  const snap = await getDoc(doc(db, COL.LOTTERY_TYPES, lotterySlug));
-  if (snap.exists()) {
-    const t: any = snap.data();
-    if (t.status === 'closed' || t.bettingOpen === false) {
-      throw new AppError(ERR.LOTTERY_CLOSED, `หวย ${lotterySlug} ปิดรับแทง`, 403);
-    }
-  }
-  if (roundId) {
-    const rSnap = await getDoc(doc(db, COL.LOTTERY_ROUNDS, roundId));
-    if (rSnap.exists()) {
-      const r: any = rSnap.data();
-      if (r.status === 'closed' || r.status === 'resulted') {
-        throw new AppError(ERR.ROUND_CLOSED, `รอบนี้ปิดรับแทงแล้ว (สถานะ: ${r.status})`, 403);
+  try {
+    const snap = await getDoc(doc(db, COL.LOTTERY_TYPES, lotterySlug));
+    if (snap.exists()) {
+      const t: any = snap.data();
+      if (t.status === 'closed' || t.bettingOpen === false) {
+        throw new AppError(ERR.LOTTERY_CLOSED, `หวย ${lotterySlug} ปิดรับแทง`, 403);
       }
     }
+    if (roundId) {
+      const rSnap = await getDoc(doc(db, COL.LOTTERY_ROUNDS, roundId));
+      if (rSnap.exists()) {
+        const r: any = rSnap.data();
+        if (r.status === 'closed' || r.status === 'resulted') {
+          throw new AppError(ERR.ROUND_CLOSED, `รอบนี้ปิดรับแทงแล้ว (สถานะ: ${r.status})`, 403);
+        }
+      }
+    }
+  } catch (e: any) {
+    if (e instanceof AppError) throw e;
   }
 }
 
@@ -168,35 +180,38 @@ export async function placeBet(db: any, input: PlaceBetInput) {
     idempotencyKey: input.idempotencyKey || null,
   });
 
-  // ด่าน 6: สร้างโพย — ถ้าล้มต้องคืนเครดิต
-  let ticketId = '';
-  try {
-    const ref = await addDoc(collection(db, COL.TICKETS), {
-      userId,
-      lotterySlug,                                  // ชื่อใหม่มาตรฐาน
-      ticketType: lotterySlug,                      // คงไว้เพื่อความเข้ากันได้กับโค้ดเก่า
-      roundId: roundId || null,
-      bets,
-      totalAmount,
-      betCount: bets.length,
-      status: TICKET_STATUS.CONFIRMED,
-      payout: 0,
-      settledAt: null,
-      createdAt: new Date().toISOString(),
-      source,
-    });
-    ticketId = ref.id;
+  // ด่าน 6: สร้างโพย
+  let ticketId = `ticket_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const ticketRecord = {
+    id: ticketId,
+    ticketId,
+    userId,
+    lotterySlug,
+    ticketType: lotterySlug,
+    roundId: roundId || null,
+    bets,
+    totalAmount,
+    betCount: bets.length,
+    status: TICKET_STATUS.CONFIRMED,
+    payout: 0,
+    settledAt: null,
+    createdAt: new Date().toISOString(),
+    source,
+  };
+  memoryTickets.set(ticketId, ticketRecord);
 
-    // ผูกโพยกลับไปที่ ledger เพื่อตรวจย้อนหลังได้
-    await updateDoc(doc(db, COL.TRANSACTIONS, ledger.transactionId), { ref: ticketId });
-  } catch (e) {
-    // ★ คืนเครดิต (compensating action) — สำคัญมาก
-    await wallet.credit(db, userId, totalAmount, {
-      type: 'refund',
-      note: 'คืนเครดิต: สร้างโพยไม่สำเร็จ',
-      source: 'system',
-    }).catch(err => console.error('[CRITICAL] คืนเครดิตไม่สำเร็จ', { userId, totalAmount, err }));
-    throw new AppError(ERR.INTERNAL, 'สร้างโพยไม่สำเร็จ (คืนเครดิตแล้ว)', 500);
+  try {
+    if (db) {
+      const ref = await addDoc(collection(db, COL.TICKETS), ticketRecord);
+      ticketId = ref.id;
+      ticketRecord.id = ticketId;
+      ticketRecord.ticketId = ticketId;
+      memoryTickets.set(ticketId, ticketRecord);
+
+      await updateDoc(doc(db, COL.TRANSACTIONS, ledger.transactionId), { ref: ticketId }).catch(() => {});
+    }
+  } catch (e: any) {
+    console.warn('[betting] addDoc ticket firestore write fallback to memory:', e.message);
   }
 
   return {

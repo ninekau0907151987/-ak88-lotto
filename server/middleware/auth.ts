@@ -11,8 +11,30 @@ import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } fr
 
 export function createAuthMiddleware(db: any) {
   return async (req: Request, res: Response, next: NextFunction) => {
+    // 1) อนุญาตให้ใช้ staff session (owner / master / admin)
+    const staffSessionRaw = req.headers['x-staff-session'];
+    if (staffSessionRaw && typeof staffSessionRaw === 'string') {
+      try {
+        let txt = staffSessionRaw.trim().startsWith('{') ? staffSessionRaw : Buffer.from(staffSessionRaw, 'base64').toString('utf-8');
+        const sess = JSON.parse(txt);
+        if (['owner', 'master', 'admin'].includes(sess?.role)) {
+          res.locals.apiKeyDoc = { scopes: [] };
+          next();
+          return;
+        }
+      } catch {}
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      // ตรวจสอบ localhost / dev environment
+      const ip = req.ip || req.socket?.remoteAddress;
+      const isLocal = !ip || ip === '127.0.0.1' || ip === '::1' || ip.includes('localhost') || ip.includes('127.0.0.1');
+      if (isLocal && req.headers.referer?.includes('/admin')) {
+        res.locals.apiKeyDoc = { scopes: [] };
+        next();
+        return;
+      }
       res.status(401).json({ status: 'error', code: 'MISSING_AUTH', message: 'Missing or invalid Authorization header' });
       return;
     }

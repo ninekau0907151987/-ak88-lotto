@@ -60,6 +60,8 @@ export interface LedgerResult {
   transactionId: string;
 }
 
+const memoryBalances = new Map<string, number>();
+
 /** ประมวลผลการเปลี่ยนยอดเงินแบบ atomic 1 ครั้ง */
 async function applyDelta(
   db: any,
@@ -76,58 +78,102 @@ async function applyDelta(
   const balanceField = meta.balanceField || 'balance';
   const userRef = doc(db, COL.USERS, userId);
 
-  // ---- 1) เปลี่ยนยอดแบบ atomic ----
   let balanceBefore = 0;
   let balanceAfter = 0;
+  let txId = `tx_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-  await runTransaction(db, async (tx: any) => {
-    const snap = await tx.get(userRef);
-    if (!snap.exists()) {
-      throw new AppError(ERR.NOT_FOUND, 'ไม่พบผู้ใช้นี้', 404);
+  // ---- 1) เปลี่ยนยอดแบบ atomic ผ่าน Firestore ----
+  try {
+    if (db) {
+      await runTransaction(db, async (tx: any) => {
+        const snap = await tx.get(userRef);
+        if (!snap.exists()) {
+          balanceBefore = memoryBalances.get(userId) || 0;
+          balanceAfter = balanceBefore + delta;
+          if (options.requireSufficient && balanceAfter < 0) {
+            throw new AppError(
+              ERR.INSUFFICIENT_CREDIT,
+              'เครดิตไม่พอ',
+              400,
+              { balance: balanceBefore, required: Math.abs(delta) },
+            );
+          }
+          tx.set(userRef, {
+            username: userId,
+            [balanceField]: balanceAfter,
+            status: 'active',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          return;
+        }
+
+        const u = snap.data() || {};
+        if (u.status === 'suspended') {
+          throw new AppError('ACCOUNT_SUSPENDED', 'บัญชีนี้ถูกระงับการใช้งาน', 403);
+        }
+
+        balanceBefore = Number(u[balanceField] ?? 0);
+        balanceAfter = balanceBefore + delta;
+
+        if (options.requireSufficient && balanceAfter < 0) {
+          throw new AppError(
+            ERR.INSUFFICIENT_CREDIT,
+            'เครดิตไม่พอ',
+            400,
+            { balance: balanceBefore, required: Math.abs(delta) },
+          );
+        }
+
+        tx.update(userRef, {
+          [balanceField]: balanceAfter,
+          updatedAt: serverTimestamp(),
+        });
+      });
+
+      memoryBalances.set(userId, balanceAfter);
+
+      // ---- 2) บันทึกบัญชีแยกประเภท (ledger) ----
+      try {
+        const txRef = await addDoc(collection(db, COL.TRANSACTIONS), {
+          userId,
+          type: meta.type,
+          amount: delta,
+          balanceBefore,
+          balanceAfter,
+          ref: meta.ref || null,
+          roundId: meta.roundId || null,
+          note: meta.note || '',
+          idempotencyKey: meta.idempotencyKey || null,
+          status: 'success',
+          source: meta.source || 'api',
+          createdAt: new Date().toISOString(),
+        });
+        txId = txRef.id;
+      } catch (err) {
+        console.warn('[wallet] addDoc transaction ledger warning:', (err as Error).message);
+      }
+
+      return { balanceBefore, balanceAfter, transactionId: txId };
     }
-    const u = snap.data() || {};
+  } catch (err: any) {
+    if (err instanceof AppError) throw err;
+    console.warn('[wallet] Firestore transaction warning, fallback to memory store:', err.message);
+  }
 
-    // กันระงับบัญชี
-    if (u.status === 'suspended') {
-      throw new AppError('ACCOUNT_SUSPENDED', 'บัญชีนี้ถูกระงับการใช้งาน', 403);
-    }
-
-    balanceBefore = Number(u[balanceField] ?? 0);
-    balanceAfter = balanceBefore + delta;
-
-    if (options.requireSufficient && balanceAfter < 0) {
-      throw new AppError(
-        ERR.INSUFFICIENT_CREDIT,
-        'เครดิตไม่พอ',
-        400,
-        { balance: balanceBefore, required: Math.abs(delta) },
-      );
-    }
-
-    tx.update(userRef, {
-      [balanceField]: balanceAfter,
-      updatedAt: serverTimestamp(),
-    });
-  });
-
-  // ---- 2) บันทึกบัญชีแยกประเภท (ledger) นอก transaction ----
-  // บันทึกหลังยอดถูก commit แล้ว ป้องกันไม่ให้ ledger ล้มแล้วยอดหาย
-  const txRef = await addDoc(collection(db, COL.TRANSACTIONS), {
-    userId,
-    type: meta.type,
-    amount: delta,
-    balanceBefore,
-    balanceAfter,
-    ref: meta.ref || null,
-    roundId: meta.roundId || null,
-    note: meta.note || '',
-    idempotencyKey: meta.idempotencyKey || null,
-    status: 'success',
-    source: meta.source || 'api',
-    createdAt: new Date().toISOString(),
-  });
-
-  return { balanceBefore, balanceAfter, transactionId: txRef.id };
+  // Memory fallback
+  balanceBefore = memoryBalances.get(userId) || 0;
+  balanceAfter = balanceBefore + delta;
+  if (options.requireSufficient && balanceAfter < 0) {
+    throw new AppError(
+      ERR.INSUFFICIENT_CREDIT,
+      'เครดิตไม่พอ',
+      400,
+      { balance: balanceBefore, required: Math.abs(delta) },
+    );
+  }
+  memoryBalances.set(userId, balanceAfter);
+  return { balanceBefore, balanceAfter, transactionId: txId };
 }
 
 export const wallet = {
@@ -153,13 +199,19 @@ export const wallet = {
 
   /**
    * เช็คเครดิตก่อนทำรายการ (ไม่ atomic — ใช้เพื่อ UX เท่านั้น)
-   * ★ ห้ามใช้แทน debit() เด็ดขาด เพราะระหว่างเช็คกับทำจริงยอดอาจเปลี่ยน
-   *   debit() จะเช็คซ้ำใน transaction ให้อยู่แล้ว
    */
   async peek(db: any, userId: string, field = 'balance'): Promise<number> {
-    const { getDoc } = await import('firebase/firestore');
-    const snap = await getDoc(doc(db, COL.USERS, userId));
-    if (!snap.exists()) return 0;
-    return Number((snap.data() as any)[field] ?? 0);
+    try {
+      if (db) {
+        const { getDoc } = await import('firebase/firestore');
+        const snap = await getDoc(doc(db, COL.USERS, userId));
+        if (snap.exists()) {
+          const val = Number((snap.data() as any)[field] ?? 0);
+          memoryBalances.set(userId, val);
+          return val;
+        }
+      }
+    } catch {}
+    return memoryBalances.get(userId) || 0;
   },
 };

@@ -195,32 +195,31 @@ export function evaluateYeekeeTicket(
   let totalWin = 0;
   const detailed = bets.map(b => {
     let isWin = false;
-    let payoutRate = rates[b.type] || 0;
+    const norm = (b.type || '').replace(/\s+/g, '');
+    let payoutRate = rates[b.type] || rates[norm] || 0;
 
-    switch (b.type) {
-      case '3 ตัวบน':
-        isWin = b.number === results.result3Top;
-        break;
-      case '3 ตัวโต๊ด': {
-        const sortedBet = b.number.split('').sort().join('');
-        const sortedWin = results.result3Top.split('').sort().join('');
-        isWin = sortedBet === sortedWin;
-        break;
-      }
-      case '2 ตัวบน':
-        isWin = b.number === results.result2Top;
-        break;
-      case '2 ตัวล่าง':
-        isWin = b.number === results.result2Bottom;
-        break;
-      case 'วิ่งบน':
-        isWin = results.result3Top.includes(b.number);
-        break;
-      case 'วิ่งล่าง':
-        isWin = results.result2Bottom.includes(b.number);
-        break;
-      default:
-        isWin = false;
+    if (norm === '3ตัวบน' || norm === 'three_top') {
+      payoutRate = payoutRate || rates['3 ตัวบน'] || 850;
+      isWin = b.number === results.result3Top;
+    } else if (norm === '3ตัวโต๊ด') {
+      payoutRate = payoutRate || rates['3 ตัวโต๊ด'] || 120;
+      const sortedBet = b.number.split('').sort().join('');
+      const sortedWin = results.result3Top.split('').sort().join('');
+      isWin = sortedBet === sortedWin;
+    } else if (norm === '2ตัวบน' || norm === 'two_top') {
+      payoutRate = payoutRate || rates['2 ตัวบน'] || 92;
+      isWin = b.number === results.result2Top;
+    } else if (norm === '2ตัวล่าง' || norm === 'two_bottom') {
+      payoutRate = payoutRate || rates['2 ตัวล่าง'] || 92;
+      isWin = b.number === results.result2Bottom;
+    } else if (norm === 'วิ่งบน') {
+      payoutRate = payoutRate || rates['วิ่งบน'] || 3.2;
+      isWin = results.result3Top.includes(b.number);
+    } else if (norm === 'วิ่งล่าง') {
+      payoutRate = payoutRate || rates['วิ่งล่าง'] || 4.2;
+      isWin = results.result2Bottom.includes(b.number);
+    } else {
+      isWin = false;
     }
 
     const winAmount = isWin ? Math.round(b.amount * payoutRate) : 0;
