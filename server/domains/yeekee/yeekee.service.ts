@@ -304,7 +304,7 @@ export class YeekeeService {
         const qTickets = query(
           collection(this.db, COL.TICKETS),
           where('lotterySlug', '==', `yeekee-${roundId}`),
-          where('status', '==', 'pending')
+          where('status', 'in', ['pending', 'pending_cancellation', 'active'])
         );
         const ticketSnap = await getDocs(qTickets);
 

@@ -1050,6 +1050,7 @@ export default function LotteryBet() {
         expiresAt: new Date(expires).toISOString(),
         userId: 'demo_user',
         lotteryType: displayName,
+        lotterySlug: type || 'thai',
         customerName: customerName.trim() || 'ลูกค้าทั่วไป'
       });
 
@@ -1130,6 +1131,7 @@ export default function LotteryBet() {
         expiresAt: new Date(expires).toISOString(),
         userId: 'demo_user',
         lotteryType: displayName,
+        lotterySlug: type || 'thai',
         customerName: info.customerName
       });
 
