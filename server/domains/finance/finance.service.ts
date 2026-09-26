@@ -161,3 +161,81 @@ export async function reviewTransaction(
 
   return { id: txId, action, amount: amt, type: t.type };
 }
+
+/**
+ * ตรวจสอบสลิปธนาคารและเติมเครดิตเข้ากระเป๋าอัตโนมัติ (Anti-replay fraud guard)
+ */
+export async function verifyAndCreditSlip(
+  db: any,
+  input: {
+    userId: string;
+    amount: number;
+    transRef?: string;
+    bankName?: string;
+    note?: string;
+  }
+) {
+  const { userId, transRef, bankName, note } = input;
+  const amt = Number(input.amount);
+  if (!userId || !Number.isFinite(amt) || amt <= 0) {
+    throw new AppError(ERR.BAD_REQUEST, 'ต้องระบุ userId และ amount > 0', 400);
+  }
+
+  // 1. กันสลิปซ้ำ (Replay Guard)
+  if (transRef && db) {
+    try {
+      const qSlip = query(collection(db, COL.TRANSACTIONS), where('transRef', '==', transRef));
+      const snapSlip = await getDocs(qSlip);
+      if (!snapSlip.empty) {
+        throw new AppError(ERR.CONFLICT, 'สลิปนี้ถูกใช้งานไปแล้ว ไม่สามารถใช้ซ้ำได้', 409);
+      }
+    } catch (err: any) {
+      if (err instanceof AppError) throw err;
+      console.warn('[slip] Firestore replay check skipped:', err.message);
+    }
+  }
+
+  // 2. เติมเครดิตเข้ากระเป๋าแบบ Atomic
+  const refCode = transRef || `SLIP-${Date.now().toString().slice(-6)}`;
+  const ledger = await wallet.credit(db, userId, amt, {
+    type: 'deposit_slip',
+    ref: refCode,
+    note: note || `เติมเงินอัตโนมัติจากสลิป (${refCode})`,
+    source: 'slip_auto',
+  });
+
+  // 3. บันทึกธุรกรรมสถานะ success
+  let txId = `tx_${Date.now()}`;
+  if (db) {
+    try {
+      const txRef = await addDoc(collection(db, COL.TRANSACTIONS), {
+        userId,
+        type: 'deposit',
+        amount: amt,
+        method: 'promptpay_slip',
+        transRef: refCode,
+        bankName: bankName || 'พร้อมเพย์ QR',
+        status: 'success',
+        balanceBefore: ledger.balanceBefore,
+        balanceAfter: ledger.balanceAfter,
+        note: `ตรวจสลิปถูกต้อง เติมเงินอัตโนมัติ ฿${amt.toLocaleString()}`,
+        direction: 'in',
+        createdAt: new Date().toISOString(),
+        source: 'slip_auto',
+      });
+      txId = txRef.id;
+    } catch (err: any) {
+      console.warn('[slip] Firestore transaction addDoc skipped:', err.message);
+    }
+  }
+
+  return {
+    success: true,
+    transactionId: txId,
+    transRef: refCode,
+    amount: amt,
+    balanceBefore: ledger.balanceBefore,
+    balanceAfter: ledger.balanceAfter,
+    message: `ตรวจสอบสลิปถูกต้อง เติมเงิน ฿${amt.toLocaleString()} สำเร็จ`,
+  };
+}

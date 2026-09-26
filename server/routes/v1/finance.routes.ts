@@ -12,7 +12,7 @@ import { asyncHandler } from '../../middleware/error-handler';
 import { ok, okList, ERR } from '../../lib/response';
 import { AppError } from '../../lib/wallet';
 import {
-  topup, requestDeposit, requestWithdraw, reviewTransaction,
+  topup, requestDeposit, requestWithdraw, reviewTransaction, verifyAndCreditSlip,
 } from '../../domains/finance/finance.service';
 
 export function financeRoutes(db: any) {
@@ -69,6 +69,12 @@ export function financeRoutes(db: any) {
   r.post('/withdraw', asyncHandler(async (req, res) => {
     const out = await requestWithdraw(db, req.body || {});
     ok(res, out, { message: 'แจ้งถอนแล้ว รอแอดมินอนุมัติ' });
+  }));
+
+  // POST /api/v1/finance/slip/verify — ตรวจสอบสลิปและเติมเครดิตออโต้
+  r.post('/slip/verify', asyncHandler(async (req, res) => {
+    const out = await verifyAndCreditSlip(db, req.body || {});
+    ok(res, out, { message: out.message });
   }));
 
   /* ---------- PARAM ---------- */

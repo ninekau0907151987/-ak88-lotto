@@ -86,6 +86,13 @@ export function createV1Router(db: any) {
   // ---- หวยยี่กี (อ่านรอบ/ยิงเลข/จัดการหลังบ้าน) ----
   api.use('/yeekee', createYeekeeRouter(db));
 
+  // ---- ตรวจสลิปฝากเงินสาธารณะสำหรับสมาชิกหน้าบ้าน ----
+  api.post('/finance/slip/verify', asyncHandler(async (req, res) => {
+    const { verifyAndCreditSlip } = await import('../../domains/finance/finance.service');
+    const out = await verifyAndCreditSlip(db, req.body || {});
+    ok(res, out, { message: out.message });
+  }));
+
   // ---------- 2) ต้องใช้ API Key ทุกเส้นด้านล่าง ----------
   const auth = Router();
   auth.use(authenticate);

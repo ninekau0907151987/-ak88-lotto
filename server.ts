@@ -123,7 +123,7 @@ async function startServer() {
   // ★ ตัวจัดการ error กลาง — ต้องเป็น middleware ตัวสุดท้ายเสมอ
   app.use(errorHandler);
 
-  const server = httpServer.listen(PORT, '0.0.0.0', () => {
+  const server = httpServer.listen(PORT, '0.0.0.0', async () => {
     console.log(`Server running on http://localhost:${PORT}`);
     console.log(`API health: http://localhost:${PORT}/api/v1/health`);
     console.log('');
@@ -132,6 +132,17 @@ async function startServer() {
     console.log(`  คิว        : http://localhost:${PORT}/api/v1/queue/stats`);
     console.log(`  ส่งบิล      : http://localhost:${PORT}/api/v1/billing/invoices`);
     console.log(`  ลดเลข      : http://localhost:${PORT}/api/v1/numberset/sets`);
+
+    // ★ เริ่มระบบออกผลหวยยี่กี 88 รอบอัตโนมัติตลอด 24 ชั่วโมง
+    if (db) {
+      try {
+        const { YeekeeWorker } = await import('./server/cron/yeekee-worker');
+        const worker = new YeekeeWorker(db);
+        worker.start(20000);
+      } catch (err) {
+        console.warn('[YeekeeWorker] เริ่มต้น Worker ไม่สำเร็จ:', (err as Error).message);
+      }
+    }
   });
 
   const handleShutdown = () => {
