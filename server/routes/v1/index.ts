@@ -31,6 +31,7 @@ import { billingRoutes } from './billing.routes';
 import { numberSetRoutes } from './numberset.routes';
 import { game20Routes } from './game20.routes';
 import { game20HistoryRoutes } from './game20History.routes';
+import { createYeekeeRouter } from './yeekee.routes';
 
 // ---- เส้นธุรกิจหลัก ----
 import { systemRoutes } from '../system';
@@ -48,6 +49,7 @@ export const MODULES = [
   { key: 'billing',   path: '/billing',   desc: 'ส่งบิล/ใบเสร็จ',                scope: 'billing' },
   { key: 'numberset', path: '/numberset', desc: 'ลดเลข/ความเสี่ยง',              scope: 'numberset' },
   { key: 'game20',    path: '/game20',    desc: '★ หวย 20 ช่อง 6 หลัก + บอท 2 ตัว', scope: 'lottery' },
+  { key: 'yeekee',    path: '/yeekee',    desc: '★ หวยจับยี่กี 88 รอบ ออกทุก 15 นาที', scope: 'lottery' },
   { key: 'system',    path: '/system',    desc: 'ระบบ เปิด/ปิด/ตั้งค่า',          scope: 'system' },
   { key: 'lottery',   path: '/lottery',   desc: 'ประเภทหวย/อัตราจ่าย',           scope: 'lottery' },
   { key: 'rounds',    path: '/rounds',    desc: 'รอบหวย',                        scope: 'lottery' },
@@ -80,6 +82,9 @@ export function createV1Router(db: any) {
       time: new Date().toISOString(),
     });
   });
+
+  // ---- หวยยี่กี (อ่านรอบ/ยิงเลข/จัดการหลังบ้าน) ----
+  api.use('/yeekee', createYeekeeRouter(db));
 
   // ---------- 2) ต้องใช้ API Key ทุกเส้นด้านล่าง ----------
   const auth = Router();

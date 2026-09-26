@@ -1499,6 +1499,36 @@ export default function AdminDashboard() {
               <span className="text-sm">{tab.label}</span>
             </button>
           ))}
+
+          <div className="pt-3 mt-3 border-t" style={{ borderColor: 'var(--admin-border)' }}>
+            <div className="text-[10px] font-black uppercase tracking-wider px-2 mb-2" style={{ color: 'var(--admin-text-muted)' }}>
+              ศูนย์ควบคุมพิเศษ
+            </div>
+            <Link
+              to="/admin/yeekee"
+              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl font-black text-xs transition hover:translate-x-1 shadow-sm"
+              style={{ color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a' }}
+            >
+              <span className="material-symbols-outlined text-base text-amber-600">timer</span>
+              <span>★ หวยยี่กี 88 รอบ</span>
+            </Link>
+            <Link
+              to="/admin/game20"
+              className="w-full flex items-center gap-3 px-3 py-2 mt-1.5 rounded-xl font-black text-xs transition hover:translate-x-1"
+              style={{ color: 'var(--admin-text)', background: 'var(--admin-subtle)' }}
+            >
+              <span className="material-symbols-outlined text-base">casino</span>
+              <span>หวย 20 ช่อง 6 หลัก</span>
+            </Link>
+            <Link
+              to="/admin/manual"
+              className="w-full flex items-center gap-3 px-3 py-2 mt-1.5 rounded-xl font-black text-xs transition hover:translate-x-1"
+              style={{ color: 'var(--admin-text-muted)' }}
+            >
+              <span className="material-symbols-outlined text-base">menu_book</span>
+              <span>คู่มือ & รหัสผ่าน</span>
+            </Link>
+          </div>
         </nav>
 
         <div className="p-4 border-t" style={{ borderColor: 'var(--admin-border)' }}>

@@ -52,6 +52,8 @@ import ApiDocs from '@/backend/pages/ApiDocs';
 import Game20Admin from '@/backend/pages/Game20Admin';
 import BackofficeManual from '@/backend/pages/BackofficeManual';
 import Game20Report from '@/backend/pages/Game20Report';
+// ★ หลังบ้าน: ศูนย์ควบคุมหวยยี่กี 88 รอบ
+import YeekeeAdmin from '@/backend/pages/YeekeeAdmin';
 
 export default function App() {
   return (
@@ -74,6 +76,8 @@ export default function App() {
         <Route path="/admin/manual" element={<BackofficeManual />} />
         {/* ★ B3: รายงานกำไร-ขาดทุน หวย 20 ช่อง */}
         <Route path="/admin/game20/report" element={<Game20Report />} />
+        {/* ★ ศูนย์ควบคุมหวยยี่กี 88 รอบ */}
+        <Route path="/admin/yeekee" element={<YeekeeAdmin />} />
 
         {/* ================= หน้าบ้าน (มี Layout + bottom-nav) ================= */}
         <Route path="/" element={<Layout />}>

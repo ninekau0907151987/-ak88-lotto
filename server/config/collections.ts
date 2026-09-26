@@ -86,6 +86,19 @@ export const COL = {
 
   /** ★ คู่มือ/ตั้งค่า: เก็บเนื้อหาคู่มือที่แก้ไขได้จากหลังบ้าน */
   MANUALS: 'manuals',
+
+  /* ================================================================
+   * ★ หวยยี่กี 88 รอบ (module: yeekee)
+   * ================================================================ */
+
+  /** รอบหวยยี่กี 88 รอบ */
+  YEEKEE_ROUNDS: 'yeekeeRounds',
+
+  /** ประวัติการยิงเลขยี่กี */
+  YEEKEE_SHOOTS: 'yeekeeShoots',
+
+  /** การตั้งค่าระบบยี่กี */
+  YEEKEE_CONFIG: 'yeekeeConfig',
 } as const;
 
 export type CollectionName = (typeof COL)[keyof typeof COL];
