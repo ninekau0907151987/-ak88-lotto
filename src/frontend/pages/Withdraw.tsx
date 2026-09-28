@@ -13,9 +13,34 @@ export default function Withdraw() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [withdrawHistory, setWithdrawHistory] = useState<any[]>([]);
   const [successNotice, setSuccessNotice] = useState<any>(null);
+  const [isWithdrawClosed, setIsWithdrawClosed] = useState(false);
+  const [closedReason, setClosedReason] = useState('');
 
   const currentUserId = localStorage.getItem('userId');
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d.systemOpen === false) {
+            setIsWithdrawClosed(true);
+            setClosedReason(d.maintenanceMessage || 'ระบบปิดปรับปรุงชั่วคราว');
+          } else if (d.withdrawOpen === false) {
+            setIsWithdrawClosed(true);
+            setClosedReason('ระบบถอนเงินปิดปรับปรุงชั่วคราว ขออภัยในความไม่สะดวก');
+          } else {
+            setIsWithdrawClosed(false);
+            setClosedReason('');
+          }
+        }
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Withdraw settings stream error:', e);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn || !currentUserId) {
@@ -72,6 +97,10 @@ export default function Withdraw() {
   };
 
   const handleWithdraw = async () => {
+    if (isWithdrawClosed) {
+      alert(closedReason || 'ระบบถอนเงินปิดปรับปรุงชั่วคราว');
+      return;
+    }
     if (amount < 100) {
       alert('ยอดถอนขั้นต่ำคือ ฿100 บาท');
       return;
@@ -239,12 +268,28 @@ export default function Withdraw() {
             </div>
           </div>
 
+          {isWithdrawClosed && (
+            <div className="p-3 bg-red-100 text-red-800 rounded-xl text-xs font-black border border-red-300 text-center flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-base text-red-600">block</span>
+              <span>{closedReason || 'ระบบถอนเงินปิดปรับปรุงชั่วคราว'}</span>
+            </div>
+          )}
+
           <button
             onClick={handleWithdraw}
-            disabled={isProcessing || amount <= 0}
-            className="w-full bg-gradient-to-r from-amber-400 via-[#f5c518] to-amber-500 text-[#0a192f] font-black rounded-xl py-3.5 text-base shadow-lg hover:brightness-105 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            disabled={isProcessing || amount <= 0 || isWithdrawClosed}
+            className={`w-full font-black rounded-xl py-3.5 text-base shadow-lg transition flex items-center justify-center gap-2 ${
+              isWithdrawClosed 
+                ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-75' 
+                : 'bg-gradient-to-r from-amber-400 via-[#f5c518] to-amber-500 text-[#0a192f] hover:brightness-105 active:scale-95 cursor-pointer disabled:opacity-50'
+            }`}
           >
-            {isProcessing ? (
+            {isWithdrawClosed ? (
+              <>
+                <span className="material-symbols-outlined text-xl">lock</span>
+                <span>ระบบปิดรับถอนเงินชั่วคราว</span>
+              </>
+            ) : isProcessing ? (
               <>กำลังดำเนินการ...</>
             ) : (
               <>

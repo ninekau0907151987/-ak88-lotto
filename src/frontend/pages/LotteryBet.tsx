@@ -616,6 +616,14 @@ export default function LotteryBet() {
     }
 
     // Validation against global settings
+    if (globalSettings.systemOpen === false) {
+      alert(globalSettings.maintenanceMessage || 'ขออภัย ระบบกำลังปิดปรับปรุงชั่วคราว ไม่สามารถส่งโพยได้');
+      return;
+    }
+    if (globalSettings.bettingOpen === false) {
+      alert('ขออภัย ระบบรับแทงหวยปิดให้บริการชั่วคราว ไม่สามารถส่งโพยได้');
+      return;
+    }
     if (globalSettings.minBet && betAmount < globalSettings.minBet) {
       alert(`ยอดแทงขั้นต่ำคือ ฿${globalSettings.minBet}`);
       return;
@@ -1024,6 +1032,14 @@ export default function LotteryBet() {
 
   const submitDirectBets = async (betsToSubmit: BetItem[]) => {
     if (betsToSubmit.length === 0) return;
+    if (globalSettings.systemOpen === false) {
+      alert(globalSettings.maintenanceMessage || 'ขออภัย ระบบกำลังปิดปรับปรุงชั่วคราว');
+      return;
+    }
+    if (globalSettings.bettingOpen === false) {
+      alert('ขออภัย ระบบรับแทงหวยปิดให้บริการชั่วคราว');
+      return;
+    }
     if (isClosed) {
       alert('ขออภัย ปิดรับแทงแล้ว');
       return;
@@ -1079,6 +1095,14 @@ export default function LotteryBet() {
   const executeSubmitTicket = async (directTicketInfo?: any) => {
     const info = directTicketInfo || confirmTicketInfo;
     if(!info) return;
+    if (globalSettings.systemOpen === false) {
+      alert(globalSettings.maintenanceMessage || 'ขออภัย ระบบกำลังปิดปรับปรุงชั่วคราว');
+      return;
+    }
+    if (globalSettings.bettingOpen === false) {
+      alert('ขออภัย ระบบรับแทงหวยปิดให้บริการชั่วคราว');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const total = info.total;

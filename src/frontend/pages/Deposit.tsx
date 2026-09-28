@@ -17,10 +17,35 @@ export default function Deposit() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [successResult, setSuccessResult] = useState<any>(null);
   const [depositHistory, setDepositHistory] = useState<any[]>([]);
+  const [isDepositClosed, setIsDepositClosed] = useState(false);
+  const [closedReason, setClosedReason] = useState('');
 
   const currentUserId = localStorage.getItem('userId');
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
   const username = localStorage.getItem('username') || userData?.username || 'สมาชิก';
+
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d.systemOpen === false) {
+            setIsDepositClosed(true);
+            setClosedReason(d.maintenanceMessage || 'ระบบปิดปรับปรุงชั่วคราว');
+          } else if (d.depositOpen === false) {
+            setIsDepositClosed(true);
+            setClosedReason('ระบบฝากเงินปิดปรับปรุงชั่วคราว ขออภัยในความไม่สะดวก');
+          } else {
+            setIsDepositClosed(false);
+            setClosedReason('');
+          }
+        }
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Deposit settings stream error:', e);
+    }
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn || !currentUserId) {
@@ -69,6 +94,10 @@ export default function Deposit() {
   };
 
   const handleProceedToQR = () => {
+    if (isDepositClosed) {
+      alert(closedReason || 'ระบบฝากเงินปิดปรับปรุงชั่วคราว');
+      return;
+    }
     if (amount < 20) {
       alert('ยอดฝากขั้นต่ำคือ ฿20 บาท');
       return;
@@ -220,12 +249,33 @@ export default function Deposit() {
               <span className="text-[10px] text-gray-400 mt-1 block">* ฝากขั้นต่ำ ฿20 บาท</span>
             </div>
 
+            {isDepositClosed && (
+              <div className="p-3 bg-red-100 text-red-800 rounded-xl text-xs font-black border border-red-300 text-center flex items-center justify-center gap-2">
+                <span className="material-symbols-outlined text-base text-red-600">block</span>
+                <span>{closedReason || 'ระบบฝากเงินปิดปรับปรุงชั่วคราว'}</span>
+              </div>
+            )}
+
             <button
               onClick={handleProceedToQR}
-              className="w-full bg-gradient-to-r from-amber-400 via-[#f5c518] to-amber-500 text-[#0a192f] font-black rounded-xl py-3.5 text-base shadow-lg hover:brightness-105 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer mt-4"
+              disabled={isDepositClosed}
+              className={`w-full font-black rounded-xl py-3.5 text-base shadow-lg transition flex items-center justify-center gap-2 mt-4 ${
+                isDepositClosed 
+                  ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-75' 
+                  : 'bg-gradient-to-r from-amber-400 via-[#f5c518] to-amber-500 text-[#0a192f] hover:brightness-105 active:scale-95 cursor-pointer'
+              }`}
             >
-              <span>ต่อไป: สแกน QR และแนบสลิป</span>
-              <span className="material-symbols-outlined text-lg">arrow_forward</span>
+              {isDepositClosed ? (
+                <>
+                  <span className="material-symbols-outlined text-lg">lock</span>
+                  <span>ระบบปิดรับฝากเงินชั่วคราว</span>
+                </>
+              ) : (
+                <>
+                  <span>ต่อไป: สแกน QR และแนบสลิป</span>
+                  <span className="material-symbols-outlined text-lg">arrow_forward</span>
+                </>
+              )}
             </button>
           </div>
         )}

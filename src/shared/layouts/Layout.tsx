@@ -46,6 +46,28 @@ export default function Layout() {
     }
   }, [location.pathname]);
 
+  const [systemSettings, setSystemSettings] = useState<{ systemOpen?: boolean; maintenanceMessage?: string }>({
+    systemOpen: true,
+    maintenanceMessage: ''
+  });
+
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          setSystemSettings({
+            systemOpen: d.systemOpen !== false,
+            maintenanceMessage: d.maintenanceMessage || ''
+          });
+        }
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('System settings listener error:', e);
+    }
+  }, []);
+
   const handleLogout = () => {
     if (confirm('ต้องการออกจากระบบใช่หรือไม่?')) {
       localStorage.removeItem('isLoggedIn');
@@ -150,6 +172,14 @@ export default function Layout() {
           )}
         </div>
       </header>
+
+      {/* Maintenance Mode Banner */}
+      {systemSettings.systemOpen === false && (
+        <div className="bg-red-600 text-white text-xs font-black px-4 py-3 text-center flex items-center justify-center gap-2 shadow-md sticky top-[57px] z-40 animate-pulse">
+          <span className="material-symbols-outlined text-base">warning</span>
+          <span>{systemSettings.maintenanceMessage || 'ระบบกำลังปิดปรับปรุงชั่วคราวเพื่อพัฒนาการให้บริการ ขออภัยในความไม่สะดวก'}</span>
+        </div>
+      )}
 
       {/* Main Content */}
       <Outlet />

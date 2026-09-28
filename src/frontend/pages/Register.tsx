@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { db } from '@/shared/lib/firebase';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 const THAI_BANKS = [
   { id: 'kbank', name: 'ธนาคารกสิกรไทย (KBANK)' },
@@ -28,7 +30,32 @@ export default function Register() {
   const [acceptTerms, setAcceptTerms] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isRegisterClosed, setIsRegisterClosed] = useState(false);
+  const [closedReason, setClosedReason] = useState('');
   const navigate = useNavigate();
+
+  useEffect(() => {
+    try {
+      const unsub = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
+        if (snap.exists()) {
+          const d = snap.data();
+          if (d.systemOpen === false) {
+            setIsRegisterClosed(true);
+            setClosedReason(d.maintenanceMessage || 'ระบบปิดปรับปรุงชั่วคราว');
+          } else if (d.registerOpen === false) {
+            setIsRegisterClosed(true);
+            setClosedReason('ระบบปิดรับสมัครสมาชิกใหม่ชั่วคราว');
+          } else {
+            setIsRegisterClosed(false);
+            setClosedReason('');
+          }
+        }
+      });
+      return () => unsub();
+    } catch (e) {
+      console.warn('Register settings stream error:', e);
+    }
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -39,6 +66,11 @@ export default function Register() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (isRegisterClosed) {
+      setError(closedReason || 'ระบบปิดรับสมัครสมาชิกใหม่ชั่วคราว');
+      return;
+    }
 
     // 1) Validation ตรวจสอบความถูกต้องของข้อมูล
     const cleanPhone = formData.phoneNumber.replace(/[^0-9]/g, '');
@@ -316,6 +348,13 @@ export default function Register() {
             </label>
           </div>
 
+          {isRegisterClosed && (
+            <div className="p-3 bg-red-100/90 text-red-800 rounded-xl text-xs font-black border border-red-300 text-center flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined text-base text-red-600">block</span>
+              <span>{closedReason || 'ระบบปิดรับสมัครสมาชิกใหม่ชั่วคราว'}</span>
+            </div>
+          )}
+
           {error && (
             <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs font-bold border border-red-200 text-center flex items-center justify-center gap-1.5">
               <span className="material-symbols-outlined text-base">error</span>
@@ -325,10 +364,19 @@ export default function Register() {
 
           <button 
             type="submit" 
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-amber-400 via-[#F4C430] to-amber-500 text-[#0a192f] font-black rounded-xl py-3.5 text-base shadow-xl hover:brightness-105 active:scale-95 transition transform disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+            disabled={loading || isRegisterClosed}
+            className={`w-full font-black rounded-xl py-3.5 text-base shadow-xl transition transform flex items-center justify-center gap-2 ${
+              isRegisterClosed 
+                ? 'bg-gray-400 text-gray-700 cursor-not-allowed opacity-75' 
+                : 'bg-gradient-to-r from-amber-400 via-[#F4C430] to-amber-500 text-[#0a192f] hover:brightness-105 active:scale-95 cursor-pointer'
+            }`}
           >
-            {loading ? (
+            {isRegisterClosed ? (
+              <>
+                <span className="material-symbols-outlined text-xl">lock</span>
+                <span>ปิดรับสมัครสมาชิกชั่วคราว</span>
+              </>
+            ) : loading ? (
               <>กำลังลงทะเบียนข้อมูล...</>
             ) : (
               <>

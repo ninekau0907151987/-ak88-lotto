@@ -20,7 +20,7 @@ import {
   prettyValue, didChange, getPinInfo, setPin,
 } from '@/shared/lib/settingsHistory';
 
-type AdminTab = 'overview' | 'agents' | 'members' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
+type AdminTab = 'overview' | 'system_control' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -53,7 +53,13 @@ export default function AdminDashboard() {
     taxRate: 1.0,
     taxType: 'winnings',
     minTaxThreshold: 0,
-    taxLabel: 'ภาษีหัก ณ ที่จ่าย (Withholding Tax)'
+    taxLabel: 'ภาษีหัก ณ ที่จ่าย (Withholding Tax)',
+    systemOpen: true,
+    bettingOpen: true,
+    depositOpen: true,
+    withdrawOpen: true,
+    registerOpen: true,
+    maintenanceMessage: 'ระบบกำลังปิดปรับปรุงชั่วคราวเพื่อพัฒนาการให้บริการ ขออภัยในความไม่สะดวก'
   });
   const [taxSimBetAmount, setTaxSimBetAmount] = useState<number>(1000);
   const [taxSimWinAmount, setTaxSimWinAmount] = useState<number>(90000);
@@ -90,7 +96,24 @@ export default function AdminDashboard() {
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [selectedUserForCredit, setSelectedUserForCredit] = useState<any>(null);
   const [creditAmount, setCreditAmount] = useState(0);
-  const [creditAction, setCreditAction] = useState<'add' | 'reduce'>('add');
+  const [creditAction, setCreditAction] = useState<'add' | 'reduce' | 'set'>('add');
+  const [creditNote, setCreditNote] = useState('');
+
+  // Add Member State
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [newMemberForm, setNewMemberForm] = useState({
+    username: '',
+    password: '',
+    phoneNumber: '',
+    firstName: '',
+    lastName: '',
+    bankName: 'ธนาคารกสิกรไทย (KBANK)',
+    bankAccount: '',
+    initialCredit: 0,
+    agentId: '',
+  });
+  const [isCreatingMember, setIsCreatingMember] = useState(false);
+  const [maintenanceNote, setMaintenanceNote] = useState('');
 
   // User History State
   const [showHistoryModal, setShowHistoryModal] = useState(false);
@@ -972,68 +995,187 @@ export default function AdminDashboard() {
   };
 
   const handleCreditTransaction = async () => {
-    if (!selectedUserForCredit || creditAmount <= 0) return;
+    if (!selectedUserForCredit) return;
     
     // Check Source of Funds (Agent or Master)
     const currentAgent = agents.find(a => a.id === selectedUserForCredit.agentId);
     const sourceName = currentAgent ? `เอเย่นต์ (${currentAgent.name})` : 'มาสเตอร์ (Master)';
     const sourceBalance = currentAgent ? (currentAgent.creditLimit || 0) : globalSettings.masterBalance;
 
-    if (creditAction === 'add' && sourceBalance < creditAmount) {
-      alert(`ยอด ${sourceName} ไม่เพียงพอสำหรับการเติมเงิน`);
-      return;
+    const oldBal = selectedUserForCredit.balance || 0;
+    let newBalance = oldBal;
+    let delta = 0;
+
+    if (creditAction === 'add') {
+      if (creditAmount <= 0) return;
+      newBalance = oldBal + creditAmount;
+      delta = creditAmount;
+      if (sourceBalance < creditAmount) {
+        alert(`ยอดเครดิต ${sourceName} ไม่เพียงพอสำหรับการเติมเงิน`);
+        return;
+      }
+    } else if (creditAction === 'reduce') {
+      if (creditAmount <= 0) return;
+      newBalance = oldBal - creditAmount;
+      delta = -creditAmount;
+      if (newBalance < 0) {
+        alert('เครดิตสมาชิกไม่เพียงพอที่จะลด');
+        return;
+      }
+    } else if (creditAction === 'set') {
+      newBalance = creditAmount;
+      delta = creditAmount - oldBal;
+      if (newBalance < 0) {
+        alert('ยอดเครดิตต้องไม่ติดลบ');
+        return;
+      }
+      if (delta > 0 && sourceBalance < delta) {
+        alert(`ยอดเครดิต ${sourceName} ไม่เพียงพอสำหรับการปรับยอด`);
+        return;
+      }
     }
 
-    if (window.confirm(`ยืนยันการ${creditAction === 'add' ? 'เติม' : 'ลด'}เครดิต จำนวน ฿${creditAmount.toLocaleString()} ให้กับ ${selectedUserForCredit.username}?`)) {
+    const actionText = creditAction === 'set' 
+      ? `กำหนดเครดิตใหม่เป็น ฿${newBalance.toLocaleString()}` 
+      : `${creditAction === 'add' ? 'เติม' : 'ลด'}เครดิต ฿${creditAmount.toLocaleString()}`;
+
+    if (window.confirm(`ยืนยันการ${actionText} ให้กับสมาชิก ${selectedUserForCredit.username}?`)) {
       try {
         const userRef = doc(db, 'users', selectedUserForCredit.id);
-        const newBalance = creditAction === 'add' 
-          ? (selectedUserForCredit.balance || 0) + creditAmount 
-          : (selectedUserForCredit.balance || 0) - creditAmount;
-
-        if (newBalance < 0 && creditAction === 'reduce') {
-          alert('เครดิตสมาชิกไม่เพียงพอที่จะลด');
-          return;
-        }
 
         // Apply Balance Update to Member
         await updateDoc(userRef, { balance: newBalance });
         
         // Deduct/Add back to Source (Agent or Master)
-        if (currentAgent) {
-          const newAgentCredit = creditAction === 'add' ? sourceBalance - creditAmount : sourceBalance + creditAmount;
-          await updateDoc(doc(db, 'agents', currentAgent.id), { creditLimit: newAgentCredit });
-        } else {
-          const newMasterBalance = creditAction === 'add' ? sourceBalance - creditAmount : sourceBalance + creditAmount;
-          await updateGlobalSetting('masterBalance', newMasterBalance);
+        if (delta !== 0) {
+          if (currentAgent) {
+            const newAgentCredit = sourceBalance - delta;
+            await updateDoc(doc(db, 'agents', currentAgent.id), { creditLimit: newAgentCredit });
+          } else {
+            const newMasterBalance = sourceBalance - delta;
+            await updateGlobalSetting('masterBalance', newMasterBalance);
+          }
         }
 
         // Record formal financial transaction
+        const noteText = creditNote.trim() || `${creditAction === 'set' ? 'กำหนดเครดิตใหม่' : creditAction === 'add' ? 'เติมเครดิต' : 'ลดเครดิต'}โดยแอดมิน (${sourceName})`;
         await addDoc(collection(db, 'transactions'), {
           userId: selectedUserForCredit.id,
           username: selectedUserForCredit.username,
-          type: creditAction === 'add' ? 'admin_transfer' : 'admin_pullback',
-          amount: creditAmount,
+          type: delta >= 0 ? 'admin_transfer' : 'admin_pullback',
+          amount: Math.abs(delta),
           status: 'success',
           createdAt: new Date().toISOString(),
-          description: `${creditAction === 'add' ? 'เติมเครดิต' : 'ลดเครดิต'}โดยระบบ (${sourceName})`,
+          description: noteText,
           adminId: 'Admin'
         });
 
         // Log Activity
         await logActivity(
-          creditAction === 'add' ? 'เติมเครดิตสมาชิก' : 'ลดเครดิตสมาชิก',
-          `${creditAction === 'add' ? 'เติม' : 'ลด'}เครดิตให้ ${selectedUserForCredit.username} จำนวน ฿${creditAmount.toLocaleString()} จาก ${sourceName}`,
+          creditAction === 'set' ? 'กำหนดเครดิตสมาชิก' : creditAction === 'add' ? 'เติมเครดิตสมาชิก' : 'ลดเครดิตสมาชิก',
+          `${actionText} ให้ ${selectedUserForCredit.username} (${noteText})`,
           'credit'
         );
 
-        alert('ทำรายการเครดิตสำเร็จ');
+        alert(`ทำรายการสำเร็จ! เครดิตใหม่ของ ${selectedUserForCredit.username} คือ ฿${newBalance.toLocaleString()}`);
         setShowCreditModal(false);
         setCreditAmount(0);
+        setCreditNote('');
       } catch (e) {
         console.error(e);
-        alert('เกิดข้อผิดพลาด');
+        alert('เกิดข้อผิดพลาดในการปรับปรุงเครดิต');
       }
+    }
+  };
+
+  const handleCreateMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUsername = newMemberForm.username.trim().toLowerCase();
+    const cleanPhone = newMemberForm.phoneNumber.replace(/[^0-9]/g, '');
+
+    if (!cleanUsername || cleanUsername.length < 4) {
+      alert('ชื่อผู้ใช้งานต้องมีอย่างน้อย 4 ตัวอักษร');
+      return;
+    }
+    if (!newMemberForm.password || newMemberForm.password.length < 6) {
+      alert('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
+    if (!/^0[689]\d{8}$/.test(cleanPhone)) {
+      alert('หมายเลขโทรศัพท์ไม่ถูกต้อง (ต้องเป็น 10 หลัก เช่น 0812345678)');
+      return;
+    }
+
+    setIsCreatingMember(true);
+    try {
+      // 1) ตรวจสอบความซ้ำ
+      const qUser = query(collection(db, 'users'), where('username', '==', cleanUsername));
+      const snapUser = await getDocs(qUser);
+      if (!snapUser.empty) {
+        alert('ชื่อผู้ใช้นี้ถูกใช้งานแล้ว กรุณาเลือกชื่ออื่น');
+        setIsCreatingMember(false);
+        return;
+      }
+
+      const qPhone = query(collection(db, 'users'), where('phoneNumber', '==', cleanPhone));
+      const snapPhone = await getDocs(qPhone);
+      if (!snapPhone.empty) {
+        alert('เบอร์โทรศัพท์นี้ถูกลงทะเบียนไว้ในระบบแล้ว');
+        setIsCreatingMember(false);
+        return;
+      }
+
+      const initBal = Math.max(0, Number(newMemberForm.initialCredit) || 0);
+      const newUserDoc = {
+        username: cleanUsername,
+        password: newMemberForm.password,
+        phoneNumber: cleanPhone,
+        firstName: newMemberForm.firstName.trim() || cleanUsername,
+        lastName: newMemberForm.lastName.trim() || '',
+        name: `${newMemberForm.firstName.trim()} ${newMemberForm.lastName.trim()}`.trim() || cleanUsername,
+        bankName: newMemberForm.bankName || 'ธนาคารกสิกรไทย (KBANK)',
+        bankAccount: newMemberForm.bankAccount.trim() || 'xxx-x-xxxxx',
+        balance: initBal,
+        role: 'user',
+        status: 'active',
+        agentId: newMemberForm.agentId || 'master',
+        createdAt: new Date().toISOString(),
+      };
+
+      const docRef = await addDoc(collection(db, 'users'), newUserDoc);
+
+      if (initBal > 0) {
+        await addDoc(collection(db, 'transactions'), {
+          userId: docRef.id,
+          username: cleanUsername,
+          type: 'admin_deposit',
+          amount: initBal,
+          status: 'success',
+          description: 'เติมเครดิตเปิดบัญชีใหม่โดยแอดมิน',
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      await logActivity('สมัครสมาชิกใหม่', `แอดมินสร้างบัญชี ${cleanUsername} เครดิตเริ่มต้น ฿${initBal.toLocaleString()}`, 'member');
+
+      alert(`สมัครสมาชิกสำเร็จ! รหัสผู้ใช้: ${cleanUsername} พร้อมเครดิต ฿${initBal.toLocaleString()}`);
+      setShowAddMemberModal(false);
+      setNewMemberForm({
+        username: '',
+        password: '',
+        phoneNumber: '',
+        firstName: '',
+        lastName: '',
+        bankName: 'ธนาคารกสิกรไทย (KBANK)',
+        bankAccount: '',
+        initialCredit: 0,
+        agentId: '',
+      });
+    } catch (err: any) {
+      console.error('Failed to create member:', err);
+      alert(err.message || 'เกิดข้อผิดพลาดในการสร้างสมาชิก');
+    } finally {
+      setIsCreatingMember(false);
     }
   };
 
@@ -1440,17 +1582,18 @@ export default function AdminDashboard() {
    * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
    * ================================================================== */
   const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission }[] = [
-    { id: 'overview', label: 'แดชบอร์ด',       icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
-    { id: 'agents',   label: 'จัดการเอเย่นต์',  icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW },
-    { id: 'members',  label: 'สมาชิกทั้งหมด',   icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW },
-    { id: 'settings', label: 'ตั้งค่าหวย/ระบบ', icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'reports',  label: 'รายงานการเล่น',   icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW },
-    { id: 'finance',  label: 'การเงินตัดยอด',   icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW },
-    { id: 'rules',    label: 'กติกาการเล่น',    icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES },
-    { id: 'popup',    label: 'ระบบป๊อปอัพ',     icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP },
-    { id: 'api',      label: 'สถานะคีย์ API',   icon: 'api',                    perm: PERMISSIONS.API_VIEW },
-    { id: 'history',  label: 'ประวัติ & รหัส',  icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW },
-    { id: 'staff',    label: 'พนักงาน & สิทธิ์', icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW },
+    { id: 'overview',       label: 'แดชบอร์ด',           icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
+    { id: 'system_control', label: 'เปิด-ปิดระบบ',        icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'members',        label: 'สมาชิก & กำหนดเครดิต', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW },
+    { id: 'finance',        label: 'การเงินตัดยอด',       icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW },
+    { id: 'agents',         label: 'จัดการเอเย่นต์',      icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW },
+    { id: 'settings',       label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'reports',        label: 'รายงานการเล่น',       icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW },
+    { id: 'rules',          label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES },
+    { id: 'popup',          label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP },
+    { id: 'api',            label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW },
+    { id: 'history',        label: 'ประวัติ & รหัส',      icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW },
+    { id: 'staff',          label: 'พนักงาน & สิทธิ์',     icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW },
   ];
 
   /** ★ เมนูที่ผู้ใช้คนนี้เห็นได้ (กรองตามสิทธิ์) */
@@ -1724,6 +1867,317 @@ export default function AdminDashboard() {
                   >
                     <span className="material-symbols-outlined font-black">visibility</span>
                     เปิดมอนิเตอร์สด
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* เมนูเปิด-ปิดระบบ (Master System Control) */}
+          {activeTab === 'system_control' && (
+            <div className="space-y-6">
+              {/* Header & Quick Action Buttons */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-black">
+                    <span className="material-symbols-outlined text-2xl">power_settings_new</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-[var(--navy-deep)]">ศูนย์ควบคุมการเปิด-ปิดระบบ (Master Switchboard)</h2>
+                    <p className="text-gray-500 text-xs">ควบคุมการเปิด/ปิดแต่ละโมดูลของแพลตฟอร์มแบบ Real-time มีผลบังคับใช้ต่อผู้เล่นทันที</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <button
+                    onClick={async () => {
+                      if (confirm('คุณต้องการ "เปิดทุกระบบทั้งหมด" ใช่หรือไม่?')) {
+                        await setDoc(doc(db, 'settings', 'global'), {
+                          ...globalSettings,
+                          systemOpen: true,
+                          bettingOpen: true,
+                          depositOpen: true,
+                          withdrawOpen: true,
+                          registerOpen: true
+                        }, { merge: true });
+                        await logActivity('เปิดทุกระบบ', 'แอดมินเปิดระบบการทำงานทั้งหมด (All ON)', 'system');
+                        alert('เปิดทุกระบบเรียบร้อยแล้ว');
+                      }
+                    }}
+                    className="flex-1 md:flex-none px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-xs font-black shadow-md hover:scale-105 active:scale-95 transition flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm">check_circle</span>
+                    เปิดทุกระบบ (All ON)
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (confirm('คำเตือน: คุณต้องการ "ปิดปรับปรุงฉุกเฉินทุกระบบ" ใช่หรือไม่? ผู้เล่นจะไม่สามารถเข้าใช้งานหรือแทงหวยได้')) {
+                        await setDoc(doc(db, 'settings', 'global'), {
+                          ...globalSettings,
+                          systemOpen: false,
+                          bettingOpen: false,
+                          depositOpen: false,
+                          withdrawOpen: false,
+                          registerOpen: false
+                        }, { merge: true });
+                        await logActivity('ปิดปรับปรุงฉุกเฉิน', 'แอดมินปิดการทำงานทุกระบบ (Emergency Shutdown)', 'system');
+                        alert('ปิดปรับปรุงทุกระบบเรียบร้อยแล้ว');
+                      }
+                    }}
+                    className="flex-1 md:flex-none px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-md hover:scale-105 active:scale-95 transition flex items-center justify-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-sm">warning</span>
+                    ปิดปรับปรุงฉุกเฉิน (All OFF)
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Banner */}
+              <div className={`p-6 rounded-2xl shadow-lg border transition-all ${
+                globalSettings.systemOpen !== false 
+                  ? 'bg-gradient-to-r from-emerald-900/90 to-[var(--navy-deep)] border-emerald-500/40 text-white' 
+                  : 'bg-gradient-to-r from-red-950/90 to-neutral-900 border-red-500/50 text-white'
+              }`}>
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center ${
+                      globalSettings.systemOpen !== false ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400 animate-pulse'
+                    }`}>
+                      <span className="material-symbols-outlined text-3xl">
+                        {globalSettings.systemOpen !== false ? 'verified' : 'fmd_bad'}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-black tracking-wide">
+                          {globalSettings.systemOpen !== false ? 'สถานะระบบ: เปิดให้บริการตามปกติ (ONLINE)' : 'สถานะระบบ: ปิดปรับปรุงชั่วคราว (MAINTENANCE MODE)'}
+                        </span>
+                        <span className={`inline-block w-3 h-3 rounded-full ${globalSettings.systemOpen !== false ? 'bg-emerald-400 animate-ping' : 'bg-red-500 animate-pulse'}`}></span>
+                      </div>
+                      <p className="text-xs text-gray-300 mt-1">
+                        {globalSettings.systemOpen !== false
+                          ? 'แพลตฟอร์มเปิดให้ผู้เล่นเข้าถึง เข้าสู่ระบบ แทงหวย และทำธุรกรรมตามเงื่อนไขที่กำหนด'
+                          : 'หน้าเว็บหลักถูกล็อกโหมดซ่อมบำรุง ผู้เล่นทั่วไปจะไม่สามารถเข้าสู่ระบบหรือทำธุรกรรมได้'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => updateGlobalSetting('systemOpen', globalSettings.systemOpen === false)}
+                    className={`px-6 py-3 rounded-xl font-black text-sm shadow-xl hover:scale-105 active:scale-95 transition flex items-center gap-2 ${
+                      globalSettings.systemOpen !== false
+                        ? 'bg-red-600 hover:bg-red-700 text-white'
+                        : 'bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-base">power_settings_new</span>
+                    {globalSettings.systemOpen !== false ? 'กดเพื่อเปิดโหมดปิดปรับปรุง' : 'กดเพื่อเปิดระบบให้บริการทันที'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 5 Master Switches Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {/* 1. Master System Switch */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined">domain</span>
+                      </div>
+                      <button
+                        onClick={() => updateGlobalSetting('systemOpen', globalSettings.systemOpen === false)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${globalSettings.systemOpen !== false ? 'bg-purple-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${globalSettings.systemOpen !== false ? 'translate-x-8' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-sm text-[var(--navy-deep)]">1. ระบบทั้งหมด (Master Power)</h3>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${globalSettings.systemOpen !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {globalSettings.systemOpen !== false ? 'เปิด' : 'ปิด'}
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs mt-1">
+                        ควบคุมการเข้าถึงทั้งเว็บไซต์ หากปิด ผู้เล่นจะเห็นหน้าปิดปรับปรุงทันที
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-500 font-bold">
+                    <span>การบังคับใช้: ทุกส่วนของระบบ</span>
+                    <span className={globalSettings.systemOpen !== false ? 'text-green-600 font-black' : 'text-red-500 font-black'}>
+                      {globalSettings.systemOpen !== false ? '● ออนไลน์' : '● ปิดทำการ'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Betting System Switch */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined">casino</span>
+                      </div>
+                      <button
+                        onClick={() => updateGlobalSetting('bettingOpen', globalSettings.bettingOpen === false)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${globalSettings.bettingOpen !== false ? 'bg-amber-500' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${globalSettings.bettingOpen !== false ? 'translate-x-8' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-sm text-[var(--navy-deep)]">2. ระบบรับแทงหวย (Betting Switch)</h3>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${globalSettings.bettingOpen !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {globalSettings.bettingOpen !== false ? 'เปิด' : 'ปิด'}
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs mt-1">
+                        ควบคุมการส่งโพยแทงหวย หากปิด ผู้เล่นจะไม่สามารถส่งโพยแทงใหม่ได้ทุกประเภท
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-500 font-bold">
+                    <span>การบังคับใช้: โพยหวย & ตะกร้าแทง</span>
+                    <span className={globalSettings.bettingOpen !== false ? 'text-green-600 font-black' : 'text-red-500 font-black'}>
+                      {globalSettings.bettingOpen !== false ? '● รับแทงปกติ' : '● พักรับแทง'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Deposit Gateway Switch */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined">account_balance_wallet</span>
+                      </div>
+                      <button
+                        onClick={() => updateGlobalSetting('depositOpen', globalSettings.depositOpen === false)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${globalSettings.depositOpen !== false ? 'bg-emerald-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${globalSettings.depositOpen !== false ? 'translate-x-8' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-sm text-[var(--navy-deep)]">3. ระบบฝากเงิน (Deposit Switch)</h3>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${globalSettings.depositOpen !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {globalSettings.depositOpen !== false ? 'เปิด' : 'ปิด'}
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs mt-1">
+                        ควบคุมช่องทางการแจ้งฝากเงิน บัญชีธนาคาร และ QR Code สแกนจ่าย
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-500 font-bold">
+                    <span>การบังคับใช้: หน้าฝากเงิน</span>
+                    <span className={globalSettings.depositOpen !== false ? 'text-green-600 font-black' : 'text-red-500 font-black'}>
+                      {globalSettings.depositOpen !== false ? '● เปิดรับฝาก' : '● ปิดรับฝากชั่วคราว'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. Withdrawal Gateway Switch */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined">payments</span>
+                      </div>
+                      <button
+                        onClick={() => updateGlobalSetting('withdrawOpen', globalSettings.withdrawOpen === false)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${globalSettings.withdrawOpen !== false ? 'bg-blue-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${globalSettings.withdrawOpen !== false ? 'translate-x-8' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-sm text-[var(--navy-deep)]">4. ระบบถอนเงิน (Withdrawal Switch)</h3>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${globalSettings.withdrawOpen !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {globalSettings.withdrawOpen !== false ? 'เปิด' : 'ปิด'}
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs mt-1">
+                        ควบคุมคำขอถอนเงิน หากปิด ผู้เล่นจะไม่สามารถส่งคำขอถอนเงินได้
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-500 font-bold">
+                    <span>การบังคับใช้: หน้าถอนเงิน</span>
+                    <span className={globalSettings.withdrawOpen !== false ? 'text-green-600 font-black' : 'text-red-500 font-black'}>
+                      {globalSettings.withdrawOpen !== false ? '● เปิดรับถอน' : '● ปิดรับถอนชั่วคราว'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 5. Registration Gateway Switch */}
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:shadow-md transition">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined">how_to_reg</span>
+                      </div>
+                      <button
+                        onClick={() => updateGlobalSetting('registerOpen', globalSettings.registerOpen === false)}
+                        className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none ${globalSettings.registerOpen !== false ? 'bg-orange-500' : 'bg-gray-300'}`}
+                      >
+                        <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform ${globalSettings.registerOpen !== false ? 'translate-x-8' : 'translate-x-1'}`} />
+                      </button>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-black text-sm text-[var(--navy-deep)]">5. ระบบสมัครสมาชิก (Registration)</h3>
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${globalSettings.registerOpen !== false ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {globalSettings.registerOpen !== false ? 'เปิด' : 'ปิด'}
+                        </span>
+                      </div>
+                      <p className="text-gray-400 text-xs mt-1">
+                        ควบคุมการรับสมัครสมาชิกใหม่ทางหน้าเว็บ (แอดมินยังสร้างยูสเซอร์ได้ตลอดเวลา)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-3 border-t border-gray-50 flex justify-between items-center text-[11px] text-gray-500 font-bold">
+                    <span>การบังคับใช้: หน้าสมัครสมาชิก</span>
+                    <span className={globalSettings.registerOpen !== false ? 'text-green-600 font-black' : 'text-red-500 font-black'}>
+                      {globalSettings.registerOpen !== false ? '● เปิดรับสมัคร' : '● ปิดรับสมัคร'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Maintenance Message Editor */}
+              <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[var(--gold-vibrant)]">campaign</span>
+                    <h3 className="font-black text-[var(--navy-deep)]">ข้อความประกาศเมื่อปิดปรับปรุงระบบ</h3>
+                  </div>
+                  <span className="text-[11px] text-gray-400">แสดงผลบนหน้าบ้านเมื่อระบบปิด</span>
+                </div>
+
+                <textarea
+                  rows={3}
+                  value={maintenanceNote || globalSettings.maintenanceMessage || ''}
+                  onChange={(e) => setMaintenanceNote(e.target.value)}
+                  placeholder="ระบุข้อความประกาศแจ้งเตือนผู้เล่นเมื่อปิดระบบชั่วคราว..."
+                  className="w-full p-4 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:border-[var(--gold-vibrant)] transition"
+                />
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={async () => {
+                      const msg = (maintenanceNote || globalSettings.maintenanceMessage || '').trim();
+                      await updateGlobalSetting('maintenanceMessage', msg);
+                      alert('บันทึกข้อความประกาศปิดปรับปรุงเรียบร้อยแล้ว');
+                    }}
+                    className="px-6 py-2.5 bg-[var(--navy-deep)] text-[var(--gold-vibrant)] font-black text-xs rounded-xl shadow hover:scale-105 active:scale-95 transition flex items-center gap-2"
+                  >
+                    <span className="material-symbols-outlined text-sm">save</span>
+                    บันทึกข้อความประกาศ
                   </button>
                 </div>
               </div>
@@ -2627,6 +3081,13 @@ export default function AdminDashboard() {
                     สายเอเย่นต์
                   </button>
                 </div>
+                <button
+                  onClick={() => setShowAddMemberModal(true)}
+                  className="bg-[var(--gold-vibrant)] text-[var(--navy-deep)] px-5 py-2.5 rounded-xl font-black shadow-lg hover:scale-105 transition active:scale-95 flex items-center gap-2 text-xs"
+                >
+                  <span className="material-symbols-outlined text-base font-black">person_add</span>
+                  + สมัครสมาชิกใหม่ (สร้างยูสเซอร์)
+                </button>
               </div>
 
               {/* ★ แถบเครื่องมือค้นหา/กรอง/ส่งออก สำหรับสมาชิก */}
@@ -2718,18 +3179,21 @@ export default function AdminDashboard() {
                                <StatusBadge status={user.status === 'blocked' ? 'blocked' : 'active'} />
                             </td>
                             <td className="p-4">
-                              <div className="flex justify-end gap-2">
-                                 <button 
-                                  onClick={() => { setSelectedUserForCredit(user); setCreditAction('add'); setShowCreditModal(true); }}
-                                  className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition"
+                              <div className="flex justify-end items-center gap-2">
+                                <button 
+                                  onClick={() => { setSelectedUserForCredit(user); setCreditAction('add'); setCreditAmount(0); setCreditNote(''); setShowCreditModal(true); }}
+                                  className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-black transition flex items-center gap-1.5 border border-blue-200"
+                                  title="กำหนดหรือเติมลดเครดิตสมาชิก"
                                 >
-                                  <span className="material-symbols-outlined text-sm">add_card</span>
+                                  <span className="material-symbols-outlined text-sm">payments</span>
+                                  <span>กำหนดเครดิต</span>
                                 </button>
                                 <button 
                                   onClick={() => updateUserStatus(user.id, user.status === 'blocked' ? 'active' : 'blocked')}
-                                  className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
+                                  className={`p-1.5 rounded-lg transition ${user.status === 'blocked' ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                                  title={user.status === 'blocked' ? 'ปลดบล็อก' : 'ระงับบัญชี'}
                                 >
-                                  <span className="material-symbols-outlined text-sm">block</span>
+                                  <span className="material-symbols-outlined text-sm">{user.status === 'blocked' ? 'lock_open' : 'block'}</span>
                                 </button>
                               </div>
                             </td>
@@ -4278,54 +4742,293 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* Credit Modal */}
+      {/* Credit Modal (3 Modes: Add, Reduce, Set) */}
       {showCreditModal && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="bg-[var(--navy-deep)] p-4 flex justify-between items-center text-white">
               <h3 className="font-black flex items-center gap-2">
-                <span className="material-symbols-outlined">{creditAction === 'add' ? 'add_card' : 'remove_card'}</span>
-                {creditAction === 'add' ? 'เติมเครดิต' : 'ลดเครดิต'}
+                <span className="material-symbols-outlined text-[var(--gold-vibrant)]">
+                  {creditAction === 'add' ? 'add_card' : creditAction === 'reduce' ? 'remove_card' : 'tune'}
+                </span>
+                {creditAction === 'add' ? 'เติมเครดิตสมาชิก' : creditAction === 'reduce' ? 'ลดเครดิตสมาชิก' : 'กำหนดเครดิตสมาชิกใหม่'}
               </h3>
               <button onClick={() => setShowCreditModal(false)} className="material-symbols-outlined">close</button>
             </div>
+
             <div className="p-6 space-y-4">
-              <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                <div className="text-[10px] font-black text-gray-400 uppercase mb-1">สมาชิก</div>
-                <div className="font-black text-[var(--navy-deep)]">{selectedUserForCredit?.username}</div>
-                <div className="text-xs text-gray-500">เครดิตปัจจุบัน: ฿{selectedUserForCredit?.balance?.toLocaleString() || 0}</div>
+              {/* Mode Switcher Tabs */}
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-gray-100 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setCreditAction('add')}
+                  className={`py-2 text-xs font-black rounded-lg transition flex items-center justify-center gap-1 ${
+                    creditAction === 'add' ? 'bg-green-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">add</span>
+                  เติมเครดิต
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreditAction('reduce')}
+                  className={`py-2 text-xs font-black rounded-lg transition flex items-center justify-center gap-1 ${
+                    creditAction === 'reduce' ? 'bg-red-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">remove</span>
+                  ลดเครดิต
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCreditAction('set')}
+                  className={`py-2 text-xs font-black rounded-lg transition flex items-center justify-center gap-1 ${
+                    creditAction === 'set' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">tune</span>
+                  กำหนดใหม่ (=)
+                </button>
               </div>
-              
-              <div className="space-y-2">
-                <label className="text-xs font-black text-gray-400 uppercase">จำนวนเงิน (บาท)</label>
+
+              {/* User Info Card */}
+              <div className="bg-gray-50 p-3.5 rounded-xl border border-gray-100">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="text-[10px] font-black text-gray-400 uppercase">สมาชิก</div>
+                    <div className="font-black text-base text-[var(--navy-deep)]">{selectedUserForCredit?.username}</div>
+                    <div className="text-xs text-gray-500">{selectedUserForCredit?.phoneNumber} {selectedUserForCredit?.firstName ? `(${selectedUserForCredit?.firstName})` : ''}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-[10px] font-black text-gray-400 uppercase">เครดิตปัจจุบัน</div>
+                    <div className="font-black text-base text-green-600">฿{(selectedUserForCredit?.balance || 0).toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Amount Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-gray-500 uppercase">
+                  {creditAction === 'set' ? 'ระบุยอดเครดิตที่ต้องการให้เป็น (บาท)' : 'จำนวนเงิน (บาท)'}
+                </label>
                 <input 
                   type="number" 
+                  min={0}
                   value={creditAmount || ''}
-                  onChange={(e) => setCreditAmount(parseFloat(e.target.value))}
+                  onChange={(e) => setCreditAmount(parseFloat(e.target.value) || 0)}
                   placeholder="0.00"
-                  className="w-full border-2 border-gray-100 rounded-xl p-4 font-black text-2xl text-center outline-none focus:border-[var(--gold-vibrant)] transition"
+                  className="w-full border-2 border-gray-200 rounded-xl p-3.5 font-black text-2xl text-center outline-none focus:border-[var(--gold-vibrant)] transition"
                 />
               </div>
 
+              {/* Presets */}
               <div className="grid grid-cols-3 gap-2">
                 {[100, 500, 1000, 5000, 10000, 50000].map(amt => (
                   <button 
                     key={amt}
-                    onClick={() => setCreditAmount(amt)}
-                    className="py-2 bg-gray-50 border border-gray-100 rounded-lg text-xs font-black hover:bg-[var(--gold-vibrant)] hover:text-[var(--navy-deep)] transition"
+                    type="button"
+                    onClick={() => {
+                      if (creditAction === 'set') {
+                        setCreditAmount(amt);
+                      } else {
+                        setCreditAmount(amt);
+                      }
+                    }}
+                    className="py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-black hover:bg-[var(--gold-vibrant)] hover:text-[var(--navy-deep)] transition"
                   >
-                    +{amt.toLocaleString()}
+                    {creditAction === 'set' ? `฿${amt.toLocaleString()}` : `+${amt.toLocaleString()}`}
                   </button>
                 ))}
               </div>
 
+              {/* Note / Reason */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-black text-gray-500 uppercase">หมายเหตุ / เหตุผลการปรับยอด</label>
+                <input
+                  type="text"
+                  value={creditNote}
+                  onChange={(e) => setCreditNote(e.target.value)}
+                  placeholder="เช่น เติมโปรโมชั่น, ถอนสด, ปรับแก้ข้อผิดพลาด"
+                  className="w-full border border-gray-200 rounded-xl p-2.5 text-xs font-bold outline-none focus:border-[var(--gold-vibrant)] transition"
+                />
+              </div>
+
+              {/* Preview Calculation */}
+              <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl flex justify-between items-center text-xs">
+                <div>
+                  <span className="text-gray-500">ยอดคงเหลือสุทธิหลังบันทึก:</span>
+                </div>
+                <div className="font-black text-base text-[var(--navy-deep)]">
+                  ฿{(() => {
+                    const current = Number(selectedUserForCredit?.balance) || 0;
+                    const amt = Number(creditAmount) || 0;
+                    if (creditAction === 'add') return (current + amt).toLocaleString();
+                    if (creditAction === 'reduce') return Math.max(0, current - amt).toLocaleString();
+                    return amt.toLocaleString();
+                  })()}
+                </div>
+              </div>
+
               <button 
                 onClick={handleCreditTransaction}
-                className={`w-full py-4 rounded-xl font-black shadow-lg active:scale-95 transition ${creditAction === 'add' ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}
+                className={`w-full py-3.5 rounded-xl font-black text-white shadow-lg active:scale-95 transition ${
+                  creditAction === 'add' ? 'bg-green-600 hover:bg-green-700' :
+                  creditAction === 'reduce' ? 'bg-red-600 hover:bg-red-700' :
+                  'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
                 ยืนยันการทำรายการ
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-[var(--navy-deep)] p-4 flex justify-between items-center text-white">
+              <h3 className="font-black flex items-center gap-2">
+                <span className="material-symbols-outlined text-[var(--gold-vibrant)]">person_add</span>
+                สมัครสมาชิกใหม่ (สร้างบัญชีผู้เล่น)
+              </h3>
+              <button onClick={() => setShowAddMemberModal(false)} className="material-symbols-outlined">close</button>
+            </div>
+            <form onSubmit={handleCreateMember} className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-black text-gray-500 uppercase">ชื่อผู้ใช้ (Username) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น user888"
+                    value={newMemberForm.username}
+                    onChange={e => setNewMemberForm(prev => ({ ...prev, username: e.target.value }))}
+                    className="w-full mt-1 p-3 border rounded-xl font-bold text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-500 uppercase">รหัสผ่าน (Password) *</label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="อย่างน้อย 6 ตัวอักษร"
+                    value={newMemberForm.password}
+                    onChange={e => setNewMemberForm(prev => ({ ...prev, password: e.target.value }))}
+                    className="w-full mt-1 p-3 border rounded-xl font-bold text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-500 uppercase">เบอร์โทรศัพท์ (10 หลัก) *</label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    placeholder="0812345678"
+                    value={newMemberForm.phoneNumber}
+                    onChange={e => setNewMemberForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                    className="w-full mt-1 p-3 border rounded-xl font-bold text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-500 uppercase">เครดิตเริ่มต้น (บาท)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={newMemberForm.initialCredit || ''}
+                    onChange={e => setNewMemberForm(prev => ({ ...prev, initialCredit: parseFloat(e.target.value) || 0 }))}
+                    className="w-full mt-1 p-3 border rounded-xl font-black text-sm outline-none focus:border-green-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-500 uppercase">ชื่อจริง</label>
+                  <input
+                    type="text"
+                    placeholder="ชื่อจริง"
+                    value={newMemberForm.firstName}
+                    onChange={e => setNewMemberForm(prev => ({ ...prev, firstName: e.target.value }))}
+                    className="w-full mt-1 p-3 border rounded-xl font-bold text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-500 uppercase">นามสกุล</label>
+                  <input
+                    type="text"
+                    placeholder="นามสกุล"
+                    value={newMemberForm.lastName}
+                    onChange={e => setNewMemberForm(prev => ({ ...prev, lastName: e.target.value }))}
+                    className="w-full mt-1 p-3 border rounded-xl font-bold text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-500 uppercase">ธนาคาร</label>
+                  <select
+                    value={newMemberForm.bankName}
+                    onChange={e => setNewMemberForm(prev => ({ ...prev, bankName: e.target.value }))}
+                    className="w-full mt-1 p-3 border rounded-xl font-bold text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                  >
+                    <option value="ธนาคารกสิกรไทย (KBANK)">ธนาคารกสิกรไทย (KBANK)</option>
+                    <option value="ธนาคารไทยพาณิชย์ (SCB)">ธนาคารไทยพาณิชย์ (SCB)</option>
+                    <option value="ธนาคารกรุงเทพ (BBL)">ธนาคารกรุงเทพ (BBL)</option>
+                    <option value="ธนาคารกรุงไทย (KTB)">ธนาคารกรุงไทย (KTB)</option>
+                    <option value="ธนาคารทหารไทยธนชาต (TTB)">ธนาคารทหารไทยธนชาต (TTB)</option>
+                    <option value="ธนาคารกรุงศรีอยุธยา (BAY)">ธนาคารกรุงศรีอยุธยา (BAY)</option>
+                    <option value="ธนาคารออมสิน (GSB)">ธนาคารออมสิน (GSB)</option>
+                    <option value="ทรูมันนี่วอลเล็ท (TrueMoney)">ทรูมันนี่วอลเล็ท (TrueMoney)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-black text-gray-500 uppercase">เลขที่บัญชี</label>
+                  <input
+                    type="text"
+                    placeholder="เลขที่บัญชีธนาคาร"
+                    value={newMemberForm.bankAccount}
+                    onChange={e => setNewMemberForm(prev => ({ ...prev, bankAccount: e.target.value }))}
+                    className="w-full mt-1 p-3 border rounded-xl font-bold text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-black text-gray-500 uppercase">สายเอเย่นต์ผู้ดูแล</label>
+                <select
+                  value={newMemberForm.agentId}
+                  onChange={e => setNewMemberForm(prev => ({ ...prev, agentId: e.target.value }))}
+                  className="w-full mt-1 p-3 border rounded-xl font-bold text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                >
+                  <option value="">Master (บริษัทโดยตรง)</option>
+                  {agents.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} ({a.username})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAddMemberModal(false)}
+                  className="flex-1 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingMember}
+                  className="flex-1 py-3 bg-[var(--gold-vibrant)] text-[var(--navy-deep)] rounded-xl font-black shadow-lg hover:scale-[1.02] active:scale-95 transition flex items-center justify-center gap-2"
+                >
+                  {isCreatingMember ? (
+                    <span>กำลังสร้างยูสเซอร์...</span>
+                  ) : (
+                    <>
+                      <span className="material-symbols-outlined text-sm">how_to_reg</span>
+                      <span>ยืนยันสร้างสมาชิก</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
