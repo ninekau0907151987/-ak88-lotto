@@ -37,7 +37,7 @@ export default function Login() {
           name: 'เจ้าของระบบ AK88',
           loginAt: new Date().toISOString()
         }));
-        navigate('/admin'); // กลับหน้าหลักหลังบ้าน
+        navigate('/admin');
         return;
       }
 
@@ -94,7 +94,7 @@ export default function Login() {
           loginAt: new Date().toISOString()
         }));
 
-        navigate('/'); // กลับหน้าแรก (หน้าต้อนรับสมาชิก)
+        navigate('/');
         return;
       }
 
