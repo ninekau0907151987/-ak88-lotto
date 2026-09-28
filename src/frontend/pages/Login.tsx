@@ -37,7 +37,7 @@ export default function Login() {
           name: 'เจ้าของระบบ AK88',
           loginAt: new Date().toISOString()
         }));
-        navigate('/admin/yeekee');
+        navigate('/admin'); // กลับหน้าหลักหลังบ้าน
         return;
       }
 
@@ -80,6 +80,7 @@ export default function Login() {
         }
 
         localStorage.setItem('isLoggedIn', 'true');
+        localStorage.removeItem('adminAuth');
         localStorage.setItem('userRole', 'user');
         localStorage.setItem('userId', userDoc.id);
         localStorage.setItem('username', userData.username || loginInput);
@@ -93,7 +94,7 @@ export default function Login() {
           loginAt: new Date().toISOString()
         }));
 
-        navigate('/');
+        navigate('/'); // กลับหน้าแรก (หน้าต้อนรับสมาชิก)
         return;
       }
 

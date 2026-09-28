@@ -156,7 +156,8 @@ export default function Register() {
       const docRef = await addDoc(collection(db, 'users'), newUser);
 
       // 4) เข้าสู่ระบบอัตโนมัติ (Auto Login)
-      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.removeItem('adminAuth');
+        localStorage.setItem('isLoggedIn', 'true');
       localStorage.setItem('userRole', 'user');
       localStorage.setItem('userId', docRef.id);
       localStorage.setItem('username', cleanUsername);
@@ -171,7 +172,7 @@ export default function Register() {
       }));
 
       alert(`🎉 สมัครสมาชิกสำเร็จ!\nยินดีต้อนรับคุณ ${newUser.name}\nบัญชีของท่านพร้อมใช้งานแล้วครับ`);
-      navigate('/');
+      navigate('/'); // กลับหน้าแรกสุด
     } catch (err) {
       console.error('Registration error:', err);
       setError('เกิดข้อผิดพลาดในการบันทึกข้อมูล กรุณาลองใหม่อีกครั้ง');
