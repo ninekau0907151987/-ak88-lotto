@@ -841,15 +841,16 @@ export default function AdminDashboard() {
     // 2) fallback: บัญชีผู้ดูแลหลัก (ระบบเดิม + บัญชี owner)
     if (
       (adminUser === '1234' && adminPass === '12345678') ||
-      (adminUser.toLowerCase() === 'owner' && (adminPass === '0614284727' || adminPass === '06142847'))
+      (adminUser.toLowerCase() === 'owner' && (adminPass === '0614284727' || adminPass === '06142847')) ||
+      (adminUser.toLowerCase() === 'admin' && (adminPass === '1234' || adminPass === 'admin1234'))
     ) {
       const sess: StaffSession = {
-        uid: 'owner', username: adminUser || 'owner', displayName: 'เจ้าของระบบ', role: 'owner',
+        uid: 'owner', username: adminUser || 'owner', displayName: 'ผู้ดูแลระบบสูงสุด (Admin)', role: 'owner',
       };
       saveSession(sess);
       setSession(sess);
       setIsAdminLoggedIn(true);
-      await logActivity('เข้าสู่ระบบ', 'เจ้าของระบบ (Owner)', 'security');
+      await logActivity('เข้าสู่ระบบ', 'เจ้าของระบบ (Owner/Admin)', 'security');
     } else {
       alert('Username หรือ รหัสผ่านไม่ถูกต้อง');
     }

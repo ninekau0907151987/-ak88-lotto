@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { saveSession } from '@/shared/lib/permissions';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('');
@@ -31,6 +32,12 @@ export default function Login() {
         localStorage.setItem('adminAuth', 'true');
         localStorage.setItem('userRole', 'admin');
         localStorage.setItem('username', 'Admin_AK88');
+        saveSession({
+          uid: 'owner',
+          username: loginInput || 'Admin_AK88',
+          displayName: 'ผู้บริหารระบบ AK88 (Super Admin)',
+          role: 'owner',
+        });
         localStorage.setItem('currentUser', JSON.stringify({
           username: 'Admin_AK88',
           role: 'admin',
