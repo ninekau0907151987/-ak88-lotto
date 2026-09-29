@@ -165,44 +165,6 @@ export function lotteryRoutes(db: any) {
     }
   });
 
-  // POST /api/v1/lottery/resistance/:id — บันทึก/อัปเดตระบบต้านทานอัตราจ่ายแยกตามหลัก
-  r.post('/resistance/:id', async (req, res) => {
-    try {
-      const { rates, enabled, autoReduceOnExposure } = req.body;
-      const dataToSave = {
-        id: req.params.id,
-        lotteryId: req.params.id,
-        enabled: enabled !== false,
-        autoReduceOnExposure: autoReduceOnExposure !== false,
-        rates: rates || DEFAULT_RESISTANCE_RATES,
-        updatedAt: serverTimestamp(),
-      };
-      
-      await setDoc(doc(db, 'payout_resistance', req.params.id), dataToSave, { merge: true });
-
-      // ซิงค์เรทพื้นฐานไปยัง lotteryTypes ด้วยเพื่อให้หน้าบ้านดึงไปใช้ได้ทันที
-      if (rates && typeof rates === 'object') {
-        const flatRates: Record<string, number> = {};
-        Object.keys(rates).forEach(k => {
-          flatRates[k] = rates[k]?.baseRate || rates[k];
-        });
-        await setDoc(doc(db, 'lotteryTypes', req.params.id), {
-          rates: flatRates,
-          hasResistance: true,
-          updatedAt: serverTimestamp(),
-        }, { merge: true });
-      }
-
-      res.json({
-        status: 'success',
-        message: `บันทึกระบบต้านทานอัตราจ่ายสำหรับ ${req.params.id} สำเร็จ`,
-        data: dataToSave,
-      });
-    } catch (e) {
-      res.status(500).json({ status: 'error', message: 'บันทึกระบบต้านทานอัตราจ่ายไม่สำเร็จ' });
-    }
-  });
-
   // POST /api/v1/lottery/resistance/batch — นำการตั้งค่าระบบต้านทานไปใช้กับหวยทุกประเภท
   r.post('/resistance/batch', async (req, res) => {
     try {
@@ -281,6 +243,44 @@ export function lotteryRoutes(db: any) {
       });
     } catch (e) {
       res.status(500).json({ status: 'error', message: 'คำนวณการต้านทานอัตราจ่ายไม่สำเร็จ' });
+    }
+  });
+
+  // POST /api/v1/lottery/resistance/:id — บันทึก/อัปเดตระบบต้านทานอัตราจ่ายแยกตามหลัก
+  r.post('/resistance/:id', async (req, res) => {
+    try {
+      const { rates, enabled, autoReduceOnExposure } = req.body;
+      const dataToSave = {
+        id: req.params.id,
+        lotteryId: req.params.id,
+        enabled: enabled !== false,
+        autoReduceOnExposure: autoReduceOnExposure !== false,
+        rates: rates || DEFAULT_RESISTANCE_RATES,
+        updatedAt: serverTimestamp(),
+      };
+      
+      await setDoc(doc(db, 'payout_resistance', req.params.id), dataToSave, { merge: true });
+
+      // ซิงค์เรทพื้นฐานไปยัง lotteryTypes ด้วยเพื่อให้หน้าบ้านดึงไปใช้ได้ทันที
+      if (rates && typeof rates === 'object') {
+        const flatRates: Record<string, number> = {};
+        Object.keys(rates).forEach(k => {
+          flatRates[k] = rates[k]?.baseRate || rates[k];
+        });
+        await setDoc(doc(db, 'lotteryTypes', req.params.id), {
+          rates: flatRates,
+          hasResistance: true,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
+
+      res.json({
+        status: 'success',
+        message: `บันทึกระบบต้านทานอัตราจ่ายสำหรับ ${req.params.id} สำเร็จ`,
+        data: dataToSave,
+      });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'บันทึกระบบต้านทานอัตราจ่ายไม่สำเร็จ' });
     }
   });
 
