@@ -1540,6 +1540,38 @@ export default function AdminDashboard() {
     return Object.values(map).sort((a, b) => a.name.localeCompare(b.name)).slice(-14);
   }, [filteredTransactions]);
 
+  /* ==================================================================
+   * ★ แท็บทั้งหมด พร้อมสิทธิ์ที่ต้องมี
+   * ------------------------------------------------------------------
+   * ผู้ใช้ขอ: "ทำระบบ จัดการสิทธิ์ฟังชั่น เพื่อปิดสิทธิ์ให้พนักงาน"
+   * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
+   * ================================================================== */
+  const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission }[] = [
+    { id: 'overview',       label: 'แดชบอร์ด',           icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
+    { id: 'system_control', label: 'เปิด-ปิดระบบ',        icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'members',        label: 'สมาชิก & กำหนดเครดิต', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW },
+    { id: 'finance',        label: 'การเงินตัดยอด',       icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW },
+    { id: 'agents',         label: 'จัดการเอเย่นต์',      icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW },
+    { id: 'settings',       label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'reports',        label: 'รายงานการเล่น',       icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW },
+    { id: 'rules',          label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES },
+    { id: 'popup',          label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP },
+    { id: 'api',            label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW },
+    { id: 'history',        label: 'ประวัติ & รหัส',      icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW },
+    { id: 'staff',          label: 'พนักงาน & สิทธิ์',     icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW },
+  ];
+
+  /** ★ เมนูที่ผู้ใช้คนนี้เห็นได้ (กรองตามสิทธิ์) */
+  const tabs = ALL_TABS.filter(t => has(t.perm));
+
+  // ★ ถ้าแท็บที่เปิดอยู่ไม่มีสิทธิ์ → เด้งไปแท็บแรกที่เข้าถึงได้
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.some(t => t.id === activeTab)) {
+      setActiveTab(tabs[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, activeTab, tabs.length]);
+
   if (!isAdminLoggedIn) {
     return (
       <div className="min-h-screen bg-[var(--navy-deep)] flex items-center justify-center p-4">
@@ -1575,38 +1607,6 @@ export default function AdminDashboard() {
       </div>
     );
   }
-
-  /* ==================================================================
-   * ★ แท็บทั้งหมด พร้อมสิทธิ์ที่ต้องมี
-   * ------------------------------------------------------------------
-   * ผู้ใช้ขอ: "ทำระบบ จัดการสิทธิ์ฟังชั่น เพื่อปิดสิทธิ์ให้พนักงาน"
-   * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
-   * ================================================================== */
-  const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission }[] = [
-    { id: 'overview',       label: 'แดชบอร์ด',           icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
-    { id: 'system_control', label: 'เปิด-ปิดระบบ',        icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'members',        label: 'สมาชิก & กำหนดเครดิต', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW },
-    { id: 'finance',        label: 'การเงินตัดยอด',       icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW },
-    { id: 'agents',         label: 'จัดการเอเย่นต์',      icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW },
-    { id: 'settings',       label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'reports',        label: 'รายงานการเล่น',       icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW },
-    { id: 'rules',          label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES },
-    { id: 'popup',          label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP },
-    { id: 'api',            label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW },
-    { id: 'history',        label: 'ประวัติ & รหัส',      icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW },
-    { id: 'staff',          label: 'พนักงาน & สิทธิ์',     icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW },
-  ];
-
-  /** ★ เมนูที่ผู้ใช้คนนี้เห็นได้ (กรองตามสิทธิ์) */
-  const tabs = ALL_TABS.filter(t => has(t.perm));
-
-  // ★ ถ้าแท็บที่เปิดอยู่ไม่มีสิทธิ์ → เด้งไปแท็บแรกที่เข้าถึงได้
-  useEffect(() => {
-    if (tabs.length > 0 && !tabs.some(t => t.id === activeTab)) {
-      setActiveTab(tabs[0].id);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, activeTab, tabs.length]);
 
   return (
     <div className="min-h-screen admin-cream flex">
