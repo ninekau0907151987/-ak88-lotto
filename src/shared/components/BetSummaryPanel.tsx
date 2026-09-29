@@ -37,6 +37,19 @@ export default function BetSummaryPanel({
 
   return (
     <div className={`bg-[#0d1f38] border border-[#f5c518]/25 rounded-xl overflow-hidden ${className}`}>
+      {/* ★ 👑 แถบมอนิเตอร์โพยสด VIP ★ */}
+      <div className="bg-gradient-to-r from-[#1a1300] via-[#2d2200] to-[#1a1300] px-3 py-1.5 flex items-center justify-between border-b border-amber-400/30 text-[11px]">
+        <div className="flex items-center gap-1.5">
+          <span>👑</span>
+          <span className="font-black text-amber-300">มอนิเตอร์โพยสด VIP</span>
+        </div>
+        <span className={`text-[10px] font-black px-2 py-0.2 rounded-full ${
+          totalAmount >= 500 ? 'bg-amber-400 text-slate-950 shadow-sm' : 'text-amber-200/80 bg-amber-400/10'
+        }`}>
+          {totalAmount >= 500 ? '👑 บิลระดับ VIP ยอดสูง' : 'สิทธิ์อัตราจ่าย VIP บาทละ 900'}
+        </span>
+      </div>
+
       {/* ---- แถวสรุปหลัก ---- */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2.5 bg-[#0a192f] border-b border-[#f5c518]/15">
         {/* ★ จำนวนตัวเลข — ตัวเลขสำคัญที่สุด ขยายใหญ่ */}

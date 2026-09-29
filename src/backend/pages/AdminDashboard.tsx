@@ -226,6 +226,9 @@ export default function AdminDashboard() {
   const [customPayoutRate, setCustomPayoutRate] = useState('');
   const [applyBlockToAllLotteries, setApplyBlockToAllLotteries] = useState(false);
 
+  // VIP Live Monitor Filtering State
+  const [vipMonitorFilter, setVipMonitorFilter] = useState<'all' | 'vip500' | 'vip1000' | 'vip2000'>('all');
+
   // Date Filtering State
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -3084,9 +3087,119 @@ export default function AdminDashboard() {
               )}
 
               {/* Sub-tab: Monitor (Real-time Status) */}
-              {activeSettingsSubTab === 'monitor' && (
+              {activeSettingsSubTab === 'monitor' && (() => {
+                const vipTickets500 = tickets.filter(t => (Number(t.totalAmount) || 0) >= 500);
+                const vipTickets1000 = tickets.filter(t => (Number(t.totalAmount) || 0) >= 1000);
+                const vipTickets2000 = tickets.filter(t => (Number(t.totalAmount) || 0) >= 2000);
+                
+                const filteredTickets = tickets.filter(t => {
+                  const amt = Number(t.totalAmount) || 0;
+                  if (vipMonitorFilter === 'vip500') return amt >= 500;
+                  if (vipMonitorFilter === 'vip1000') return amt >= 1000;
+                  if (vipMonitorFilter === 'vip2000') return amt >= 2000;
+                  return true;
+                });
+
+                const totalVipAmount = vipTickets500.reduce((sum, t) => sum + (Number(t.totalAmount) || 0), 0);
+
+                return (
                 <div className="space-y-6">
-                  {/* ... (Existing Monitor Content) ... */}
+                  {/* ★ 👑 แถบมอนิเตอร์สด VIP (VIP Live Monitoring Bar) ★ */}
+                  <div className="bg-gradient-to-r from-[#1a1300] via-[#2d2200] to-[#1a1300] border-2 border-amber-400/60 rounded-3xl p-5 shadow-2xl relative overflow-hidden">
+                    <div className="absolute -right-8 -top-8 w-40 h-40 bg-amber-400/10 rounded-full blur-2xl pointer-events-none"></div>
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center font-black text-2xl shadow-lg shadow-amber-500/20">
+                          👑
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-black text-white tracking-tight">
+                              แถบมอนิเตอร์สด VIP (VIP Live Monitoring Bar)
+                            </h3>
+                            <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-black px-2 py-0.5 rounded-full animate-pulse">
+                              LIVE VIP HUB
+                            </span>
+                          </div>
+                          <p className="text-xs text-amber-200/70 mt-0.5">
+                            เฝ้าระวังและวิเคราะห์โพยยอดแทงระดับ VIP และรายการเดิมพันสูงแบบ Real-Time 24 ชม.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* VIP Filter Tabs / แถบปุ่มกรอง VIP */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          onClick={() => setVipMonitorFilter('all')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
+                            vipMonitorFilter === 'all'
+                              ? 'bg-white text-slate-900 shadow-md'
+                              : 'bg-white/10 text-gray-300 hover:bg-white/20'
+                          }`}
+                        >
+                          ทั้งหมด ({tickets.length})
+                        </button>
+                        <button
+                          onClick={() => setVipMonitorFilter('vip500')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                            vipMonitorFilter === 'vip500'
+                              ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 shadow-lg shadow-amber-400/30'
+                              : 'bg-amber-500/15 text-amber-300 border border-amber-400/30 hover:bg-amber-500/25'
+                          }`}
+                        >
+                          <span>👑 โพย VIP ฿500+</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30">{vipTickets500.length}</span>
+                        </button>
+                        <button
+                          onClick={() => setVipMonitorFilter('vip1000')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                            vipMonitorFilter === 'vip1000'
+                              ? 'bg-gradient-to-r from-yellow-300 to-amber-500 text-slate-950 shadow-lg shadow-yellow-400/30'
+                              : 'bg-yellow-500/15 text-yellow-300 border border-yellow-400/30 hover:bg-yellow-500/25'
+                          }`}
+                        >
+                          <span>💎 Big Win ฿1,000+</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30">{vipTickets1000.length}</span>
+                        </button>
+                        <button
+                          onClick={() => setVipMonitorFilter('vip2000')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1 ${
+                            vipMonitorFilter === 'vip2000'
+                              ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-lg'
+                              : 'bg-rose-500/15 text-rose-300 border border-rose-400/30 hover:bg-rose-500/25'
+                          }`}
+                        >
+                          <span>🔥 High-Roller ฿2,000+</span>
+                          <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/30">{vipTickets2000.length}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* VIP Metrics Summary Strip */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4 pt-4 border-t border-amber-400/20 text-xs">
+                      <div className="bg-black/40 p-3 rounded-2xl border border-amber-400/20">
+                        <span className="text-[10px] font-bold text-amber-300/80 block">ยอดรวมโพย VIP (฿)</span>
+                        <span className="text-base font-black text-amber-300">฿{totalVipAmount.toLocaleString()}</span>
+                      </div>
+                      <div className="bg-black/40 p-3 rounded-2xl border border-amber-400/20">
+                        <span className="text-[10px] font-bold text-amber-300/80 block">บิลระดับ VIP รวม</span>
+                        <span className="text-base font-black text-white">{vipTickets500.length} โพย</span>
+                      </div>
+                      <div className="bg-black/40 p-3 rounded-2xl border border-amber-400/20">
+                        <span className="text-[10px] font-bold text-amber-300/80 block">สถานะเซิร์ฟเวอร์ VIP</span>
+                        <span className="text-base font-black text-emerald-400 flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Ultra Fast
+                        </span>
+                      </div>
+                      <div className="bg-black/40 p-3 rounded-2xl border border-amber-400/20">
+                        <span className="text-[10px] font-bold text-amber-300/80 block">สมาชิก VIP กำลังแทง</span>
+                        <span className="text-base font-black text-yellow-300">
+                          {new Set(vipTickets500.map(t => t.userId)).size} บัญชี
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between">
                        <div>
@@ -3113,33 +3226,69 @@ export default function AdminDashboard() {
 
                   <div className="bg-[var(--navy-deep)] p-8 rounded-3xl border border-white/5 shadow-2xl relative overflow-hidden">
                      <div className="relative z-10">
-                        <h3 className="text-xl font-black text-[var(--gold-vibrant)] mb-4 flex items-center gap-3">
-                           <span className="material-symbols-outlined animate-pulse">radar</span>
-                           Live Betting Stream
-                        </h3>
-                        <div className="space-y-2 h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                           {tickets.slice(0, 15).map(ticket => (
-                             <div key={ticket.id} className="bg-white/5 p-3 rounded-xl flex justify-between items-center border border-white/10 hover:bg-white/10 transition">
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-xl font-black text-[var(--gold-vibrant)] flex items-center gap-3">
+                             <span className="material-symbols-outlined animate-pulse">radar</span>
+                             Live Betting Stream {vipMonitorFilter !== 'all' && <span className="text-xs bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black">กรองเฉพาะ VIP</span>}
+                          </h3>
+                          <span className="text-xs text-gray-400 font-bold">
+                            แสดง {Math.min(filteredTickets.length, 30)} จาก {filteredTickets.length} โพย
+                          </span>
+                        </div>
+                        <div className="space-y-2 h-[380px] overflow-y-auto pr-2 custom-scrollbar">
+                           {filteredTickets.slice(0, 30).map(ticket => {
+                             const isVip = (Number(ticket.totalAmount) || 0) >= 500;
+                             const isHighRoller = (Number(ticket.totalAmount) || 0) >= 1000;
+
+                             return (
+                             <div 
+                               key={ticket.id} 
+                               className={`p-3 rounded-xl flex justify-between items-center border transition ${
+                                 isHighRoller
+                                   ? 'bg-gradient-to-r from-amber-500/20 via-yellow-500/15 to-transparent border-amber-400 shadow-md ring-1 ring-amber-400/40'
+                                   : isVip
+                                     ? 'bg-amber-500/10 border-amber-400/50 hover:bg-amber-500/20'
+                                     : 'bg-white/5 border-white/10 hover:bg-white/10'
+                               }`}
+                             >
                                 <div className="flex items-center gap-3">
-                                   <div className="w-8 h-8 rounded-lg bg-[var(--gold-vibrant)] text-[var(--navy-deep)] flex items-center justify-center font-black text-xs">
-                                      {ticket.userId?.slice(0, 2).toUpperCase()}
+                                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-xs ${
+                                     isVip 
+                                       ? 'bg-gradient-to-tr from-amber-400 to-yellow-300 text-slate-950 shadow' 
+                                       : 'bg-gray-700 text-gray-200'
+                                   }`}>
+                                      {isVip ? '👑' : ticket.userId?.slice(0, 2).toUpperCase()}
                                    </div>
                                    <div>
-                                      <div className="text-xs font-bold text-white uppercase">{ticket.userId}</div>
-                                      <div className="text-[9px] text-gray-500">{new Date(ticket.createdAt).toLocaleTimeString()} • {ticket.lotteryType}</div>
+                                      <div className="text-xs font-bold text-white flex items-center gap-1.5 uppercase">
+                                        <span>{ticket.userId}</span>
+                                        {isVip && (
+                                          <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[9px] font-black px-1.5 py-0.2 rounded">
+                                            VIP
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="text-[9px] text-gray-400">{new Date(ticket.createdAt).toLocaleTimeString()} • {ticket.lotteryType}</div>
                                    </div>
                                 </div>
                                 <div className="text-right">
-                                   <div className="text-xs font-black text-[var(--gold-vibrant)]">฿{ticket.totalAmount?.toLocaleString()}</div>
+                                   <div className={`text-xs font-black ${isVip ? 'text-amber-300 text-sm' : 'text-gray-200'}`}>
+                                     ฿{ticket.totalAmount?.toLocaleString()}
+                                   </div>
                                    <div className="text-[9px] text-gray-400">{ticket.ticketType}</div>
                                 </div>
                              </div>
-                           ))}
+                           )})}
+                           {filteredTickets.length === 0 && (
+                             <div className="text-center py-12 text-gray-500 text-xs">
+                               ไม่พบบิลตามเงื่อนไขตัวกรอง VIP ในขณะนี้
+                             </div>
+                           )}
                         </div>
                      </div>
                   </div>
                 </div>
-              )}
+              );})()}
 
               {/* Sub-tab: Limits (System Constraints) */}
               {activeSettingsSubTab === 'limits' && (
