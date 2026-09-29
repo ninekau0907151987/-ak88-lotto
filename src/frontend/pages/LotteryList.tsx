@@ -1,22 +1,45 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db } from '@/shared/lib/firebase';
+import { 
+  LOTTERY_CATEGORIES, 
+  MASTER_LOTTERY_CATALOG, 
+  LotteryCategoryKey, 
+  getLotteryCategory 
+} from '@/shared/lib/lotteryCatalog';
+
+interface DisplayLotteryItem {
+  id: string;
+  name: string;
+  category: LotteryCategoryKey;
+  icon: string;
+  path: string;
+  bgGradient: string;
+  isOpen: boolean;
+  isHidden: boolean;
+  closeTime: string | null;
+}
 
 export default function LotteryList() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const categoryFilter = searchParams.get('category');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialCategory = (searchParams.get('category') as LotteryCategoryKey) || 'all';
+
+  const [selectedCategory, setSelectedCategory] = useState<LotteryCategoryKey>(initialCategory);
+  const [searchTerm, setSearchTerm] = useState('');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [lotteryTypes, setLotteryTypes] = useState<any[]>([]);
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     
-    // Fetch Lottery Types
+    // Fetch Lottery Types in real-time from Firestore
     const qLottery = query(collection(db, 'lotteryTypes'));
     const unsubLottery = onSnapshot(qLottery, (snap) => {
       setLotteryTypes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      console.warn('Could not subscribe to lotteryTypes:', error);
     });
 
     return () => {
@@ -24,6 +47,133 @@ export default function LotteryList() {
       unsubLottery();
     };
   }, []);
+
+  // Sync category filter with URL query param if present
+  useEffect(() => {
+    const catParam = searchParams.get('category') as LotteryCategoryKey;
+    if (catParam && catParam !== selectedCategory) {
+      setSelectedCategory(catParam);
+    }
+  }, [searchParams]);
+
+  const handleCategoryChange = (cat: LotteryCategoryKey) => {
+    setSelectedCategory(cat);
+    if (cat === 'all') {
+      searchParams.delete('category');
+      setSearchParams(searchParams);
+    } else {
+      setSearchParams({ category: cat });
+    }
+  };
+
+  // Mock default closing times
+  const tomorrow = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(15, 20, 0);
+    return d.toISOString();
+  }, []);
+
+  const todayEvening = useMemo(() => {
+    const d = new Date();
+    d.setHours(18, 0, 0);
+    return d.toISOString();
+  }, []);
+
+  // Merge Master Catalog with custom items from Firestore
+  const mergedLotteries = useMemo<DisplayLotteryItem[]>(() => {
+    const map = new Map<string, DisplayLotteryItem>();
+
+    // 1. Populate from Master Catalog
+    MASTER_LOTTERY_CATALOG.forEach(master => {
+      // Find matching Firestore config if exists
+      const config = lotteryTypes.find(l => l.name === master.name || l.id === master.name);
+      const cat = getLotteryCategory(master.name, config?.category || master.category);
+      
+      let defaultClose = todayEvening;
+      if (cat === 'thai') defaultClose = tomorrow;
+      if (cat === 'yeekee') defaultClose = null;
+
+      map.set(master.name, {
+        id: master.name,
+        name: master.name,
+        category: cat,
+        icon: master.icon,
+        path: master.path,
+        bgGradient: master.bgGradient,
+        isOpen: config ? config.isOpen !== false : true,
+        isHidden: config ? config.isHidden === true : false,
+        closeTime: config?.closeTime || defaultClose,
+      });
+    });
+
+    // 2. Populate any additional lotteries created via Admin panel
+    lotteryTypes.forEach(custom => {
+      const name = custom.name || custom.id;
+      if (!name) return;
+
+      if (!map.has(name)) {
+        const cat = getLotteryCategory(name, custom.category);
+        let path = `/lottery/${encodeURIComponent(name)}`;
+        let icon = '🎯';
+        let gradient = 'bg-gradient-to-b from-[#8e44ad] to-[#2c3e50]';
+
+        if (cat === 'thai') {
+          icon = '🇹🇭';
+          gradient = 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]';
+        } else if (cat === 'yeekee') {
+          icon = '⏱️';
+          path = '/lottery/yeekee';
+          gradient = 'bg-gradient-to-b from-[#f39c12] to-[#d35400]';
+        } else if (cat === 'foreign') {
+          icon = '🌏';
+          gradient = 'bg-gradient-to-b from-[#3498db] to-[#2980b9]';
+        } else if (cat === 'stock') {
+          icon = '📈';
+          path = `/lottery/stock/${encodeURIComponent(name)}`;
+          gradient = 'bg-gradient-to-b from-[#e74c3c] to-[#c0392b]';
+        } else if (cat === 'set') {
+          icon = '🎁';
+          path = '/lottery/set';
+          gradient = 'bg-gradient-to-b from-[#00b4d8] to-[#0077b6]';
+        }
+
+        map.set(name, {
+          id: custom.id || name,
+          name: name,
+          category: cat,
+          icon: custom.icon || icon,
+          path: path,
+          bgGradient: gradient,
+          isOpen: custom.isOpen !== false,
+          isHidden: custom.isHidden === true,
+          closeTime: custom.closeTime || todayEvening,
+        });
+      }
+    });
+
+    return Array.from(map.values()).filter(item => !item.isHidden);
+  }, [lotteryTypes, tomorrow, todayEvening]);
+
+  // Compute category counts
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: mergedLotteries.length };
+    LOTTERY_CATEGORIES.forEach(c => {
+      if (c.id !== 'all') {
+        counts[c.id] = mergedLotteries.filter(l => l.category === c.id).length;
+      }
+    });
+    return counts;
+  }, [mergedLotteries]);
+
+  // Filtered by selected category and search term
+  const filteredLotteries = useMemo(() => {
+    return mergedLotteries.filter(item => {
+      const matchCategory = selectedCategory === 'all' || item.category === selectedCategory;
+      const matchSearch = !searchTerm.trim() || item.name.toLowerCase().includes(searchTerm.trim().toLowerCase());
+      return matchCategory && matchSearch;
+    });
+  }, [mergedLotteries, selectedCategory, searchTerm]);
 
   // Helper to format countdown
   const getCountdown = (closeTimeStr: string | null) => {
@@ -45,34 +195,24 @@ export default function LotteryList() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const renderCard = (
-    name: string, 
-    path: string, 
-    closeTime: string | null, 
-    colorClass: string, 
-    icon: string = '🇹🇭'
-  ) => {
-    // Check if globally disabled or doesn't exist in DB
-    const lotteryConfig = lotteryTypes.find(l => l.name === name || l.id === name);
-    
-    // If hidden by admin, do not render
-    if (lotteryConfig?.isHidden) return null;
-
-    const isGloballyClosed = lotteryConfig ? lotteryConfig.isOpen === false : false;
-    
-    const isClosed = isGloballyClosed || (closeTime && new Date(closeTime).getTime() <= currentTime.getTime());
+  const renderCard = (item: DisplayLotteryItem) => {
+    const isClosed = !item.isOpen || (item.closeTime && new Date(item.closeTime).getTime() <= currentTime.getTime());
     
     if (isClosed) {
       return (
-        <div className="bg-gradient-to-b from-[#b2bec3] to-[#636e72] rounded shadow-md overflow-hidden flex flex-col text-white opacity-90">
-          <div className="py-2 text-center text-xl font-medium tracking-wider">
-            <span className="material-symbols-outlined text-sm mr-1">schedule</span>
-            ปิดชั่วคราว
+        <div 
+          key={item.id} 
+          className="bg-gradient-to-b from-[#4a4a4a] to-[#2d3436] rounded-xl shadow-md overflow-hidden flex flex-col text-white opacity-85 border border-white/5"
+        >
+          <div className="py-2.5 text-center text-sm font-bold tracking-wider flex items-center justify-center gap-1 text-rose-300 bg-black/20">
+            <span className="material-symbols-outlined text-[16px]">schedule</span>
+            ปิดรับแทงชั่วคราว
           </div>
-          <div className="bg-black/10 py-2 text-center text-lg font-bold flex items-center justify-center gap-2">
-            <span>{icon}</span> {name}
+          <div className="bg-black/10 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2">
+            <span className="text-xl">{item.icon}</span> 
+            <span className="truncate">{item.name}</span>
           </div>
-          <div className="bg-[#2d3436] py-1 text-center text-xs">
+          <div className="bg-black/40 py-1.5 text-center text-[11px] text-gray-400">
             เปิดแทง 0 รอบ
           </div>
         </div>
@@ -80,188 +220,126 @@ export default function LotteryList() {
     }
 
     return (
-      <Link to={path} className={`${colorClass} rounded shadow-md overflow-hidden flex flex-col text-white hover:scale-[1.02] transition-transform`}>
-        <div className="py-2 text-center text-xl font-medium tracking-wider">
-          {getCountdown(closeTime)}
+      <Link 
+        key={item.id}
+        to={item.path} 
+        className={`${item.bgGradient} rounded-xl shadow-lg overflow-hidden flex flex-col text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 border border-white/10 group`}
+      >
+        <div className="py-2.5 text-center text-base font-black tracking-wider flex items-center justify-center gap-1 bg-black/15 group-hover:bg-black/25 transition">
+          <span className="material-symbols-outlined text-sm text-yellow-300">timer</span>
+          {getCountdown(item.closeTime)}
         </div>
-        <div className="bg-black/10 py-2 text-center text-lg font-bold flex items-center justify-center gap-2">
-          <span>{icon}</span> {name}
+        <div className="bg-black/10 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2">
+          <span className="text-xl filter drop-shadow">{item.icon}</span> 
+          <span className="truncate">{item.name}</span>
         </div>
-        <div className="bg-black/20 py-1 text-center text-xs">
-          {closeTime ? `ปิดรับ ${new Date(closeTime).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', '')}` : 'เปิดรับแทง 24 ชม.'}
+        <div className="bg-black/25 py-1.5 text-center text-[11px] text-white/90">
+          {item.closeTime ? `ปิดรับ ${new Date(item.closeTime).toLocaleString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'เปิดรับแทง 24 ชม.'}
         </div>
       </Link>
     );
   };
 
-  const renderCategoryHeader = (title: string, icon: string = 'H') => (
-    <div className="flex items-center gap-2 text-white font-bold text-lg mt-6 mb-3 border-b border-gray-800 pb-2">
-      {icon === 'H' ? (
-        <div className="w-5 h-5 bg-red-600 text-white flex items-center justify-center text-xs font-black rounded-sm">H</div>
-      ) : (
-        <span>{icon}</span>
-      )}
-      {title}
-    </div>
-  );
-
-  // Mock closing times for demo
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(15, 20, 0);
-  
-  const todayEvening = new Date();
-  todayEvening.setHours(18, 0, 0);
-
   return (
-    <div className="min-h-screen bg-[#111111] pb-24 font-sans">
-      {/* Header */}
-      <div className="bg-[#1a1a1a] p-3 flex justify-between items-center border-b border-gray-800">
-        <h1 className="text-white font-bold text-lg">รายการหวยวันนี้</h1>
+    <div className="min-h-screen bg-[#0d1117] pb-24 font-sans text-gray-100">
+      {/* Top Header */}
+      <div className="bg-gradient-to-r from-[#161b22] to-[#21262d] p-4 flex justify-between items-center border-b border-gray-800 sticky top-0 z-20 shadow-md">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-yellow-300 text-black flex items-center justify-center font-black shadow-md">
+            AK
+          </div>
+          <div>
+            <h1 className="text-white font-black text-base sm:text-lg leading-tight">แทงหวยออนไลน์</h1>
+            <p className="text-[11px] text-gray-400">อัตราจ่ายสูงสุด บาทละ 900 จ่ายจริง รวดเร็ว</p>
+          </div>
+        </div>
+
         <button 
           onClick={() => navigate('/')}
-          className="bg-white text-black px-3 py-1 rounded text-sm font-bold flex items-center gap-1 hover:bg-gray-200"
+          className="bg-white/10 hover:bg-white/20 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition border border-white/10"
         >
           <span className="material-symbols-outlined text-[16px]">chevron_left</span>
           กลับหน้าหลัก
         </button>
       </div>
 
-      <div className="p-3">
-        {(!categoryFilter || categoryFilter === 'thai' || categoryFilter === 'foreign') && (
-          <>
-            {/* หวยรัฐบาล */}
-            {renderCategoryHeader('หวยรัฐบาล', '🇹🇭')}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-              {renderCard('หวยรัฐบาล', '/lottery/thai', tomorrow.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇹🇭')}
-            </div>
-          </>
+      {/* Main Container */}
+      <div className="max-w-6xl mx-auto p-3 sm:p-5 space-y-4">
+        
+        {/* Search Bar & Stats */}
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-[#161b22] p-3 rounded-2xl border border-gray-800">
+          <div className="relative flex-1">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
+            <input 
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ค้นหาชื่อหวย เช่น ฮานอย, ลาว, ยี่กี, รัฐบาล..."
+              className="w-full bg-[#0d1117] text-white pl-10 pr-4 py-2 rounded-xl text-xs sm:text-sm border border-gray-700 focus:outline-none focus:border-amber-400 transition"
+            />
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')} 
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+              </button>
+            )}
+          </div>
+
+          <div className="text-xs text-gray-400 flex items-center gap-2 justify-end px-2">
+            <span>ทั้งหมด: <strong className="text-amber-400">{filteredLotteries.length}</strong> รายการ</span>
+          </div>
+        </div>
+
+        {/* Category Filter Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none text-xs font-bold">
+          {LOTTERY_CATEGORIES.map(cat => {
+            const isActive = selectedCategory === cat.id;
+            const count = categoryCounts[cat.id] || 0;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => handleCategoryChange(cat.id)}
+                className={`whitespace-nowrap px-3.5 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-sm ${
+                  isActive 
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black scale-105 shadow-amber-500/20 shadow-lg' 
+                    : 'bg-[#161b22] text-gray-300 hover:bg-[#21262d] border border-gray-800'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[16px]">{cat.icon}</span>
+                <span>{cat.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  isActive ? 'bg-black/20 text-black' : 'bg-gray-800 text-gray-400'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Lottery Cards Grid */}
+        {filteredLotteries.length === 0 ? (
+          <div className="text-center py-16 bg-[#161b22] rounded-2xl border border-dashed border-gray-800">
+            <span className="material-symbols-outlined text-5xl text-gray-600 mb-2">search_off</span>
+            <p className="text-gray-400 font-bold text-sm">ไม่พบรายการหวยที่ค้นหา</p>
+            <p className="text-gray-600 text-xs mt-1">ลองเปลี่ยนคำค้นหา หรือเลือกหมวดหมู่อื่นดูนะคะ</p>
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="mt-3 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold hover:bg-amber-500/30 transition"
+              >
+                ล้างคำค้นหา
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {filteredLotteries.map(item => renderCard(item))}
+          </div>
         )}
 
-        {(!categoryFilter || categoryFilter === 'thai' || categoryFilter === 'foreign') && (
-          <>
-            {/* ยี่กี 4D */}
-            {renderCategoryHeader('ยี่กี 4D')}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              {renderCard('ยี่กี 4D', '/lottery/yeekee', null, 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '⏱️')}
-            </div>
-          </>
-        )}
-
-        {(!categoryFilter || categoryFilter === 'foreign') && (
-          <>
-            {/* หวยต่างประเทศ */}
-            {renderCategoryHeader('หวยต่างประเทศ')}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              {renderCard('หวยฮานอย', '/lottery/hanoi', tomorrow.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-              {renderCard('ฮานอยพิเศษ', '/lottery/hanoi-special', tomorrow.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-              {renderCard('ฮานอย(VIP)', '/lottery/hanoi-vip', tomorrow.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-              {renderCard('หวยลาวประตูชัย', '/lottery/lao-pratuchai', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-              {renderCard('หวยลาวสันติภาพ', '/lottery/lao-santipap', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-              {renderCard('หวยประชาชนลาว', '/lottery/lao-public', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-              {renderCard('ลาว(EXTRA)', '/lottery/lao-extra', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-              
-              {renderCard('หวยลาวTV', '/lottery/lao-tv', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-              {renderCard('ฮานอย(HD)', '/lottery/hanoi-hd', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-              {renderCard('ฮานอยสตาร์', '/lottery/hanoi-star', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-              {renderCard('หวยลาวHD', '/lottery/lao-hd', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-
-              {renderCard('ฮานอยTV', '/lottery/hanoi-tv', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-              {renderCard('หวยลาวสตาร์', '/lottery/lao-star', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-              {renderCard('ฮานอยกาชาด', '/lottery/hanoi-redcross', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-              {renderCard('ฮานอยสามัคคี', '/lottery/hanoi-samakkhi', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-
-              {renderCard('หวยมาเลย์', '/lottery/malay', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇲🇾')}
-              {renderCard('หวยลาวสตาร์(VIP)', '/lottery/lao-star-vip', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-              {renderCard('ฮานอย(EXTRA)', '/lottery/hanoi-extra', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇻🇳')}
-              {renderCard('ลาวกาชาด', '/lottery/lao-redcross', todayEvening.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🇱🇦')}
-              {renderCard('ดาวน์โจนส์ STAR', '/lottery/dowjones-star', todayEvening.toISOString(), 'bg-gradient-to-b from-[#95a5a6] to-[#7f8c8d]', '🇺🇸')}
-            </div>
-
-            {/* หวยธนาคาร */}
-            {renderCategoryHeader('หวยธนาคาร')}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-              {renderCard('หวยธกส.', '/lottery/baac', tomorrow.toISOString(), 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🏦')}
-              {renderCard('หวยออมสิน', '/lottery/gsb', null, 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]', '🏦')}
-            </div>
-          </>
-        )}
-
-
-
-        {(!categoryFilter || categoryFilter === 'set') && (
-          <>
-            {/* หวยชุด */}
-            {renderCategoryHeader('หวยชุด')}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {renderCard('หวยรัฐบาล (ชุด)', '/lottery/set/thai', tomorrow.toISOString(), 'bg-gradient-to-b from-[#00b4d8] to-[#0077b6]', '🇹🇭')}
-              {renderCard('หวยฮานอยชุด', '/lottery/set/hanoi', todayEvening.toISOString(), 'bg-gradient-to-b from-[#00b4d8] to-[#0077b6]', '🇻🇳')}
-              {renderCard('หวยลาวพัฒนาชุด', '/lottery/set/lao', todayEvening.toISOString(), 'bg-gradient-to-b from-[#00b4d8] to-[#0077b6]', '🇱🇦')}
-            </div>
-          </>
-        )}
-
-        {(!categoryFilter || categoryFilter === 'stock') && (
-          <>
-            {/* หวยหุ้น VIP */}
-            {renderCategoryHeader('หวยหุ้น VIP')}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {renderCard('นิเคอิ VIP (เช้า)', '/lottery/stock/nikkei-m', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇯🇵')}
-              {renderCard('เวียดนาม VIP (เช้า)', '/lottery/stock/vietnam-m', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇻🇳')}
-              {renderCard('จีน VIP (เช้า)', '/lottery/stock/china-m', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇨🇳')}
-              {renderCard('ฮั่งเส็ง VIP (เช้า)', '/lottery/stock/hangseng-m', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇭🇰')}
-              
-              {renderCard('ไต้หวัน VIP', '/lottery/stock/taiwan', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇹🇼')}
-              {renderCard('เกาหลี VIP', '/lottery/stock/korea', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇰🇷')}
-              {renderCard('นิเคอิ VIP (บ่าย)', '/lottery/stock/nikkei-a', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇯🇵')}
-              {renderCard('เวียดนาม VIP (บ่าย)', '/lottery/stock/vietnam-a', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇻🇳')}
-
-              {renderCard('จีน VIP (บ่าย)', '/lottery/stock/china-a', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇨🇳')}
-              {renderCard('ฮั่งเส็ง VIP (บ่าย)', '/lottery/stock/hangseng-a', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇭🇰')}
-              {renderCard('ลาว VIP', '/lottery/stock/lao-vip', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇱🇦')}
-              {renderCard('เวียดนาม VIP (เย็น)', '/lottery/stock/vietnam-e', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇻🇳')}
-
-              {renderCard('สิงคโปร์ VIP', '/lottery/stock/singapore-vip', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇸🇬')}
-              {renderCard('อังกฤษ(VIP)', '/lottery/stock/uk-vip', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇬🇧')}
-              {renderCard('เยอรมัน(VIP)', '/lottery/stock/germany-vip', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇩🇪')}
-              {renderCard('รัสเซีย(VIP)', '/lottery/stock/russia-vip', todayEvening.toISOString(), 'bg-gradient-to-b from-[#ff7675] to-[#d63031]', '🇷🇺')}
-
-              {renderCard('ดาวน์โจนส์(VIP)', '/lottery/stock/dowjones-vip', todayEvening.toISOString(), 'bg-gradient-to-b from-[#95a5a6] to-[#7f8c8d]', '🇺🇸')}
-            </div>
-
-        {(!categoryFilter || categoryFilter === 'stock') && (
-          <>
-            {/* หวยหุ้น */}
-            {renderCategoryHeader('หวยหุ้น')}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-              {renderCard('หุ้นดาวน์โจนส์', '/lottery/stock/dowjones-stock', tomorrow.toISOString(), 'bg-gradient-to-b from-[#95a5a6] to-[#7f8c8d]', '🇺🇸')}
-              {renderCard('หุ้นนิเคอิรอบเช้า', '/lottery/stock/nikkei-morning', tomorrow.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇯🇵')}
-              {renderCard('ฮั่งเส็งรอบเช้า', '/lottery/stock/hangseng-morning', tomorrow.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇭🇰')}
-              {renderCard('ดาวน์โจนส์ TV', '/lottery/stock/dowjones-tv', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇺🇸')}
-              {renderCard('จีนรอบเช้า', '/lottery/stock/china-morning', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇨🇳')}
-
-              {renderCard('หุ้นไต้หวัน', '/lottery/stock/taiwan-stock', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇹🇼')}
-              {renderCard('หุ้นเกาหลี', '/lottery/stock/korea-stock', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇰🇷')}
-              {renderCard('นิเคอิปิดบ่าย', '/lottery/stock/nikkei-afternoon', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇯🇵')}
-              {renderCard('จีนปิดรอบบ่าย', '/lottery/stock/china-afternoon', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇨🇳')}
-
-              {renderCard('ฮั่งเส็งปิดบ่าย', '/lottery/stock/hangseng-afternoon', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇭🇰')}
-              {renderCard('หุ้นสิงคโปร์', '/lottery/stock/singapore-stock', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇸🇬')}
-              {renderCard('หุ้นไทยปิดเย็น', '/lottery/stock/thai-evening', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇹🇭')}
-              {renderCard('หุ้นอินเดีย', '/lottery/stock/india-stock', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇮🇳')}
-
-              {renderCard('หุ้นอียิปต์', '/lottery/stock/egypt-stock', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇪🇬')}
-              {renderCard('หุ้นรัสเซีย', '/lottery/stock/russia-stock', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇷🇺')}
-              {renderCard('หุ้นเยอรมัน', '/lottery/stock/germany-stock', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇩🇪')}
-              {renderCard('หุ้นอังกฤษ', '/lottery/stock/uk-stock', todayEvening.toISOString(), 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]', '🇬🇧')}
-
-              {renderCard('ดาวน์โจนส์ MIDNIGHT', '/lottery/stock/dowjones-midnight', todayEvening.toISOString(), 'bg-gradient-to-b from-[#95a5a6] to-[#7f8c8d]', '🇺🇸')}
-              {renderCard('ดาวน์โจนส์ EXTRA', '/lottery/stock/dowjones-extra', todayEvening.toISOString(), 'bg-gradient-to-b from-[#95a5a6] to-[#7f8c8d]', '🇺🇸')}
-            </div>
-          </>
-        )}
-          </>
-        )}
       </div>
     </div>
   );

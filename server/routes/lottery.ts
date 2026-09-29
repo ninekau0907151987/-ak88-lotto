@@ -82,6 +82,16 @@ export function lotteryRoutes(db: any) {
     }
   });
 
+  // DELETE /api/v1/lottery/types/:id — ลบประเภทหวยที่ไม่ต้องการ
+  r.delete('/types/:id', async (req, res) => {
+    try {
+      await deleteDoc(doc(db, 'lotteryTypes', req.params.id));
+      res.json({ status: 'success', message: `ลบประเภทหวย ${req.params.id} สำเร็จ` });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ลบประเภทหวยไม่สำเร็จ' });
+    }
+  });
+
   return r;
 }
 

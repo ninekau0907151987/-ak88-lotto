@@ -19,6 +19,10 @@ import {
   recordSettingsChange, recordSettingsChanges, fetchSettingsHistory,
   prettyValue, didChange, getPinInfo, setPin,
 } from '@/shared/lib/settingsHistory';
+import {
+  LOTTERY_CATEGORIES, getLotteryCategory, getCategoryLabel, MASTER_LOTTERY_CATALOG,
+  type LotteryCategoryKey
+} from '@/shared/lib/lotteryCatalog';
 
 type AdminTab = 'overview' | 'system_control' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
 
@@ -27,6 +31,13 @@ export default function AdminDashboard() {
   const [activeSettingsSubTab, setActiveSettingsSubTab] = useState('lottery');
   const [activeReportsSubTab, setActiveReportsSubTab] = useState('lottery');
   const [activeMembersSubTab, setActiveMembersSubTab] = useState<'users' | 'agents'>('users');
+  
+  // ★ แท็บกรองหมวดหมู่หวย
+  const [lotteryCategoryFilter, setLotteryCategoryFilter] = useState<LotteryCategoryKey>('all');
+  const [lotterySearchTerm, setLotterySearchTerm] = useState('');
+  const [resultCategoryFilter, setResultCategoryFilter] = useState<LotteryCategoryKey>('all');
+  const [newLotteryCategory, setNewLotteryCategory] = useState<LotteryCategoryKey>('thai');
+  const [newLotteryIsOpen, setNewLotteryIsOpen] = useState(true);
   const [autoBlockCount, setAutoBlockCount] = useState(50);
   const [rulesContent, setRulesContent] = useState('');
   const [popupContent, setPopupContent] = useState({ title: '', body: '', imageUrl: '', active: false });
@@ -908,40 +919,39 @@ export default function AdminDashboard() {
     } catch (e) { console.error(e); }
   };
 
+  // ★ ลบประเภทหวยที่ไม่ต้องการออกจากระบบ
+  const handleDeleteLottery = async (type: string) => {
+    if (!window.confirm(`⚠️ ยืนยันการลบ "${type}" ออกจากระบบหรือไม่?\nข้อมูลรอบและอัตราจ่ายของหวยนี้จะถูกลบออกจากฐานข้อมูลทันที`)) return;
+    try {
+      await deleteDoc(doc(db, 'lotteryTypes', type));
+      await logActivity('ลบประเภทหวย', `ลบหวย ${type} ออกจากระบบ`, 'lottery');
+      alert(`ลบ ${type} ออกจากระบบสำเร็จ`);
+    } catch (e) {
+      console.error(e);
+      alert('ไม่สามารถลบประเภทหวยนี้ได้');
+    }
+  };
+
   const syncAllLotteries = async () => {
-    if(!window.confirm('ระบบจะเพิ่มประเภทหวยทั้งหมดที่ไม่มีอยู่ (38 รายการ) และบังคับเปิดรับแทงทุกหวยให้ปรากฎหน้าบ้าน ดำเนินการต่อหรือไม่?')) return;
-    const initialLotteries = [
-      'หวยรัฐบาล', 'ยี่กี 4D', 'หวยธกส.', 'หวยออมสิน',
-      'หวยลาวประตูชัย', 'หวยลาวสันติภาพ', 'หวยประชาชนลาว', 'ลาว(EXTRA)',
-      'หวยลาวTV', 'หวยลาวHD', 'หวยลาวสตาร์', 'ลาวกาชาด', 'หวยลาวสตาร์(VIP)',
-      'ฮานอย(HD)', 'ฮานอยสตาร์', 'ฮานอยTV', 'ฮานอยกาชาด', 'ฮานอยพิเศษ',
-      'ฮานอยสามัคคี', 'หวยฮานอย', 'ฮานอย(VIP)', 'ฮานอย(EXTRA)',
-      'หวยมาเลย์', 'ดาวน์โจนส์ STAR',
-      'หวยรัฐบาล (ชุด)', 'หวยฮานอยชุด', 'หวยลาวพัฒนาชุด',
-      'นิเคอิ VIP (เช้า)', 'เวียดนาม VIP (เช้า)', 'จีน VIP (เช้า)', 'ฮั่งเส็ง VIP (เช้า)',
-      'ไต้หวัน VIP', 'เกาหลี VIP',
-      'นิเคอิ VIP (บ่าย)', 'เวียดนาม VIP (บ่าย)', 'จีน VIP (บ่าย)', 'ฮั่งเส็ง VIP (บ่าย)',
-      'ลาว VIP'
-    ];
+    if(!window.confirm(`ระบบจะซิงค์ประเภทหวยทั้งหมด (${MASTER_LOTTERY_CATALOG.length} รายการ) พร้อมจัดหมวดหมู่ให้ตรงกันทั้งหน้าบ้านและหลังบ้าน ดำเนินการต่อหรือไม่?`)) return;
     
     try {
-      for (const name of initialLotteries) {
-        const found = Object.values(lotterySettings).find((l: any) => l.name === name || l.id === name);
-        if (!found) {
-          await setDoc(doc(db, 'lotteryTypes', name), {
-            name,
-            isOpen: true,
-            isHidden: false,
-            createdAt: new Date().toISOString()
-          });
-        } else {
-          await setDoc(doc(db, 'lotteryTypes', (found as any).id), {
-            isOpen: true,
-            isHidden: false
-          }, { merge: true });
-        }
+      for (const item of MASTER_LOTTERY_CATALOG) {
+        const found = Object.values(lotterySettings).find((l: any) => l.name === item.name || l.id === item.name);
+        const docId = found ? (found as any).id || item.name : item.name;
+        
+        await setDoc(doc(db, 'lotteryTypes', docId), {
+          id: docId,
+          name: item.name,
+          category: item.category,
+          icon: item.icon,
+          path: item.path,
+          isOpen: true,
+          isHidden: false,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
       }
-      alert('ซิงค์ข้อมูลหวยครบถ้วน สถานะเปิดแสดงหน้าบ้านทั้งหมดแล้ว');
+      alert(`✅ ซิงค์ข้อมูลหวยครบถ้วน ${MASTER_LOTTERY_CATALOG.length} รายการ จัดหมวดหมู่ตรงกันทั้งหน้าบ้านและหลังบ้านเรียบร้อยแล้วค่ะ`);
     } catch (e) {
       console.error(e);
       alert('เกิดข้อผิดพลาดในการซิงค์ข้อมูลหวย');
@@ -2317,9 +2327,19 @@ export default function AdminDashboard() {
                 <div className="space-y-6">
                   <div className="admin-card p-6">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                      <h3 className="font-black text-[var(--navy-deep)]">จัดการรอบและเวลาปิดรับแทง</h3>
+                      <div>
+                        <h3 className="font-black text-[var(--navy-deep)] text-lg">จัดการรอบและเวลาปิดรับแทง</h3>
+                        <p className="text-xs text-gray-500 mt-0.5">เปิด-ปิดรับแทง ตั้งเวลาปิดรับ หรือลบหวยที่ไม่ต้องการออกจากระบบ</p>
+                      </div>
                       
                       <div className="flex flex-wrap gap-2 w-full md:w-auto">
+                        <button 
+                          onClick={() => setShowAddLotteryModal(true)}
+                          className="flex-1 md:flex-none text-xs font-black text-[var(--navy-deep)] bg-[var(--gold-vibrant)] px-4 py-2 rounded-xl shadow-sm hover:brightness-105 transition flex items-center justify-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-base">add_circle</span>
+                          เพิ่มประเภทหวย
+                        </button>
                         <button 
                           onClick={() => toggleAllLotteryStatus(true)} 
                           className="flex-1 md:flex-none text-xs font-black text-white bg-green-600 px-4 py-2 rounded-xl border border-green-700 shadow-sm hover:bg-green-700 transition"
@@ -2340,39 +2360,121 @@ export default function AdminDashboard() {
                         </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {Object.keys(lotterySettings).sort().map(type => {
-                        const session = lotterySettings[type];
-                        const isOpen = session?.isOpen && !session?.isPaused;
+
+                    {/* ★ แถบแท็บกรองหมวดหมู่หวย (Category Filter Tabs) */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-4 border-b border-gray-100">
+                      {LOTTERY_CATEGORIES.map(cat => {
+                        const count = Object.keys(lotterySettings).filter(k => {
+                          const catKey = getLotteryCategory(k, lotterySettings[k]?.category);
+                          return cat.id === 'all' || catKey === cat.id;
+                        }).length;
+
+                        const isActive = lotteryCategoryFilter === cat.id;
                         return (
-                          <div key={type} className={`p-4 rounded-2xl border ${isOpen ? 'border-[var(--gold-vibrant)] bg-white shadow-md' : 'border-gray-100 bg-gray-50 opacity-70'} space-y-3 transition-all`}>
-                            <div className="flex justify-between items-center mb-2">
-                              <div className="font-black text-[var(--navy-deep)] text-sm">{type}</div>
-                              <button
-                                onClick={() => toggleLotteryStatus(type, !isOpen)}
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shadow-inner bg-gray-200`}
-                              >
-                                {isOpen && <div className="absolute inset-0 rounded-full bg-green-500 opacity-100 transition-opacity"></div>}
-                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isOpen ? 'translate-x-6' : 'translate-x-1'} relative z-10`}/>
-                                <span className={`absolute left-1.5 text-[8px] font-black tracking-widest text-white transition-opacity ${isOpen ? 'opacity-100 z-10' : 'opacity-0'}`}>เปิด</span>
-                                <span className={`absolute right-1 text-[8px] font-black tracking-widest text-gray-500 transition-opacity ${!isOpen ? 'opacity-100 z-10' : 'opacity-0'}`}>ปิด</span>
-                              </button>
-                            </div>
-                            <input 
-                              type="datetime-local" 
-                              className="w-full p-2 border rounded-xl text-[10px] outline-none"
-                              value={closingTimes[type] || ''}
-                              onChange={(e) => setClosingTimes(prev => ({ ...prev, [type]: e.target.value }))}
-                            />
-                            <button 
-                              onClick={() => updateLotterySession(type, closingTimes[type] || '')}
-                              className="w-full bg-[var(--navy-deep)] text-white py-2 rounded-xl text-[10px] font-black shadow-sm"
-                            >
-                              อัปเดตเวลาปิดรับ
-                            </button>
-                          </div>
+                          <button
+                            key={cat.id}
+                            onClick={() => setLotteryCategoryFilter(cat.id)}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition whitespace-nowrap ${
+                              isActive
+                                ? 'bg-[var(--navy-deep)] text-[var(--gold-vibrant)] shadow-md'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-sm">{cat.icon}</span>
+                            <span>{cat.label}</span>
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                              isActive ? 'bg-[var(--gold-vibrant)] text-[var(--navy-deep)]' : 'bg-gray-200 text-gray-700'
+                            }`}>
+                              {count}
+                            </span>
+                          </button>
                         );
                       })}
+                    </div>
+
+                    {/* ช่องค้นหาชื่อหวย */}
+                    <div className="relative mb-5">
+                      <span className="material-symbols-outlined absolute left-3 top-2.5 text-gray-400 text-lg">search</span>
+                      <input
+                        type="text"
+                        value={lotterySearchTerm}
+                        onChange={(e) => setLotterySearchTerm(e.target.value)}
+                        placeholder="พิมพ์ค้นหาชื่อหวย... เช่น รัฐบาล, ฮานอย, ลาว, นิเคอิ"
+                        className="w-full pl-9 pr-8 py-2 text-xs border border-gray-200 rounded-xl outline-none focus:border-[var(--gold-vibrant)]"
+                      />
+                      {lotterySearchTerm && (
+                        <button
+                          onClick={() => setLotterySearchTerm('')}
+                          className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600"
+                        >
+                          <span className="material-symbols-outlined text-sm">close</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* รายการการ์ดหวย */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {Object.keys(lotterySettings)
+                        .filter(type => {
+                          const data = lotterySettings[type];
+                          const catKey = getLotteryCategory(type, data?.category);
+                          const matchesCategory = lotteryCategoryFilter === 'all' || catKey === lotteryCategoryFilter;
+                          const matchesSearch = !lotterySearchTerm || type.toLowerCase().includes(lotterySearchTerm.toLowerCase());
+                          return matchesCategory && matchesSearch;
+                        })
+                        .sort()
+                        .map(type => {
+                          const session = lotterySettings[type];
+                          const isOpen = session?.isOpen && !session?.isPaused;
+                          const catKey = getLotteryCategory(type, session?.category);
+                          const catLabel = getCategoryLabel(catKey);
+
+                          return (
+                            <div key={type} className={`p-4 rounded-2xl border ${isOpen ? 'border-[var(--gold-vibrant)] bg-white shadow-md' : 'border-gray-100 bg-gray-50 opacity-70'} space-y-3 transition-all relative`}>
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <div className="font-black text-[var(--navy-deep)] text-sm flex items-center gap-1.5">
+                                    <span>{session?.icon || '🎯'}</span>
+                                    <span>{type}</span>
+                                  </div>
+                                  <span className="inline-block text-[9px] font-black text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full mt-1 border border-gray-200">
+                                    {catLabel}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={() => toggleLotteryStatus(type, !isOpen)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none shadow-inner bg-gray-200`}
+                                  >
+                                    {isOpen && <div className="absolute inset-0 rounded-full bg-green-500 opacity-100 transition-opacity"></div>}
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${isOpen ? 'translate-x-6' : 'translate-x-1'} relative z-10`}/>
+                                    <span className={`absolute left-1.5 text-[8px] font-black tracking-widest text-white transition-opacity ${isOpen ? 'opacity-100 z-10' : 'opacity-0'}`}>เปิด</span>
+                                    <span className={`absolute right-1 text-[8px] font-black tracking-widest text-gray-500 transition-opacity ${!isOpen ? 'opacity-100 z-10' : 'opacity-0'}`}>ปิด</span>
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteLottery(type)}
+                                    title="ลบหวยนี้ออกจากระบบ"
+                                    className="w-6 h-6 rounded-lg bg-red-50 hover:bg-red-100 text-red-500 flex items-center justify-center transition border border-red-200"
+                                  >
+                                    <span className="material-symbols-outlined text-xs">delete</span>
+                                  </button>
+                                </div>
+                              </div>
+                              <input 
+                                type="datetime-local" 
+                                className="w-full p-2 border rounded-xl text-[10px] outline-none"
+                                value={closingTimes[type] || ''}
+                                onChange={(e) => setClosingTimes(prev => ({ ...prev, [type]: e.target.value }))}
+                              />
+                              <button 
+                                onClick={() => updateLotterySession(type, closingTimes[type] || '')}
+                                className="w-full bg-[var(--navy-deep)] text-white py-2 rounded-xl text-[10px] font-black shadow-sm hover:brightness-110 transition"
+                              >
+                                อัปเดตเวลาปิดรับ
+                              </button>
+                            </div>
+                          );
+                        })}
                     </div>
                   </div>
                 </div>
@@ -2382,22 +2484,64 @@ export default function AdminDashboard() {
               {activeSettingsSubTab === 'result' && (
                 <div className="space-y-6">
                   <div className="admin-card p-6">
-                    <h3 className="font-black text-[var(--navy-deep)] mb-6 flex items-center gap-2">
+                    <h3 className="font-black text-[var(--navy-deep)] mb-3 flex items-center gap-2">
                        <span className="material-symbols-outlined text-[var(--gold-vibrant)]">fact_check</span>
                        ป้อนผลรางวัลและตัดยอดเงิน
                     </h3>
+                    <p className="text-xs text-gray-500 mb-6">เลือกหมวดหมู่และประเภทหวยเพื่อกรอกเลขผลรางวัล ระบบจะคำนวณและปรับยอดเงินให้สมาชิกอัตโนมัติ</p>
+
+                    {/* ★ แท็บกรองหมวดหมู่สำหรับหน้าออกผล */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6 border-b border-gray-100">
+                      {LOTTERY_CATEGORIES.map(cat => {
+                        const count = Object.keys(lotterySettings).filter(k => {
+                          const catKey = getLotteryCategory(k, lotterySettings[k]?.category);
+                          return cat.id === 'all' || catKey === cat.id;
+                        }).length;
+
+                        const isActive = resultCategoryFilter === cat.id;
+                        return (
+                          <button
+                            key={cat.id}
+                            onClick={() => setResultCategoryFilter(cat.id)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition whitespace-nowrap ${
+                              isActive
+                                ? 'bg-[var(--navy-deep)] text-[var(--gold-vibrant)] shadow-sm'
+                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-sm">{cat.icon}</span>
+                            <span>{cat.label}</span>
+                            <span className={`text-[10px] px-1.5 rounded-full font-bold ${
+                              isActive ? 'bg-[var(--gold-vibrant)] text-[var(--navy-deep)]' : 'bg-gray-200 text-gray-600'
+                            }`}>
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                        <div className="space-y-4">
                           <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase">ประเภทหวย</label>
+                            <label className="text-[10px] font-black text-gray-400 uppercase">ประเภทหวย (กรองตามหมวดด้านบน)</label>
                             <select 
                               value={selectedLotteryType}
                               onChange={(e) => setSelectedLotteryType(e.target.value)}
-                              className="w-full p-3 border rounded-xl text-sm outline-none focus:border-[var(--gold-vibrant)]"
+                              className="w-full p-3 border rounded-xl text-sm outline-none focus:border-[var(--gold-vibrant)] bg-white font-bold"
                             >
-                              {Object.keys(lotterySettings).map(type => (
-                                <option key={type} value={type}>{type}</option>
-                              ))}
+                              {Object.keys(lotterySettings)
+                                .filter(type => {
+                                  const data = lotterySettings[type];
+                                  const catKey = getLotteryCategory(type, data?.category);
+                                  return resultCategoryFilter === 'all' || catKey === resultCategoryFilter;
+                                })
+                                .sort()
+                                .map(type => (
+                                  <option key={type} value={type}>
+                                    {lotterySettings[type]?.icon || '🎯'} {type}
+                                  </option>
+                                ))}
                             </select>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
@@ -4632,9 +4776,39 @@ export default function AdminDashboard() {
                   value={newLotteryName}
                   onChange={(e) => setNewLotteryName(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                  placeholder="เช่น หวยรัฐบาลไทย"
+                  placeholder="เช่น หวยลาวประตูชัย, นิเคอิ VIP (เช้า)"
                 />
               </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase">หมวดหมู่หวย (Category)</label>
+                <select
+                  value={newLotteryCategory}
+                  onChange={(e) => setNewLotteryCategory(e.target.value as LotteryCategoryKey)}
+                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition text-sm bg-white"
+                >
+                  <option value="thai">🇹🇭 หวยไทย / ธนาคาร</option>
+                  <option value="foreign">🌏 หวยต่างประเทศ (ลาว/ฮานอย/มาเลย์)</option>
+                  <option value="stock">📈 หวยหุ้น VIP</option>
+                  <option value="yeekee">⏱️ หวยยี่กี 88 รอบ</option>
+                  <option value="set">🎁 หวยชุด</option>
+                  <option value="other">🎯 อื่นๆ / กำหนดเอง</option>
+                </select>
+              </div>
+
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                <span className="text-xs font-bold text-gray-700">สถานะเริ่มต้น</span>
+                <button
+                  type="button"
+                  onClick={() => setNewLotteryIsOpen(!newLotteryIsOpen)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition ${
+                    newLotteryIsOpen ? 'bg-emerald-500 text-white' : 'bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  {newLotteryIsOpen ? '✓ เปิดรับแทงทันที' : '✕ ปิดรับแทงไว้ก่อน'}
+                </button>
+              </div>
+
               <div className="pt-4 flex gap-3">
                 <button 
                   onClick={() => setShowAddLotteryModal(false)}
@@ -4644,16 +4818,21 @@ export default function AdminDashboard() {
                 </button>
                 <button 
                   onClick={async () => {
-                    if (!newLotteryName) return;
-                    await setDoc(doc(db, 'lotteryTypes', newLotteryName), {
-                      id: newLotteryName,
-                      name: newLotteryName,
-                      category: 'อื่นๆ',
+                    const trimmed = newLotteryName.trim();
+                    if (!trimmed) {
+                      alert('กรุณากรอกชื่อประเภทหวย');
+                      return;
+                    }
+                    await setDoc(doc(db, 'lotteryTypes', trimmed), {
+                      id: trimmed,
+                      name: trimmed,
+                      category: newLotteryCategory,
                       rates: defaultRates,
-                      isOpen: true,
+                      isOpen: newLotteryIsOpen,
                       isHidden: false,
                       updatedAt: new Date().toISOString()
-                    });
+                    }, { merge: true });
+                    await logActivity('เพิ่มประเภทหวย', `เพิ่ม ${trimmed} (${newLotteryCategory})`, 'lottery');
                     setShowAddLotteryModal(false);
                     setNewLotteryName('');
                   }}
