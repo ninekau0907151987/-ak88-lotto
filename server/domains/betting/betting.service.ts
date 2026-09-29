@@ -27,6 +27,7 @@ import {
 import { COL, TICKET_STATUS } from '../../config/collections';
 import { wallet, AppError } from '../../lib/wallet';
 import { ERR } from '../../lib/response';
+import { getLotteryBetLimits } from '../lottery/betlimit.service';
 
 export interface BetItem {
   number: string;
@@ -146,6 +147,66 @@ async function assertLotteryOpen(db: any, lotterySlug: string, roundId?: string 
   }
 }
 
+/** ด่านที่ 3.5: ตรวจขีดจำกัดเงินเดิมพันขั้นต่ำ/สูงสุด และเพดานยอดซื้อต่อ 1 ผู้ใช้ (Bet Limits & User Exposure Guard) */
+async function assertBetLimits(db: any, userId: string, lotterySlug: string, roundId: string | null | undefined, bets: BetItem[], newTotal: number) {
+  try {
+    const limits = await getLotteryBetLimits(db, lotterySlug);
+    const subMap: Record<string, any> = {};
+    (limits.subItems || []).forEach(sub => {
+      subMap[sub.name] = sub;
+    });
+
+    // 1. ตรวจเงินเดิมพันขั้นต่ำ และ สูงสุดต่อรายการ
+    for (const b of bets) {
+      const subConf = subMap[b.type] || { minBet: limits.minBet, maxBet: limits.maxBet };
+      const min = Number(subConf.minBet) || limits.minBet || 1;
+      const max = Number(subConf.maxBet) || limits.maxBet || 5000;
+
+      if (b.amount < min) {
+        throw new AppError(
+          ERR.BAD_REQUEST,
+          `รายการแทง ${b.type} เลข ${b.number} (${b.amount} บาท) ต่ำกว่าเงินเดิมพันขั้นต่ำที่กำหนด (${min} บาท)`,
+          400
+        );
+      }
+      if (b.amount > max) {
+        throw new AppError(
+          ERR.BAD_REQUEST,
+          `รายการแทง ${b.type} เลข ${b.number} (${b.amount} บาท) เกินเงินเดิมพันสูงสุดต่อรายการที่กำหนด (${max} บาท)`,
+          400
+        );
+      }
+    }
+
+    // 2. ตรวจเพดานยอดซื้อสูงสุดต่อ 1 ผู้ใช้ (Cumulative User Limit)
+    if (db) {
+      const ticketsQuery = query(
+        collection(db, COL.TICKETS),
+        where('userId', '==', userId),
+        where('lotteryType', '==', lotterySlug),
+        where('status', 'in', ['active', 'confirmed', 'pending_cancellation'])
+      );
+      const snap = await getDocs(ticketsQuery);
+      let existingUserTotal = 0;
+      snap.docs.forEach(d => {
+        existingUserTotal += (Number(d.data().totalAmount) || 0);
+      });
+
+      const userMax = Number(limits.maxUserLimit) || 50000;
+      if (existingUserTotal + newTotal > userMax) {
+        throw new AppError(
+          ERR.BAD_REQUEST,
+          `ยอดซื้อสะสมของท่านในงวดนี้ (${existingUserTotal + newTotal} บาท) เกินเพดานยอดซื้อสูงสุดต่อหนึ่งผู้ใช้ที่กำหนด (${userMax} บาท)`,
+          400
+        );
+      }
+    }
+  } catch (e: any) {
+    if (e instanceof AppError) throw e;
+    console.warn('[BetLimitGuard] assert limits error:', e.message);
+  }
+}
+
 /** ★ ฟังก์ชันหลัก — ใช้ร่วมกันทั้งเส้น API ตรง และเส้นคิว */
 export async function placeBet(db: any, input: PlaceBetInput) {
   const { userId, lotterySlug, roundId, source = 'api' } = input;
@@ -159,6 +220,9 @@ export async function placeBet(db: any, input: PlaceBetInput) {
   // ด่าน 2 + 3
   await assertSystemOpen(db);
   await assertLotteryOpen(db, lotterySlug, roundId);
+
+  // ด่าน 3.5: ตรวจขีดจำกัดเดิมพันขั้นต่ำ/สูงสุด และเพดานต่อผู้ใช้ (Bet Limit & User Exposure Guard)
+  await assertBetLimits(db, userId, lotterySlug, roundId, bets, totalAmount);
 
   // ด่าน 4: เลขอั้น
   const blocked = await findBlockedNumbers(db, lotterySlug, bets);

@@ -12,6 +12,13 @@ import {
   collection, getDocs, getDoc, doc, addDoc, setDoc, updateDoc, deleteDoc,
   query, where, serverTimestamp,
 } from 'firebase/firestore';
+import {
+  getLotteryBetLimits, saveLotteryBetLimits,
+  handleQuickNumberAction, calculateRiskLimits,
+} from '../domains/lottery/betlimit.service';
+import {
+  scheduleRoundsBatch, getRoundsCalendar, verifySequentialRoundGuard,
+} from '../domains/lottery/scheduler.service';
 
 export function lotteryRoutes(db: any) {
   const r = Router();
@@ -284,6 +291,69 @@ export function lotteryRoutes(db: any) {
     }
   });
 
+  /* ============ ★ ขีดจำกัดเดิมพัน & คำนวณรับกิน (Bet Limits & Risk Intake) ★ ============ */
+
+  // GET /api/v1/lottery/limits/:id — ดึงขีดจำกัดเดิมพัน (14 ประเภทสำหรับหวยไทย และ 12 สำหรับหวยอื่น)
+  r.get('/limits/:id', async (req, res) => {
+    try {
+      const data = await getLotteryBetLimits(db, req.params.id);
+      res.json({ status: 'success', data });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ดึงข้อมูลขีดจำกัดเดิมพันไม่สำเร็จ: ' + (e as Error).message });
+    }
+  });
+
+  // POST /api/v1/lottery/limits/:id — บันทึกขีดจำกัดเดิมพันหลักและประเภทย่อย
+  r.post('/limits/:id', async (req, res) => {
+    try {
+      const result = await saveLotteryBetLimits(db, req.params.id, req.body || {});
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'บันทึกขีดจำกัดเดิมพันไม่สำเร็จ: ' + (e as Error).message });
+    }
+  });
+
+  // POST /api/v1/lottery/quick-number-action — สุ่ม 100 เลข หรือเจาะจงรายตัวเพื่อลดอัตราจ่าย / ปิดรับแทง
+  r.post('/quick-number-action', async (req, res) => {
+    try {
+      const { lotteryId, betType, action, discountRate, quantity, targetNumber } = req.body;
+      if (!lotteryId || !betType || !action) {
+        res.status(400).json({ status: 'error', message: 'ต้องระบุ lotteryId, betType และ action' });
+        return;
+      }
+      const result = await handleQuickNumberAction(db, {
+        lotteryId,
+        betType,
+        action,
+        discountRate,
+        quantity,
+        targetNumber,
+      });
+      res.json(result);
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ดำเนินการจัดการตัวเลขไม่สำเร็จ: ' + (e as Error).message });
+    }
+  });
+
+  // POST /api/v1/lottery/calculate-risk-limits — คำนวณเพดานรับกินรายเลข (งบรับกินรวม ÷ อัตราจ่าย)
+  r.post('/calculate-risk-limits', async (req, res) => {
+    try {
+      const { lotteryId, betType, totalRiskBudget } = req.body;
+      if (!lotteryId || !betType) {
+        res.status(400).json({ status: 'error', message: 'ต้องระบุ lotteryId และ betType' });
+        return;
+      }
+      const result = await calculateRiskLimits(db, {
+        lotteryId,
+        betType,
+        totalRiskBudget: Number(totalRiskBudget) || 100000,
+      });
+      res.json({ status: 'success', data: result });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'คำนวณเพดานรับกินไม่สำเร็จ: ' + (e as Error).message });
+    }
+  });
+
   return r;
 }
 
@@ -327,6 +397,55 @@ export function lotteryRoundRoutes(db: any) {
       res.json({ status: 'success', message: 'สร้างรอบหวยแล้ว', id: ref.id });
     } catch (e) {
       res.status(500).json({ status: 'error', message: 'สร้างรอบไม่สำเร็จ' });
+    }
+  });
+
+  /* ============ ★ ระบบตั้งเวลารอบหวยพร้อมความปลอดภัย (Sequential Guard & Calendar) ★ ============ */
+
+  // GET /api/v1/rounds/calendar — ข้อมูลปฏิทินรอบพร้อมระบบสี 4 สถานะ
+  r.get('/calendar', async (req, res) => {
+    try {
+      const { type } = req.query as any;
+      const data = await getRoundsCalendar(db, type);
+      res.json(data);
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ดึงข้อมูลปฏิทินรอบไม่สำเร็จ: ' + (e as Error).message });
+    }
+  });
+
+  // POST /api/v1/rounds/schedule — ตั้งเวลารอบหวยล่วงหน้า (มีระบบ Strict Sequential Guard)
+  r.post('/schedule', async (req, res) => {
+    try {
+      const { lotteryType, roundNumber, openTime, closeTime, resultTime } = req.body;
+      if (!lotteryType || !roundNumber || !openTime || !closeTime) {
+        res.status(400).json({ status: 'error', message: 'ต้องระบุ lotteryType, roundNumber, openTime, closeTime' });
+        return;
+      }
+      const result = await scheduleRoundsBatch(db, lotteryType, [{
+        roundNumber,
+        lotteryType,
+        openTime,
+        closeTime,
+        resultTime,
+      }]);
+      res.json(result);
+    } catch (e) {
+      res.status(400).json({ status: 'error', message: (e as Error).message });
+    }
+  });
+
+  // POST /api/v1/rounds/schedule-batch — ตั้งเวลารอบล่วงหน้าสูงสุด 5 รายการ
+  r.post('/schedule-batch', async (req, res) => {
+    try {
+      const { lotteryType, rounds } = req.body;
+      if (!lotteryType || !Array.isArray(rounds)) {
+        res.status(400).json({ status: 'error', message: 'ต้องระบุ lotteryType และ rounds[] เป็น array' });
+        return;
+      }
+      const result = await scheduleRoundsBatch(db, lotteryType, rounds);
+      res.json(result);
+    } catch (e) {
+      res.status(400).json({ status: 'error', message: (e as Error).message });
     }
   });
 
