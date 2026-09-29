@@ -23,8 +23,10 @@ import {
   LOTTERY_CATEGORIES, getLotteryCategory, getCategoryLabel, MASTER_LOTTERY_CATALOG,
   type LotteryCategoryKey
 } from '@/shared/lib/lotteryCatalog';
+import BetLimitsManager from '../components/BetLimitsManager';
+import RoundSchedulerManager from '../components/RoundSchedulerManager';
 
-type AdminTab = 'overview' | 'system_control' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
+type AdminTab = 'overview' | 'system_control' | 'bet_limits' | 'round_scheduler' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -1713,13 +1715,15 @@ export default function AdminDashboard() {
    * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
    * ================================================================== */
   const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission }[] = [
-    { id: 'overview',       label: 'แดชบอร์ด',           icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
-    { id: 'system_control', label: 'เปิด-ปิดระบบ',        icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'members',        label: 'สมาชิก & กำหนดเครดิต', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW },
-    { id: 'finance',        label: 'การเงินตัดยอด',       icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW },
-    { id: 'agents',         label: 'จัดการเอเย่นต์',      icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW },
-    { id: 'settings',       label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'reports',        label: 'รายงานการเล่น',       icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW },
+    { id: 'overview',        label: 'แดชบอร์ด',            icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
+    { id: 'system_control',  label: 'เปิด-ปิดระบบ',         icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'bet_limits',      label: 'ขีดจำกัด & รับกิน',    icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'round_scheduler', label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'members',         label: 'สมาชิก & กำหนดเครดิต', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW },
+    { id: 'finance',         label: 'การเงินตัดยอด',        icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW },
+    { id: 'agents',          label: 'จัดการเอเย่นต์',       icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW },
+    { id: 'settings',        label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'reports',         label: 'รายงานการเล่น',        icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW },
     { id: 'rules',          label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES },
     { id: 'popup',          label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP },
     { id: 'api',            label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW },
@@ -1740,33 +1744,41 @@ export default function AdminDashboard() {
 
   if (!isAdminLoggedIn) {
     return (
-      <div className="min-h-screen bg-[var(--navy-deep)] flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md space-y-6">
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="admin-card bg-white p-8 rounded-2xl border border-slate-200/90 shadow-xl shadow-blue-900/10 w-full max-w-md space-y-6">
           <div className="text-center">
-            <span className="material-symbols-outlined text-6xl text-[var(--gold-vibrant)]">admin_panel_settings</span>
-            <h1 className="text-2xl font-black text-[var(--navy-deep)] mt-2">Admin Access</h1>
-            <p className="text-gray-500 text-sm">กรุณาระบุ Username และ รหัสผ่าน</p>
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-sm mb-3">
+              <span className="material-symbols-outlined text-3xl">admin_panel_settings</span>
+            </div>
+            <h1 className="text-2xl font-black text-slate-900">Admin Backoffice</h1>
+            <p className="text-slate-500 text-xs mt-1">ระบบบริหารจัดการหลังบ้านอย่างเป็นทางการ</p>
           </div>
           <div className="space-y-4">
-            <input 
-              type="text" 
-              placeholder="Username"
-              value={adminUser}
-              onChange={(e) => setAdminUser(e.target.value)}
-              className="w-full border-2 border-gray-100 rounded-xl p-4 outline-none focus:border-[var(--gold-vibrant)]"
-            />
-            <input 
-              type="password" 
-              placeholder="Password"
-              value={adminPass}
-              onChange={(e) => setAdminPass(e.target.value)}
-              className="w-full border-2 border-gray-100 rounded-xl p-4 outline-none focus:border-[var(--gold-vibrant)]"
-            />
+            <div>
+              <label className="text-xs font-bold text-slate-600 mb-1 block">ชื่อผู้ใช้งาน (Username)</label>
+              <input 
+                type="text" 
+                placeholder="ระบุ Username"
+                value={adminUser}
+                onChange={(e) => setAdminUser(e.target.value)}
+                className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-slate-600 mb-1 block">รหัสผ่าน (Password)</label>
+              <input 
+                type="password" 
+                placeholder="ระบุรหัสผ่าน"
+                value={adminPass}
+                onChange={(e) => setAdminPass(e.target.value)}
+                className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
+              />
+            </div>
             <button 
               onClick={handleAdminLogin}
-              className="w-full bg-[var(--navy-deep)] text-white p-4 rounded-xl font-black hover:bg-black transition"
+              className="w-full bg-blue-700 hover:bg-blue-800 text-white p-3.5 rounded-xl font-black shadow-md shadow-blue-700/25 transition active:scale-95"
             >
-              Login to Admin
+              เข้าสู่ระบบหลังบ้าน
             </button>
           </div>
         </div>
@@ -1775,67 +1787,60 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen admin-cream flex">
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex">
       {/* Sidebar */}
       <aside
-        className="w-64 border-r flex flex-col fixed inset-y-0 shadow-lg z-50"
-        style={{ background: 'var(--admin-card)', borderColor: 'var(--admin-border)' }}
+        className="w-64 bg-white border-r border-slate-200/90 flex flex-col fixed inset-y-0 shadow-lg shadow-blue-950/5 z-50"
       >
-        <div className="p-6" style={{ background: 'var(--admin-accent-dark)' }}>
+        <div className="p-5 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: 'var(--admin-accent-soft)' }}>
-              <span className="material-symbols-outlined font-black" style={{ color: 'var(--admin-accent-dark)' }}>admin_panel_settings</span>
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-sm">
+              <span className="material-symbols-outlined">admin_panel_settings</span>
             </div>
             <div>
-              <div className="text-xs font-black uppercase tracking-widest" style={{ color: 'var(--admin-accent-soft)' }}>Administrator</div>
-              <div className="text-lg font-black leading-tight text-white">Lottery Hub</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-blue-700">Administrator</div>
+              <div className="text-base font-black leading-tight text-slate-900">Lottery Hub</div>
             </div>
           </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <nav className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-black transition-all duration-200 ${
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-black text-xs transition-all duration-200 ${
                 activeTab === tab.id
-                ? 'shadow-md translate-x-1'
-                : 'hover:translate-x-1'
+                ? 'bg-blue-700 text-white shadow-md shadow-blue-700/25 border border-blue-600/50 translate-x-1'
+                : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50/70 hover:translate-x-1'
               }`}
-              style={activeTab === tab.id
-                ? { background: 'var(--admin-accent)', color: '#fff' }
-                : { color: 'var(--admin-text-muted)' }}
             >
-              <span className="material-symbols-outlined">{tab.icon}</span>
-              <span className="text-sm">{tab.label}</span>
+              <span className="material-symbols-outlined text-lg">{tab.icon}</span>
+              <span>{tab.label}</span>
             </button>
           ))}
 
-          <div className="pt-3 mt-3 border-t" style={{ borderColor: 'var(--admin-border)' }}>
-            <div className="text-[10px] font-black uppercase tracking-wider px-2 mb-2" style={{ color: 'var(--admin-text-muted)' }}>
+          <div className="pt-3 mt-3 border-t border-slate-100">
+            <div className="text-[10px] font-black uppercase tracking-wider px-2 mb-2 text-slate-400">
               ศูนย์ควบคุมพิเศษ
             </div>
             <Link
               to="/admin/yeekee"
-              className="w-full flex items-center gap-3 px-3 py-2 rounded-xl font-black text-xs transition hover:translate-x-1 shadow-sm"
-              style={{ color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a' }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-black text-xs transition hover:translate-x-1 shadow-sm border border-amber-200 bg-amber-50/70 text-amber-900"
             >
               <span className="material-symbols-outlined text-base text-amber-600">timer</span>
               <span>★ หวยยี่กี 88 รอบ</span>
             </Link>
             <Link
               to="/admin/game20"
-              className="w-full flex items-center gap-3 px-3 py-2 mt-1.5 rounded-xl font-black text-xs transition hover:translate-x-1"
-              style={{ color: 'var(--admin-text)', background: 'var(--admin-subtle)' }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 mt-1.5 rounded-xl font-black text-xs transition hover:translate-x-1 border border-slate-200 bg-slate-50 text-slate-700 hover:bg-blue-50/50 hover:text-blue-700"
             >
               <span className="material-symbols-outlined text-base">casino</span>
               <span>หวย 20 ช่อง 6 หลัก</span>
             </Link>
             <Link
               to="/admin/manual"
-              className="w-full flex items-center gap-3 px-3 py-2 mt-1.5 rounded-xl font-black text-xs transition hover:translate-x-1"
-              style={{ color: 'var(--admin-text-muted)' }}
+              className="w-full flex items-center gap-2.5 px-3 py-2 mt-1.5 rounded-xl font-black text-xs transition hover:translate-x-1 text-slate-500 hover:text-slate-800"
             >
               <span className="material-symbols-outlined text-base">menu_book</span>
               <span>คู่มือ & รหัสผ่าน</span>
@@ -1883,10 +1888,9 @@ export default function AdminDashboard() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-64 p-6">
+      <main className="flex-1 ml-64 p-6 bg-slate-50 min-h-screen">
         <header
-          className="flex justify-between items-center mb-6 p-5 rounded-2xl shadow-sm border"
-          style={{ background: 'var(--admin-card)', borderColor: 'var(--admin-border)' }}
+          className="flex justify-between items-center mb-6 p-5 rounded-2xl shadow-sm border border-slate-200/90 bg-white shadow-blue-900/5"
         >
           <div>
             <h2 className="text-2xl font-black" style={{ color: 'var(--admin-text)' }}>
@@ -2349,6 +2353,22 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ขีดจำกัดเดิมพัน & คำนวณรับกิน (Bet Limits & Risk Intake) */}
+          {activeTab === 'bet_limits' && (
+            <BetLimitsManager
+              lotteryTypes={lotterySettings}
+              onLogActivity={logActivity}
+            />
+          )}
+
+          {/* ปฏิทินรอบหวย & Strict Sequential Round Guard */}
+          {activeTab === 'round_scheduler' && (
+            <RoundSchedulerManager
+              lotteryTypes={lotterySettings}
+              onLogActivity={logActivity}
+            />
           )}
 
           {/* 2. จัดการเอเย่นต์ (Hierarchy: Master -> Agent) */}

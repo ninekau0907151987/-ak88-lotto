@@ -15,26 +15,26 @@
     --selection-blue: #0D47A1;
 
     /* ============================================================
-     * ★ ธีมหลังบ้าน — โทนครีม/บ้านๆ (Cream & Warm Neutrals)
-     * ใช้กับหลังบ้าน (AdminDashboard, MasterDashboard, AgentProfile)
-     * หน้าบ้านยังใช้สีเดิม (navy + gold) ไม่กระทบ
+     * ★ ธีมหลังบ้าน — สีขาว ทางการ เล่นเงาสีน้ำเงินพอดี นูนนิดๆ (White Corporate with Blue Shadow)
+     * ใช้กับหลังบ้าน (AdminDashboard, MasterDashboard, AgentProfile, AdminLogin)
      * ============================================================ */
-    --admin-bg: #faf6ef;          /* พื้นหลังหลัก */
-    --admin-card: #fffdf8;        /* การ์ด */
-    --admin-subtle: #f5efe2;      /* พื้นรอง */
-    --admin-border: #e8dfcc;      /* เส้นขอบ */
-    --admin-border-strong: #d9cdb4;
-    --admin-text: #3d3226;        /* น้ำตาลเข้ม ไม่ดำสนิท */
-    --admin-text-muted: #8a7d6b;
-    --admin-text-faint: #b3a897;
-    --admin-accent: #a67c52;      /* น้ำตาลทอง */
-    --admin-accent-dark: #7d5a38;
-    --admin-accent-soft: #f0e6d6;
-    --admin-accent-text: #7d5a38;
+    --admin-bg: #f8fafc;          /* พื้นหลังหลัก สีขาวสว่าง สะอาดตา */
+    --admin-card: #ffffff;        /* การ์ดสีขาวบริสุทธิ์ */
+    --admin-subtle: #f1f5f9;      /* พื้นรองสีเทาอ่อนหรูหรา */
+    --admin-border: #e2e8f0;      /* เส้นขอบคมชัด */
+    --admin-border-strong: #cbd5e1;
+    --admin-text: #0f172a;        /* ข้อความสีกรมท่าเข้ม ทางการ อ่านง่าย */
+    --admin-text-muted: #64748b;  /* ข้อความสีรอง */
+    --admin-text-faint: #94a3b8;
+    --admin-accent: #1e40af;      /* สีน้ำเงินหรูหราทางการ (Royal Navy Blue) */
+    --admin-accent-dark: #0f172a; /* สีกรมท่าเกือบดำ */
+    --admin-accent-soft: #eff6ff; /* สีฟ้าอ่อนนุ่มนวล */
+    --admin-accent-text: #1d4ed8;
 }
 
-/* ---- ธีมหลังบ้าน: พื้นหลังครีมทั้งหน้า ---- */
-.admin-cream {
+/* ---- ธีมหลังบ้าน: พื้นหลังสีขาว ทางการ ---- */
+.admin-cream,
+.admin-white-theme {
     background-color: var(--admin-bg);
     color: var(--admin-text);
 }
@@ -43,12 +43,24 @@ body.admin-cream {
     background-color: var(--admin-bg);
 }
 
-/* การ์ดหลังบ้าน */
+/* การ์ดหลังบ้าน — เล่นเงาน้ำเงิน นูนนิดๆ หรูหราทางการ */
 .admin-card {
     background: var(--admin-card);
     border: 1px solid var(--admin-border);
     border-radius: 1rem;
-    box-shadow: 0 1px 3px rgba(61, 50, 38, 0.06);
+    box-shadow: 0 4px 20px -2px rgba(30, 64, 175, 0.08), 0 2px 6px -1px rgba(37, 99, 235, 0.04), 0 1px 0 #ffffff inset;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.admin-card:hover {
+    box-shadow: 0 8px 26px -4px rgba(30, 64, 175, 0.12), 0 4px 10px -2px rgba(37, 99, 235, 0.07);
+}
+
+/* นูน 3D เงาสีน้ำเงินพอดี (Embossed Blue Shadow) */
+.admin-emboss-blue {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 4px 18px -2px rgba(30, 58, 138, 0.09), 0 2px 5px -1px rgba(59, 130, 246, 0.06);
+    border-radius: 0.875rem;
 }
 
 /* หัวข้อหลังบ้าน */
@@ -61,12 +73,12 @@ body.admin-cream {
     font-size: 0.75rem;
 }
 
-/* ตารางหลังบ้าน — หัวตารางโทนครีม */
+/* ตารางหลังบ้าน — หัวตารางทางการ */
 .admin-table th {
     background: var(--admin-subtle);
     color: var(--admin-text-muted);
-    font-weight: 900;
-    font-size: 0.65rem;
+    font-weight: 800;
+    font-size: 0.68rem;
     text-transform: uppercase;
     letter-spacing: 0.03em;
 }
@@ -75,7 +87,7 @@ body.admin-cream {
     color: var(--admin-text);
 }
 .admin-table tbody tr:hover {
-    background: var(--admin-subtle);
+    background: #f8fafc;
 }
 
 /* ตัวเลขในตาราง — หลักตรงกัน */

@@ -89,6 +89,10 @@ export function createV1Router(db: any) {
   // ---- หวย และระบบต้านทานอัตราจ่าย (สาธารณะ/แอดมิน) ----
   api.use('/lottery', lotteryRoutes(db));
 
+  // ---- รอบหวย และ ปฏิทิน/ระบบจัดตารางเวลา (สาธารณะ/แอดมิน) ----
+  api.use('/rounds', lotteryRoundRoutes(db));
+  api.use('/blocked', blockedNumberRoutes(db));
+
   // ---- ตรวจสลิปฝากเงินสาธารณะสำหรับสมาชิกหน้าบ้าน ----
   api.post('/finance/slip/verify', asyncHandler(async (req, res) => {
     const { verifyAndCreditSlip } = await import('../../domains/finance/finance.service');
