@@ -26,8 +26,9 @@ import {
 import BetLimitsManager from '../components/BetLimitsManager';
 import RoundSchedulerManager from '../components/RoundSchedulerManager';
 import LotteryOpenCloseManager from '../components/LotteryOpenCloseManager';
+import RiskIntakeManager from '../components/RiskIntakeManager';
 
-type AdminTab = 'overview' | 'lottery_control' | 'system_control' | 'bet_limits' | 'round_scheduler' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
+type AdminTab = 'overview' | 'intake_management' | 'lottery_control' | 'system_control' | 'bet_limits' | 'round_scheduler' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -1716,11 +1717,12 @@ export default function AdminDashboard() {
    * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
    * ================================================================== */
   const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission }[] = [
-    { id: 'overview',        label: 'แดชบอร์ด',            icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
-    { id: 'lottery_control', label: 'ดูหวย & เปิด-ปิด',     icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'system_control',  label: 'เปิด-ปิดระบบ',         icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'bet_limits',      label: 'ขีดจำกัด & รับกิน',    icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'round_scheduler', label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'overview',          label: 'แดชบอร์ด',            icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
+    { id: 'intake_management', label: 'ระบบรับกิน',          icon: 'shield_with_heart',      perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'lottery_control',   label: 'ดูหวย & เปิด-ปิด',     icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'bet_limits',        label: 'ขีดจำกัดเดิมพัน',      icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'round_scheduler',   label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'system_control',    label: 'เปิด-ปิดระบบ',         icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW },
     { id: 'members',         label: 'สมาชิก & กำหนดเครดิต', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW },
     { id: 'finance',         label: 'การเงินตัดยอด',        icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW },
     { id: 'agents',          label: 'จัดการเอเย่นต์',       icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW },
@@ -2044,6 +2046,14 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* ระบบรับกิน & ตั้งค่าอัตราจ่ายและส่วนลด (Risk Intake & Margin Control) */}
+          {activeTab === 'intake_management' && (
+            <RiskIntakeManager
+              lotteryTypes={lotterySettings}
+              onLogActivity={logActivity}
+            />
           )}
 
           {/* ดูหวย & จัดการเปิด-ปิด (Lottery Status & Schedule Control) */}

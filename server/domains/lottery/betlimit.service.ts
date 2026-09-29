@@ -18,40 +18,44 @@ export interface SubBetTypeConfig {
   minBet: number;
   maxBet: number;
   maxUserLimit: number;
+  discountPercent?: number;       // ★ ส่วนลด % (เช่น 0-35%)
+  discountedRate?: number;        // ★ อัตราจ่ายเมื่อมีส่วนลด
+  maxIntakePerNumber?: number;    // ★ เพดานรับกินตัวละเท่าไหร่ (เช่น 1,000 บาท/ตัว)
+  totalTypeBudget?: number;       // ★ งบรับกินรวมประเภทนี้ (เช่น 50,000 บาท)
 }
 
 // 14 ประเภทสำหรับหวยรัฐบาลไทย
 export const THAI_14_BET_TYPES: SubBetTypeConfig[] = [
-  { id: 1,  name: '3 ตัวบน',       baseRate: 900, minBet: 1, maxBet: 2000,  maxUserLimit: 20000 },
-  { id: 2,  name: '3 ตัวล่าง',      baseRate: 450, minBet: 1, maxBet: 2000,  maxUserLimit: 20000 },
-  { id: 3,  name: '3 ตัวโต๊ด',      baseRate: 150, minBet: 1, maxBet: 3000,  maxUserLimit: 30000 },
-  { id: 4,  name: '2 ตัวบน',       baseRate: 90,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 5,  name: '2 ตัวล่าง',      baseRate: 90,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 6,  name: '2 ตัวโต๊ด',      baseRate: 12,  minBet: 1, maxBet: 6000,  maxUserLimit: 60000 },
-  { id: 7,  name: 'วิ่งบน',        baseRate: 3.2, minBet: 1, maxBet: 10000, maxUserLimit: 100000 },
-  { id: 8,  name: 'วิ่งล่าง',       baseRate: 4.2, minBet: 1, maxBet: 10000, maxUserLimit: 100000 },
-  { id: 9,  name: 'ปักหลักร้อย',    baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 10, name: 'ปักหลักสิบ',     baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 11, name: 'ปักหลักหน่วย',   baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 12, name: '4 ตัวบน',       baseRate: 5000, minBet: 1, maxBet: 1000, maxUserLimit: 10000 },
-  { id: 13, name: '4 ตัวโต๊ด',      baseRate: 25,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 14, name: '5 ตัวโต๊ด',      baseRate: 15,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
+  { id: 1,  name: '3 ตัวบน',       baseRate: 900, minBet: 1, maxBet: 2000,  maxUserLimit: 20000, discountPercent: 30, discountedRate: 550, maxIntakePerNumber: 1000, totalTypeBudget: 50000 },
+  { id: 2,  name: '3 ตัวล่าง',      baseRate: 450, minBet: 1, maxBet: 2000,  maxUserLimit: 20000, discountPercent: 30, discountedRate: 350, maxIntakePerNumber: 1000, totalTypeBudget: 50000 },
+  { id: 3,  name: '3 ตัวโต๊ด',      baseRate: 150, minBet: 1, maxBet: 3000,  maxUserLimit: 30000, discountPercent: 30, discountedRate: 110, maxIntakePerNumber: 2000, totalTypeBudget: 60000 },
+  { id: 4,  name: '2 ตัวบน',       baseRate: 90,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 28, discountedRate: 70,  maxIntakePerNumber: 3000, totalTypeBudget: 100000 },
+  { id: 5,  name: '2 ตัวล่าง',      baseRate: 90,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 28, discountedRate: 70,  maxIntakePerNumber: 3000, totalTypeBudget: 100000 },
+  { id: 6,  name: '2 ตัวโต๊ด',      baseRate: 12,  minBet: 1, maxBet: 6000,  maxUserLimit: 60000, discountPercent: 25, discountedRate: 10,  maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 7,  name: 'วิ่งบน',        baseRate: 3.2, minBet: 1, maxBet: 10000, maxUserLimit: 100000, discountPercent: 12, discountedRate: 2.8, maxIntakePerNumber: 10000, totalTypeBudget: 200000 },
+  { id: 8,  name: 'วิ่งล่าง',       baseRate: 4.2, minBet: 1, maxBet: 10000, maxUserLimit: 100000, discountPercent: 12, discountedRate: 3.8, maxIntakePerNumber: 10000, totalTypeBudget: 200000 },
+  { id: 9,  name: 'ปักหลักร้อย',    baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 15, discountedRate: 7.0, maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 10, name: 'ปักหลักสิบ',     baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 15, discountedRate: 7.0, maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 11, name: 'ปักหลักหน่วย',   baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 15, discountedRate: 7.0, maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 12, name: '4 ตัวบน',       baseRate: 5000, minBet: 1, maxBet: 1000, maxUserLimit: 10000, discountPercent: 35, discountedRate: 3500, maxIntakePerNumber: 500, totalTypeBudget: 50000 },
+  { id: 13, name: '4 ตัวโต๊ด',      baseRate: 25,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 25, discountedRate: 20,  maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 14, name: '5 ตัวโต๊ด',      baseRate: 15,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 25, discountedRate: 12,  maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
 ];
 
 // 12 ประเภทสำหรับหวยอื่นๆ (ยี่กี, หวยลาว, ฮานอย, หุ้น ฯลฯ)
 export const OTHER_12_BET_TYPES: SubBetTypeConfig[] = [
-  { id: 1,  name: '3 ตัวบน',       baseRate: 900, minBet: 1, maxBet: 2000,  maxUserLimit: 20000 },
-  { id: 2,  name: '3 ตัวโต๊ด',      baseRate: 150, minBet: 1, maxBet: 3000,  maxUserLimit: 30000 },
-  { id: 3,  name: '2 ตัวบน',       baseRate: 90,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 4,  name: '2 ตัวล่าง',      baseRate: 90,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 5,  name: '2 ตัวโต๊ด',      baseRate: 12,  minBet: 1, maxBet: 6000,  maxUserLimit: 60000 },
-  { id: 6,  name: 'วิ่งบน',        baseRate: 3.2, minBet: 1, maxBet: 10000, maxUserLimit: 100000 },
-  { id: 7,  name: 'วิ่งล่าง',       baseRate: 4.2, minBet: 1, maxBet: 10000, maxUserLimit: 100000 },
-  { id: 8,  name: 'ปักหลักร้อย',    baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 9,  name: 'ปักหลักสิบ',     baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 10, name: 'ปักหลักหน่วย',   baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
-  { id: 11, name: '4 ตัวบน',       baseRate: 5000, minBet: 1, maxBet: 1000, maxUserLimit: 10000 },
-  { id: 12, name: '4 ตัวโต๊ด',      baseRate: 25,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000 },
+  { id: 1,  name: '3 ตัวบน',       baseRate: 900, minBet: 1, maxBet: 2000,  maxUserLimit: 20000, discountPercent: 30, discountedRate: 550, maxIntakePerNumber: 1000, totalTypeBudget: 50000 },
+  { id: 2,  name: '3 ตัวโต๊ด',      baseRate: 150, minBet: 1, maxBet: 3000,  maxUserLimit: 30000, discountPercent: 30, discountedRate: 110, maxIntakePerNumber: 2000, totalTypeBudget: 60000 },
+  { id: 3,  name: '2 ตัวบน',       baseRate: 90,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 28, discountedRate: 70,  maxIntakePerNumber: 3000, totalTypeBudget: 100000 },
+  { id: 4,  name: '2 ตัวล่าง',      baseRate: 90,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 28, discountedRate: 70,  maxIntakePerNumber: 3000, totalTypeBudget: 100000 },
+  { id: 5,  name: '2 ตัวโต๊ด',      baseRate: 12,  minBet: 1, maxBet: 6000,  maxUserLimit: 60000, discountPercent: 25, discountedRate: 10,  maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 6,  name: 'วิ่งบน',        baseRate: 3.2, minBet: 1, maxBet: 10000, maxUserLimit: 100000, discountPercent: 12, discountedRate: 2.8, maxIntakePerNumber: 10000, totalTypeBudget: 200000 },
+  { id: 7,  name: 'วิ่งล่าง',       baseRate: 4.2, minBet: 1, maxBet: 10000, maxUserLimit: 100000, discountPercent: 12, discountedRate: 3.8, maxIntakePerNumber: 10000, totalTypeBudget: 200000 },
+  { id: 8,  name: 'ปักหลักร้อย',    baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 15, discountedRate: 7.0, maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 9,  name: 'ปักหลักสิบ',     baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 15, discountedRate: 7.0, maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 10, name: 'ปักหลักหน่วย',   baseRate: 8.0, minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 15, discountedRate: 7.0, maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
+  { id: 11, name: '4 ตัวบน',       baseRate: 5000, minBet: 1, maxBet: 1000, maxUserLimit: 10000, discountPercent: 35, discountedRate: 3500, maxIntakePerNumber: 500, totalTypeBudget: 50000 },
+  { id: 12, name: '4 ตัวโต๊ด',      baseRate: 25,  minBet: 1, maxBet: 5000,  maxUserLimit: 50000, discountPercent: 25, discountedRate: 20,  maxIntakePerNumber: 5000, totalTypeBudget: 100000 },
 ];
 
 /** ตรวจสอบว่าเป็นหวยรัฐบาลไทยหรือไม่ */
@@ -99,6 +103,10 @@ export async function getLotteryBetLimits(db: any, lotteryId: string) {
       minBet: Number(override?.minBet) || minBet,
       maxBet: Number(override?.maxBet) || maxBet,
       maxUserLimit: Number(override?.maxUserLimit) || maxUserLimit,
+      discountPercent: override?.discountPercent != null ? Number(override.discountPercent) : (t.discountPercent || 0),
+      discountedRate: override?.discountedRate != null ? Number(override.discountedRate) : (t.discountedRate || t.baseRate),
+      maxIntakePerNumber: Number(override?.maxIntakePerNumber) || (t.maxIntakePerNumber || 1000),
+      totalTypeBudget: Number(override?.totalTypeBudget) || (t.totalTypeBudget || 50000),
     };
   });
 
