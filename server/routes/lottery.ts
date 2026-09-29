@@ -92,6 +92,198 @@ export function lotteryRoutes(db: any) {
     }
   });
 
+  /* ============ ★ ระบบต้านทานอัตราจ่าย (Payout Rate Resistance) ★ ============ */
+
+  // ค่ามาตรฐานระบบต้านทานอัตราจ่าย แยกตามหลัก (3 ตัว, 2 ตัว, วิ่ง/รัน, เลขปัก, 4-5 ตัว)
+  const DEFAULT_RESISTANCE_RATES: Record<string, { baseRate: number; resistanceRate: number; maxExposure: number }> = {
+    // กลุ่ม 3 ตัว
+    '3 ตัวบน':   { baseRate: 900, resistanceRate: 800, maxExposure: 20000 },
+    '3 ตัวโต๊ด': { baseRate: 150, resistanceRate: 120, maxExposure: 30000 },
+    '3 ตัวหน้า': { baseRate: 450, resistanceRate: 400, maxExposure: 20000 },
+    '3 ตัวล่าง': { baseRate: 450, resistanceRate: 400, maxExposure: 20000 },
+    '3 ตัวกลับ': { baseRate: 900, resistanceRate: 800, maxExposure: 20000 },
+
+    // กลุ่ม 2 ตัว
+    '2 ตัวบน':   { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+    '2 ตัวล่าง': { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+    '2 ตัวกลับ': { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+    '2 ตัวโต๊ด': { baseRate: 12,  resistanceRate: 10,  maxExposure: 60000 },
+
+    // กลุ่มเลขวิ่ง / เลขรัน
+    'วิ่งบน':    { baseRate: 3.2, resistanceRate: 2.8, maxExposure: 100000 },
+    'วิ่งล่าง':  { baseRate: 4.2, resistanceRate: 3.8, maxExposure: 100000 },
+
+    // กลุ่มเลขปักหลัก
+    'ปักหลักหน่วย': { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+    'ปักหลักสิบ':   { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+    'ปักหลักร้อย':  { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+
+    // กลุ่ม 4-5 ตัว
+    '4 ตัวบน':   { baseRate: 5000, resistanceRate: 4000, maxExposure: 10000 },
+    '4 ตัวโต๊ด': { baseRate: 25,   resistanceRate: 20,   maxExposure: 50000 },
+    '5 ตัวโต๊ด': { baseRate: 15,   resistanceRate: 12,   maxExposure: 50000 },
+  };
+
+  // GET /api/v1/lottery/resistance — ดูการตั้งค่าระบบต้านทานอัตราจ่ายทั้งหมด
+  r.get('/resistance', async (_req, res) => {
+    try {
+      const snap = await getDocs(collection(db, 'payout_resistance'));
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      res.json({
+        status: 'success',
+        count: list.length,
+        defaultRates: DEFAULT_RESISTANCE_RATES,
+        data: list,
+      });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ดึงข้อมูลระบบต้านทานอัตราจ่ายไม่สำเร็จ' });
+    }
+  });
+
+  // GET /api/v1/lottery/resistance/:id — ดูการตั้งค่าต้านทานของหวยประเภทนี้ (id = ชื่อหวย)
+  r.get('/resistance/:id', async (req, res) => {
+    try {
+      const snap = await getDoc(doc(db, 'payout_resistance', req.params.id));
+      if (snap.exists()) {
+        res.json({ status: 'success', data: { id: snap.id, ...snap.data() } });
+      } else {
+        // ถ้ายังไม่มี ให้คืนค่า Default พร้อมใช้งาน
+        res.json({
+          status: 'success',
+          isDefault: true,
+          data: {
+            id: req.params.id,
+            lotteryId: req.params.id,
+            enabled: true,
+            autoReduceOnExposure: true,
+            rates: DEFAULT_RESISTANCE_RATES,
+          }
+        });
+      }
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ดึงข้อมูลระบบต้านทานหวยไม่สำเร็จ' });
+    }
+  });
+
+  // POST /api/v1/lottery/resistance/:id — บันทึก/อัปเดตระบบต้านทานอัตราจ่ายแยกตามหลัก
+  r.post('/resistance/:id', async (req, res) => {
+    try {
+      const { rates, enabled, autoReduceOnExposure } = req.body;
+      const dataToSave = {
+        id: req.params.id,
+        lotteryId: req.params.id,
+        enabled: enabled !== false,
+        autoReduceOnExposure: autoReduceOnExposure !== false,
+        rates: rates || DEFAULT_RESISTANCE_RATES,
+        updatedAt: serverTimestamp(),
+      };
+      
+      await setDoc(doc(db, 'payout_resistance', req.params.id), dataToSave, { merge: true });
+
+      // ซิงค์เรทพื้นฐานไปยัง lotteryTypes ด้วยเพื่อให้หน้าบ้านดึงไปใช้ได้ทันที
+      if (rates && typeof rates === 'object') {
+        const flatRates: Record<string, number> = {};
+        Object.keys(rates).forEach(k => {
+          flatRates[k] = rates[k]?.baseRate || rates[k];
+        });
+        await setDoc(doc(db, 'lotteryTypes', req.params.id), {
+          rates: flatRates,
+          hasResistance: true,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      }
+
+      res.json({
+        status: 'success',
+        message: `บันทึกระบบต้านทานอัตราจ่ายสำหรับ ${req.params.id} สำเร็จ`,
+        data: dataToSave,
+      });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'บันทึกระบบต้านทานอัตราจ่ายไม่สำเร็จ' });
+    }
+  });
+
+  // POST /api/v1/lottery/resistance/batch — นำการตั้งค่าระบบต้านทานไปใช้กับหวยทุกประเภท
+  r.post('/resistance/batch', async (req, res) => {
+    try {
+      const { rates, enabled, autoReduceOnExposure } = req.body;
+      const typesSnap = await getDocs(collection(db, 'lotteryTypes'));
+      const batchPromises = typesSnap.docs.map(async (d) => {
+        const id = d.id;
+        await setDoc(doc(db, 'payout_resistance', id), {
+          id,
+          lotteryId: id,
+          enabled: enabled !== false,
+          autoReduceOnExposure: autoReduceOnExposure !== false,
+          rates: rates || DEFAULT_RESISTANCE_RATES,
+          updatedAt: serverTimestamp(),
+        }, { merge: true });
+      });
+
+      await Promise.all(batchPromises);
+      res.json({
+        status: 'success',
+        message: `นำระบบต้านทานอัตราจ่ายไปใช้กับหวยทั้งหมด ${typesSnap.docs.length} ประเภทสำเร็จ`,
+      });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ใช้การตั้งค่าต้านทานกับทุกหวยไม่สำเร็จ' });
+    }
+  });
+
+  // POST /api/v1/lottery/resistance/calculate — ตรวจสอบและคำนวณอัตราจ่ายจริงตามยอดรับแทงสะสม
+  // body: { lotteryType, betType, number, requestedAmount }
+  r.post('/resistance/calculate', async (req, res) => {
+    try {
+      const { lotteryType, betType, number, requestedAmount = 10 } = req.body;
+      if (!lotteryType || !betType) {
+        res.status(400).json({ status: 'error', message: 'ต้องระบุ lotteryType และ betType' });
+        return;
+      }
+
+      const snap = await getDoc(doc(db, 'payout_resistance', lotteryType));
+      const config = snap.exists() ? snap.data() : { enabled: true, rates: DEFAULT_RESISTANCE_RATES };
+      const rateConfig = config.rates?.[betType] || DEFAULT_RESISTANCE_RATES[betType] || { baseRate: 90, resistanceRate: 80, maxExposure: 50000 };
+
+      // ตรวจสอบยอดแทงสะสมปัจจุบันของเลขนี้ในรอบปัจจุบัน
+      const ticketsQuery = query(
+        collection(db, 'tickets'),
+        where('lotteryType', '==', lotteryType),
+        where('status', 'in', ['active', 'confirmed', 'pending_cancellation'])
+      );
+      const ticketsSnap = await getDocs(ticketsQuery);
+      
+      let currentExposure = 0;
+      ticketsSnap.docs.forEach(d => {
+        const data = d.data();
+        (data.bets || []).forEach((b: any) => {
+          if (b.type === betType && (!number || b.number === number)) {
+            currentExposure += (Number(b.amount) || 0);
+          }
+        });
+      });
+
+      const willExceed = (currentExposure + requestedAmount) > rateConfig.maxExposure;
+      const isResisted = Boolean(config.enabled && willExceed);
+      const finalRate = isResisted ? rateConfig.resistanceRate : rateConfig.baseRate;
+
+      res.json({
+        status: 'success',
+        lotteryType,
+        betType,
+        number,
+        currentExposure,
+        maxExposure: rateConfig.maxExposure,
+        isResisted,
+        baseRate: rateConfig.baseRate,
+        resistanceRate: rateConfig.resistanceRate,
+        finalPayoutRate: finalRate,
+        reductionPercent: isResisted ? Math.round((1 - finalRate / rateConfig.baseRate) * 100) : 0,
+      });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'คำนวณการต้านทานอัตราจ่ายไม่สำเร็จ' });
+    }
+  });
+
   return r;
 }
 

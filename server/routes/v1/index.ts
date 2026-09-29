@@ -86,6 +86,9 @@ export function createV1Router(db: any) {
   // ---- หวยยี่กี (อ่านรอบ/ยิงเลข/จัดการหลังบ้าน) ----
   api.use('/yeekee', createYeekeeRouter(db));
 
+  // ---- หวย และระบบต้านทานอัตราจ่าย (สาธารณะ/แอดมิน) ----
+  api.use('/lottery', lotteryRoutes(db));
+
   // ---- ตรวจสลิปฝากเงินสาธารณะสำหรับสมาชิกหน้าบ้าน ----
   api.post('/finance/slip/verify', asyncHandler(async (req, res) => {
     const { verifyAndCreditSlip } = await import('../../domains/finance/finance.service');

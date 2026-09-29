@@ -229,6 +229,36 @@ export default function AdminDashboard() {
   // VIP Live Monitor Filtering State
   const [vipMonitorFilter, setVipMonitorFilter] = useState<'all' | 'vip500' | 'vip1000' | 'vip2000'>('all');
 
+  // Payout Rate Resistance Management State
+  const [selectedResistanceLottery, setSelectedResistanceLottery] = useState('หวยรัฐบาล');
+  const [resistanceCategoryFilter, setResistanceCategoryFilter] = useState<LotteryCategoryKey>('all');
+  const [resistanceRates, setResistanceRates] = useState<Record<string, { baseRate: number; resistanceRate: number; maxExposure: number }>>({
+    '3 ตัวบน':   { baseRate: 900, resistanceRate: 800, maxExposure: 20000 },
+    '3 ตัวโต๊ด': { baseRate: 150, resistanceRate: 120, maxExposure: 30000 },
+    '3 ตัวหน้า': { baseRate: 450, resistanceRate: 400, maxExposure: 20000 },
+    '3 ตัวล่าง': { baseRate: 450, resistanceRate: 400, maxExposure: 20000 },
+    '3 ตัวกลับ': { baseRate: 900, resistanceRate: 800, maxExposure: 20000 },
+
+    '2 ตัวบน':   { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+    '2 ตัวล่าง': { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+    '2 ตัวกลับ': { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+    '2 ตัวโต๊ด': { baseRate: 12,  resistanceRate: 10,  maxExposure: 60000 },
+
+    'วิ่งบน':    { baseRate: 3.2, resistanceRate: 2.8, maxExposure: 100000 },
+    'วิ่งล่าง':  { baseRate: 4.2, resistanceRate: 3.8, maxExposure: 100000 },
+
+    'ปักหลักหน่วย': { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+    'ปักหลักสิบ':   { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+    'ปักหลักร้อย':  { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+
+    '4 ตัวบน':   { baseRate: 5000, resistanceRate: 4000, maxExposure: 10000 },
+    '4 ตัวโต๊ด': { baseRate: 25,   resistanceRate: 20,   maxExposure: 50000 },
+    '5 ตัวโต๊ด': { baseRate: 15,   resistanceRate: 12,   maxExposure: 50000 },
+  });
+  const [resistanceEnabled, setResistanceEnabled] = useState(true);
+  const [resistanceAutoReduce, setResistanceAutoReduce] = useState(true);
+  const [resistanceDigitGroup, setResistanceDigitGroup] = useState<'3digits' | '2digits' | 'running' | 'pinned' | '4digits'>('3digits');
+
   // Date Filtering State
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -959,6 +989,129 @@ export default function AdminDashboard() {
       console.error(e);
       alert('เกิดข้อผิดพลาดในการซิงค์ข้อมูลหวย');
     }
+  };
+
+  // Sync resistance rates when selected lottery changes
+  useEffect(() => {
+    if (!selectedResistanceLottery) return;
+    const unsub = onSnapshot(doc(db, 'payout_resistance', selectedResistanceLottery), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.rates) {
+          setResistanceRates(prev => ({ ...prev, ...data.rates }));
+        }
+        if (data.enabled !== undefined) setResistanceEnabled(data.enabled);
+        if (data.autoReduceOnExposure !== undefined) setResistanceAutoReduce(data.autoReduceOnExposure);
+      } else {
+        const currentLottery = lotterySettings[selectedResistanceLottery];
+        if (currentLottery?.rates) {
+          setResistanceRates(prev => {
+            const updated = { ...prev };
+            Object.keys(currentLottery.rates).forEach(k => {
+              if (updated[k]) {
+                updated[k].baseRate = currentLottery.rates[k];
+              }
+            });
+            return updated;
+          });
+        }
+      }
+    });
+    return () => unsub();
+  }, [selectedResistanceLottery, lotterySettings]);
+
+  const saveResistanceSettings = async (applyToAll: boolean = false) => {
+    try {
+      const dataToSave = {
+        enabled: resistanceEnabled,
+        autoReduceOnExposure: resistanceAutoReduce,
+        rates: resistanceRates,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (applyToAll) {
+        const lotteries = Object.keys(lotterySettings);
+        if (lotteries.length === 0) {
+          alert('ไม่พบรายการหวยในระบบ');
+          return;
+        }
+        if (!confirm(`คุณต้องการนำการตั้งค่าต้านทานอัตราจ่ายนี้ไปใช้กับหวยทั้งหมด ${lotteries.length} ประเภทใช่หรือไม่?`)) {
+          return;
+        }
+
+        const flatRates: Record<string, number> = {};
+        Object.keys(resistanceRates).forEach(k => {
+          flatRates[k] = resistanceRates[k].baseRate;
+        });
+
+        for (const lotId of lotteries) {
+          await setDoc(doc(db, 'payout_resistance', lotId), {
+            id: lotId,
+            lotteryId: lotId,
+            ...dataToSave
+          }, { merge: true });
+
+          await setDoc(doc(db, 'lotteryTypes', lotId), {
+            rates: flatRates,
+            hasResistance: true,
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
+        }
+
+        await logActivity('ตั้งค่าต้านทานทุกหวย', `นำระบบต้านทานอัตราจ่ายไปใช้กับหวยทั้งหมด ${lotteries.length} รายการ`, 'lottery');
+        alert(`✅ นำระบบต้านทานอัตราจ่ายไปใช้กับหวยทั้งหมด ${lotteries.length} รายการสำเร็จเรียบร้อย`);
+      } else {
+        await setDoc(doc(db, 'payout_resistance', selectedResistanceLottery), {
+          id: selectedResistanceLottery,
+          lotteryId: selectedResistanceLottery,
+          ...dataToSave
+        }, { merge: true });
+
+        const flatRates: Record<string, number> = {};
+        Object.keys(resistanceRates).forEach(k => {
+          flatRates[k] = resistanceRates[k].baseRate;
+        });
+
+        await setDoc(doc(db, 'lotteryTypes', selectedResistanceLottery), {
+          rates: flatRates,
+          hasResistance: true,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        await logActivity('ตั้งค่าต้านทานหวย', `บันทึกระบบต้านทานอัตราจ่ายสำหรับ ${selectedResistanceLottery}`, 'lottery');
+        alert(`✅ บันทึกระบบต้านทานอัตราจ่ายสำหรับ ${selectedResistanceLottery} สำเร็จ`);
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert('เกิดข้อผิดพลาดในการบันทึก: ' + e.message);
+    }
+  };
+
+  const resetResistanceDefaults = () => {
+    if (!confirm('ต้องการคืนค่าอัตราจ่ายและเพดานต้านทานเป็นค่ามาตรฐานใช่หรือไม่?')) return;
+    setResistanceRates({
+      '3 ตัวบน':   { baseRate: 900, resistanceRate: 800, maxExposure: 20000 },
+      '3 ตัวโต๊ด': { baseRate: 150, resistanceRate: 120, maxExposure: 30000 },
+      '3 ตัวหน้า': { baseRate: 450, resistanceRate: 400, maxExposure: 20000 },
+      '3 ตัวล่าง': { baseRate: 450, resistanceRate: 400, maxExposure: 20000 },
+      '3 ตัวกลับ': { baseRate: 900, resistanceRate: 800, maxExposure: 20000 },
+
+      '2 ตัวบน':   { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+      '2 ตัวล่าง': { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+      '2 ตัวกลับ': { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
+      '2 ตัวโต๊ด': { baseRate: 12,  resistanceRate: 10,  maxExposure: 60000 },
+
+      'วิ่งบน':    { baseRate: 3.2, resistanceRate: 2.8, maxExposure: 100000 },
+      'วิ่งล่าง':  { baseRate: 4.2, resistanceRate: 3.8, maxExposure: 100000 },
+
+      'ปักหลักหน่วย': { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+      'ปักหลักสิบ':   { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+      'ปักหลักร้อย':  { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
+
+      '4 ตัวบน':   { baseRate: 5000, resistanceRate: 4000, maxExposure: 10000 },
+      '4 ตัวโต๊ด': { baseRate: 25,   resistanceRate: 20,   maxExposure: 50000 },
+      '5 ตัวโต๊ด': { baseRate: 15,   resistanceRate: 12,   maxExposure: 50000 },
+    });
   };
 
   const handleAddRound = async () => {
@@ -2303,6 +2456,7 @@ export default function AdminDashboard() {
               <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
                 {[
                   { id: 'lottery', label: 'จัดการหวย', icon: 'list_alt' },
+                  { id: 'resistance', label: 'ระบบต้านทานอัตราจ่าย', icon: 'shield' },
                   { id: 'result', label: 'ออกผลรางวัล', icon: 'fact_check' },
                   { id: 'tax', label: 'ระบบคำนวณภาษี', icon: 'receipt_long' },
                   { id: 'numbers', label: 'เลขกั้น/อัตราลด', icon: 'block' },
@@ -2475,6 +2629,17 @@ export default function AdminDashboard() {
                               >
                                 อัปเดตเวลาปิดรับ
                               </button>
+                              <button 
+                                type="button"
+                                onClick={() => {
+                                  setSelectedResistanceLottery(type);
+                                  setActiveSettingsSubTab('resistance');
+                                }}
+                                className="w-full bg-amber-500/15 hover:bg-amber-500/25 text-amber-800 py-1.5 rounded-xl text-[10px] font-black border border-amber-300 transition flex items-center justify-center gap-1 mt-1"
+                              >
+                                <span className="material-symbols-outlined text-xs">shield</span>
+                                ตั้งค่าเรท & ต้านทาน
+                              </button>
                             </div>
                           );
                         })}
@@ -2482,6 +2647,290 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+
+              {/* Sub-tab: ระบบต้านทานอัตราจ่าย (Payout Rate Resistance) */}
+              {activeSettingsSubTab === 'resistance' && (() => {
+                const DIGIT_GROUPS = [
+                  { id: '3digits', label: '🏆 กลุ่มเลข 3 ตัว', icon: 'looks_3', types: ['3 ตัวบน', '3 ตัวโต๊ด', '3 ตัวหน้า', '3 ตัวล่าง', '3 ตัวกลับ'] },
+                  { id: '2digits', label: '🥈 กลุ่มเลข 2 ตัว', icon: 'looks_two', types: ['2 ตัวบน', '2 ตัวล่าง', '2 ตัวกลับ', '2 ตัวโต๊ด'] },
+                  { id: 'running', label: '⚡ กลุ่มเลขวิ่ง / เลขรัน', icon: 'bolt', types: ['วิ่งบน', 'วิ่งล่าง'] },
+                  { id: 'pinned',  label: '🎯 กลุ่มเลขปักหลัก', icon: 'pin_drop', types: ['ปักหลักหน่วย', 'ปักหลักสิบ', 'ปักหลักร้อย'] },
+                  { id: '4digits', label: '💎 กลุ่มเลข 4-5 ตัว', icon: 'diamond', types: ['4 ตัวบน', '4 ตัวโต๊ด', '5 ตัวโต๊ด'] },
+                ];
+
+                const currentGroup = DIGIT_GROUPS.find(g => g.id === resistanceDigitGroup) || DIGIT_GROUPS[0];
+
+                const filteredLotteries = Object.keys(lotterySettings).filter(k => {
+                  const catKey = getLotteryCategory(k, lotterySettings[k]?.category);
+                  return resistanceCategoryFilter === 'all' || catKey === resistanceCategoryFilter;
+                });
+
+                return (
+                  <div className="space-y-6">
+                    {/* Header Banner */}
+                    <div className="bg-gradient-to-r from-[#1a1300] via-[#2d2200] to-[#1a1300] border-2 border-amber-400/60 rounded-3xl p-6 shadow-2xl relative overflow-hidden text-white">
+                      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 relative z-10">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-slate-950 flex items-center justify-center font-black text-3xl shadow-lg shadow-amber-500/20">
+                            🛡️
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-xl font-black tracking-tight">
+                                ระบบต้านทานอัตราจ่ายและควบคุมความเสี่ยง (Payout Rate Resistance)
+                              </h3>
+                              <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                                resistanceEnabled 
+                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/40' 
+                                  : 'bg-gray-500/20 text-gray-300 border-gray-400/40'
+                              }`}>
+                                {resistanceEnabled ? '✓ เปิดระบบต้านทาน' : '✕ ปิดระบบต้านทาน'}
+                              </span>
+                            </div>
+                            <p className="text-xs text-amber-200/70 mt-1 max-w-2xl leading-relaxed">
+                              กำหนดอัตราจ่ายพื้นฐาน อัตราจ่ายต้านทาน และเพดานยอดรับแทงสูงสุด แยกตามหลัก (เลข 3 ตัว, เลข 2 ตัว, วิ่ง/รัน, เลขปัก) เพื่อป้องกันความเสี่ยงและควบคุมกำไรของเว็บ
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Master Switches */}
+                        <div className="flex flex-wrap items-center gap-3 bg-black/40 p-3 rounded-2xl border border-amber-400/20">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-amber-300">ระบบต้านทาน:</span>
+                            <button
+                              type="button"
+                              onClick={() => setResistanceEnabled(!resistanceEnabled)}
+                              className={`px-3 py-1 rounded-xl text-xs font-black transition ${
+                                resistanceEnabled ? 'bg-emerald-500 text-white' : 'bg-gray-700 text-gray-400'
+                              }`}
+                            >
+                              {resistanceEnabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'}
+                            </button>
+                          </div>
+
+                          <div className="w-px h-6 bg-white/10 hidden sm:block"></div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-amber-300">ลดราคาอัตโนมัติ:</span>
+                            <button
+                              type="button"
+                              onClick={() => setResistanceAutoReduce(!resistanceAutoReduce)}
+                              className={`px-3 py-1 rounded-xl text-xs font-black transition ${
+                                resistanceAutoReduce ? 'bg-amber-400 text-slate-950 font-black' : 'bg-gray-700 text-gray-400'
+                              }`}
+                            >
+                              {resistanceAutoReduce ? 'เปิดลดอัตโนมัติ' : 'ปิด'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Selector & Category Filter */}
+                    <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
+                            เลือกประเภทหวยที่ต้องการตั้งค่าเรทต้านทาน
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={selectedResistanceLottery}
+                              onChange={(e) => setSelectedResistanceLottery(e.target.value)}
+                              className="px-4 py-2.5 bg-gray-50 border-2 border-gray-200 rounded-xl text-sm font-black outline-none focus:border-amber-400 text-slate-900"
+                            >
+                              {filteredLotteries.map(name => (
+                                <option key={name} value={name}>
+                                  {lotterySettings[name]?.icon || '🎯'} {name}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-xs text-gray-400">
+                              (กำลังตั้งค่า: <strong className="text-amber-600">{selectedResistanceLottery}</strong>)
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => saveResistanceSettings(false)}
+                            className="bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black px-4 py-2.5 rounded-xl shadow transition active:scale-95 text-xs flex items-center gap-1.5"
+                          >
+                            <span className="material-symbols-outlined text-sm">save</span>
+                            บันทึกหวยนี้
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => saveResistanceSettings(true)}
+                            className="bg-[var(--navy-deep)] hover:brightness-110 text-white font-black px-4 py-2.5 rounded-xl shadow transition active:scale-95 text-xs flex items-center gap-1.5"
+                          >
+                            <span className="material-symbols-outlined text-sm">public</span>
+                            นำไปใช้กับทุกหวย
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => resetResistanceDefaults()}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-2.5 rounded-xl transition text-xs"
+                          >
+                            คืนค่าเริ่มต้น
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Category Badges for Fast Filtering */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs font-bold pt-2 border-t border-gray-100">
+                        <span className="text-[10px] text-gray-400 mr-1">หมวดหมู่:</span>
+                        {LOTTERY_CATEGORIES.map(cat => {
+                          const isActive = resistanceCategoryFilter === cat.id;
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setResistanceCategoryFilter(cat.id)}
+                              className={`px-3 py-1 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+                                isActive 
+                                  ? 'bg-slate-800 text-amber-300 font-black shadow-sm' 
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              {cat.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Digit Group Tabs (แยกตามหลัก 3 ตัว, 2 ตัว, วิ่ง/รัน, ปักหลัก, 4-5 ตัว) */}
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {DIGIT_GROUPS.map(g => {
+                        const isActive = resistanceDigitGroup === g.id;
+                        return (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => setResistanceDigitGroup(g.id as any)}
+                            className={`px-4 py-2.5 rounded-2xl font-black text-xs transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                              isActive
+                                ? 'bg-[var(--navy-deep)] text-[var(--gold-vibrant)] shadow-lg scale-105'
+                                : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-100'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-sm">{g.icon}</span>
+                            <span>{g.label}</span>
+                            <span className={`text-[10px] px-1.5 rounded-full ${
+                              isActive ? 'bg-[var(--gold-vibrant)] text-slate-900 font-black' : 'bg-gray-200 text-gray-700'
+                            }`}>
+                              {g.types.length}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Resistance Rates Grid for the selected Digit Group */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {currentGroup.types.map(betType => {
+                        const rateItem = resistanceRates[betType] || { baseRate: 90, resistanceRate: 80, maxExposure: 50000 };
+                        const reductionPct = rateItem.baseRate > 0 
+                          ? Math.round((1 - rateItem.resistanceRate / rateItem.baseRate) * 100) 
+                          : 0;
+
+                        return (
+                          <div 
+                            key={betType}
+                            className="bg-white p-5 rounded-2xl border-2 border-gray-100 hover:border-amber-400 transition-all shadow-sm space-y-4 relative"
+                          >
+                            <div className="flex justify-between items-center border-b border-gray-100 pb-2">
+                              <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                                {betType}
+                              </div>
+                              <span className="text-[10px] bg-amber-500/10 text-amber-700 font-black px-2 py-0.5 rounded-full border border-amber-300/40">
+                                ต้านทานลด {reductionPct}%
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                              {/* อัตราจ่ายปกติ (Base Rate) */}
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase">อัตราจ่ายปกติ (บาทละ)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  value={rateItem.baseRate}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setResistanceRates(prev => ({
+                                      ...prev,
+                                      [betType]: { ...prev[betType], baseRate: val }
+                                    }));
+                                  }}
+                                  className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl font-black text-slate-900 text-sm focus:border-amber-400 outline-none"
+                                />
+                              </div>
+
+                              {/* อัตราจ่ายต้านทาน (Resistance Rate) */}
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-rose-500 uppercase">เรทต้านทาน (ลดจ่าย)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  value={rateItem.resistanceRate}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setResistanceRates(prev => ({
+                                      ...prev,
+                                      [betType]: { ...prev[betType], resistanceRate: val }
+                                    }));
+                                  }}
+                                  className="w-full p-2.5 bg-rose-50/50 border border-rose-200 rounded-xl font-black text-rose-600 text-sm focus:border-rose-400 outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* เพดานยอดรับแทงสูงสุด (Max Exposure) */}
+                            <div className="space-y-1 text-xs pt-1">
+                              <div className="flex justify-between items-center">
+                                <label className="text-[10px] font-bold text-gray-500 uppercase">เพดานรับแทงสะสม (บาท)</label>
+                                <span className="text-[9px] text-gray-400">เกินยอดนี้จะลดเรทจ่าย</span>
+                              </div>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-bold text-xs">฿</span>
+                                <input
+                                  type="number"
+                                  step="1000"
+                                  value={rateItem.maxExposure}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value) || 0;
+                                    setResistanceRates(prev => ({
+                                      ...prev,
+                                      [betType]: { ...prev[betType], maxExposure: val }
+                                    }));
+                                  }}
+                                  className="w-full pl-7 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl font-bold text-slate-800 text-xs focus:border-amber-400 outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Policy Note & Risk Explanation */}
+                    <div className="bg-amber-50 border border-amber-200 p-5 rounded-3xl space-y-2 text-xs text-amber-900">
+                      <div className="flex items-center gap-2 font-black">
+                        <span className="material-symbols-outlined text-amber-700 text-base">info</span>
+                        หลักการทำงานของระบบต้านทานอัตราจ่าย (Rate Resistance Mechanism)
+                      </div>
+                      <p className="text-amber-800 leading-relaxed font-medium">
+                        เมื่อเปิดระบบต้านทาน: ระบบจะตรวจสอบยอดแทงสะสมของแต่ละตัวเลขแบบเรียลไทม์ หากเลขใดมียอดแทงรวมเกินกว่า <strong>เพดานรับแทงสะสม (Max Exposure)</strong> ที่กำหนด ระบบจะเปลี่ยนไปใช้อัตราจ่ายแบบ <strong>เรทต้านทาน</strong> สำหรับยอดแทงส่วนเกินทันที ทำให้เว็บสามารถเปิดรับแทงต่อได้โดยไม่ต้องปิดอั้นเลข และยังสามารถบริหารความเสี่ยงได้อย่างแม่นยำครับ
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Sub-tab: ออกผลรางวัล (Result & Settlement) */}
               {activeSettingsSubTab === 'result' && (
