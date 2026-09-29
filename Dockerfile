@@ -28,6 +28,7 @@ RUN apk --no-cache add curl
 
 # Copy runtime assets and compiled bundles
 COPY package*.json ./
+COPY firebase-applet-config*.json ./
 RUN npm ci --only=production && npm cache clean --force
 
 COPY --from=builder /app/dist ./dist
@@ -37,7 +38,7 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:3000/api/v1/health || exit 1
+  CMD curl -f http://localhost:${PORT:-3000}/api/v1/health || exit 1
 
 # Start AK88 Lotto Production Engine
 CMD ["node", "dist/server.cjs"]
