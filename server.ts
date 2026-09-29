@@ -98,7 +98,15 @@ async function startServer() {
 
   // ---- Vite dev middleware / static prod ----
   const httpServer = http.createServer(app);
-  if (process.env.NODE_ENV !== 'production') {
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+
+  if (process.env.NODE_ENV === 'production' || hasDist) {
+    app.use(express.static(distPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
     // ★ สำคัญ: hmr ต้องเป็น false เท่านั้นในโหมด middleware
     //   ถ้าส่ง { server: httpServer } Vite จะพยายามเปิด WebSocket ที่ port
     //   24678 ซึ่งอาจชนกับโปรเซสอื่น → middleware ค้าง ไม่ตอบ request
@@ -112,12 +120,6 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
   }
 
   // ★ ตัวจัดการ error กลาง — ต้องเป็น middleware ตัวสุดท้ายเสมอ
