@@ -85,8 +85,17 @@ export default function SitePopupModal() {
 
     // Check targeting (ทั้งหมด vs เฉพาะคน)
     if (popup.target === 'specific') {
-      const currentUsername = (localStorage.getItem('username') || '').toLowerCase().trim();
-      const currentPhone = (localStorage.getItem('phoneNumber') || '').trim();
+      let currentUsername = (localStorage.getItem('username') || '').toLowerCase().trim();
+      let currentPhone = (localStorage.getItem('phoneNumber') || '').trim();
+      let currentUid = (localStorage.getItem('userId') || '').toLowerCase().trim();
+
+      try {
+        const cu = JSON.parse(localStorage.getItem('currentUser') || '{}');
+        if (cu.phone && !currentPhone) currentPhone = String(cu.phone).trim();
+        if (cu.username && !currentUsername) currentUsername = String(cu.username).toLowerCase().trim();
+        if (cu.userId && !currentUid) currentUid = String(cu.userId).toLowerCase().trim();
+      } catch (e) {}
+
       const rawTargets = (popup.targetUsers || '').toLowerCase();
       
       const targetList = rawTargets
@@ -96,7 +105,8 @@ export default function SitePopupModal() {
 
       const isMatch = targetList.some(t => 
         (currentUsername && t === currentUsername) || 
-        (currentPhone && t === currentPhone)
+        (currentPhone && t === currentPhone) ||
+        (currentUid && t === currentUid)
       );
 
       if (!isMatch) {

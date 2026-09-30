@@ -16,12 +16,14 @@ export default function OnboardingTour({ forceOpen, onClose }: OnboardingTourPro
       setIsOpen(true);
       setCurrentStep(0);
     } else if (!completed) {
-      // First-time visitor - show tour after brief delay
-      const timer = setTimeout(() => {
-        // Only open if welcome modal isn't blocking or after initial load
-        setIsOpen(true);
-      }, 800);
-      return () => clearTimeout(timer);
+      // Only auto-trigger if welcome modal was already seen or skipped
+      const welcomeSeen = localStorage.getItem('ak88_welcome_seen');
+      if (welcomeSeen === 'true') {
+        const timer = setTimeout(() => {
+          setIsOpen(true);
+        }, 500);
+        return () => clearTimeout(timer);
+      }
     }
   }, [forceOpen]);
 
