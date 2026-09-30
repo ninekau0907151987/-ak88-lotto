@@ -23,14 +23,30 @@ import {
   LOTTERY_CATEGORIES, getLotteryCategory, getCategoryLabel, MASTER_LOTTERY_CATALOG,
   type LotteryCategoryKey
 } from '@/shared/lib/lotteryCatalog';
-import BetLimitsManager from '../components/BetLimitsManager';
 import RoundSchedulerManager from '../components/RoundSchedulerManager';
 import LotteryOpenCloseManager from '../components/LotteryOpenCloseManager';
 import RiskIntakeSettings from '../components/RiskIntakeSettings';
 import RiskIntakeMonitor from '../components/RiskIntakeMonitor';
 import LotteryCategorySelector from '../components/LotteryCategorySelector';
 
-type AdminTab = 'overview' | 'intake_settings' | 'intake_monitor' | 'lottery_control' | 'system_control' | 'bet_limits' | 'round_scheduler' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
+type AdminTab =
+  | 'overview'
+  | 'intake_monitor'
+  | 'payout_rates'
+  | 'intake_settings'
+  | 'lottery_control'
+  | 'round_scheduler'
+  | 'members'
+  | 'finance'
+  | 'agents'
+  | 'reports'
+  | 'settings'
+  | 'system_control'
+  | 'rules'
+  | 'popup'
+  | 'api'
+  | 'history'
+  | 'staff';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -1718,24 +1734,33 @@ export default function AdminDashboard() {
    * ผู้ใช้ขอ: "ทำระบบ จัดการสิทธิ์ฟังชั่น เพื่อปิดสิทธิ์ให้พนักงาน"
    * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
    * ================================================================== */
-  const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission }[] = [
-    { id: 'overview',          label: 'แดชบอร์ด',            icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
-    { id: 'intake_settings',   label: 'ตั้งค่ารับกิน',        icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'intake_monitor',    label: 'มอนิเตอร์รับกิน',      icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'lottery_control',   label: 'ดูหวย & เปิด-ปิด',     icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'bet_limits',        label: 'ขีดจำกัดเดิมพัน',      icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'round_scheduler',   label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'system_control',    label: 'เปิด-ปิดระบบ',         icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'members',         label: 'สมาชิก & กำหนดเครดิต', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW },
-    { id: 'finance',         label: 'การเงินตัดยอด',        icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW },
-    { id: 'agents',          label: 'จัดการเอเย่นต์',       icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW },
-    { id: 'settings',        label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW },
-    { id: 'reports',         label: 'รายงานการเล่น',        icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW },
-    { id: 'rules',          label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES },
-    { id: 'popup',          label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP },
-    { id: 'api',            label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW },
-    { id: 'history',        label: 'ประวัติ & รหัส',      icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW },
-    { id: 'staff',          label: 'พนักงาน & สิทธิ์',     icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW },
+  const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission; section: string }[] = [
+    // 1. ภาพรวม & มอนิเตอร์
+    { id: 'overview',          label: 'แดชบอร์ด',            icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW, section: 'ภาพรวม & มอนิเตอร์' },
+    { id: 'intake_monitor',    label: 'มอนิเตอร์รับกิน',      icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ภาพรวม & มอนิเตอร์' },
+
+    // 2. จัดการหวย & อัตราจ่าย (แยกแถบชัดเจนตามที่ขอ)
+    { id: 'payout_rates',      label: 'ตั้งค่า อัตราจ่าย',    icon: 'price_change',           perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & อัตราจ่าย' },
+    { id: 'intake_settings',   label: 'ตั้งค่ารับกิน',        icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & อัตราจ่าย' },
+    { id: 'lottery_control',   label: 'ดูหวย & เปิด-ปิด',     icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & อัตราจ่าย' },
+    { id: 'round_scheduler',   label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & อัตราจ่าย' },
+
+    // 3. สมาชิก & การเงิน
+    { id: 'members',           label: 'สมาชิก & บัญชีธนาคาร', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW,    section: 'สมาชิก & การเงิน' },
+    { id: 'finance',           label: 'การเงินตัดยอด',        icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW,   section: 'สมาชิก & การเงิน' },
+    { id: 'agents',            label: 'จัดการเอเย่นต์',       icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW,     section: 'สมาชิก & การเงิน' },
+
+    // 4. รายงาน
+    { id: 'reports',           label: 'รายงานการเล่น',        icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW,    section: 'รายงาน' },
+
+    // 5. ตั้งค่าระบบ & ความปลอดภัย
+    { id: 'settings',          label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ตั้งค่าระบบ & ความปลอดภัย' },
+    { id: 'system_control',    label: 'เปิด-ปิดระบบ',         icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ตั้งค่าระบบ & ความปลอดภัย' },
+    { id: 'rules',             label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES, section: 'ตั้งค่าระบบ & ความปลอดภัย' },
+    { id: 'popup',             label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP, section: 'ตั้งค่าระบบ & ความปลอดภัย' },
+    { id: 'api',               label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW,       section: 'ตั้งค่าระบบ & ความปลอดภัย' },
+    { id: 'history',           label: 'ประวัติ & รหัส',      icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'ตั้งค่าระบบ & ความปลอดภัย' },
+    { id: 'staff',             label: 'พนักงาน & สิทธิ์',     icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW,     section: 'ตั้งค่าระบบ & ความปลอดภัย' },
   ];
 
   /** ★ เมนูที่ผู้ใช้คนนี้เห็นได้ (กรองตามสิทธิ์) */
@@ -1811,21 +1836,32 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <nav className="flex-1 p-3.5 space-y-1.5 overflow-y-auto">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl font-black text-xs transition-all duration-200 ${
-                activeTab === tab.id
-                ? 'bg-blue-700 text-white shadow-md shadow-blue-700/25 border border-blue-600/50 translate-x-1'
-                : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50/70 hover:translate-x-1'
-              }`}
-            >
-              <span className="material-symbols-outlined text-lg">{tab.icon}</span>
-              <span>{tab.label}</span>
-            </button>
-          ))}
+        <nav className="flex-1 p-3.5 space-y-1 overflow-y-auto">
+          {tabs.map((tab, idx) => {
+            const prevTab = idx > 0 ? tabs[idx - 1] : null;
+            const showHeader = !prevTab || prevTab.section !== tab.section;
+
+            return (
+              <React.Fragment key={tab.id}>
+                {showHeader && (
+                  <div className={`text-[10px] font-black uppercase tracking-wider text-slate-400 px-2 ${idx > 0 ? 'pt-3 mt-2 border-t border-slate-100' : 'pb-1'}`}>
+                    {tab.section}
+                  </div>
+                )}
+                <button
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-black text-xs transition-all duration-200 ${
+                    activeTab === tab.id
+                    ? 'bg-blue-700 text-white shadow-md shadow-blue-700/25 border border-blue-600/50 translate-x-1'
+                    : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50/70 hover:translate-x-1'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-lg">{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              </React.Fragment>
+            );
+          })}
 
           <div className="pt-3 mt-3 border-t border-slate-100">
             <div className="text-[10px] font-black uppercase tracking-wider px-2 mb-2 text-slate-400">
@@ -2051,15 +2087,25 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* 1. ตั้งค่ารับกิน (Risk Intake Settings, Rates, Discounts, Quotas) */}
+          {/* 1. ตั้งค่า อัตราจ่าย (Payout Rates) */}
+          {activeTab === 'payout_rates' && (
+            <RiskIntakeSettings
+              lotteryTypes={lotterySettings}
+              onLogActivity={logActivity}
+              defaultTab="rates"
+            />
+          )}
+
+          {/* 2. ตั้งค่ารับกิน (Risk Intake & คำนวณใส่ตัวเงิน) */}
           {activeTab === 'intake_settings' && (
             <RiskIntakeSettings
               lotteryTypes={lotterySettings}
               onLogActivity={logActivity}
+              defaultTab="intake"
             />
           )}
 
-          {/* 2. มอนิเตอร์รับกิน (Live Intake Monitor Table with Rows & Columns) */}
+          {/* 3. มอนิเตอร์รับกิน (Live Intake Monitor Table with Rows & Columns) */}
           {activeTab === 'intake_monitor' && (
             <RiskIntakeMonitor
               lotteryTypes={lotterySettings}
@@ -2396,13 +2442,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ขีดจำกัดเดิมพัน & คำนวณรับกิน (Bet Limits & Risk Intake) */}
-          {activeTab === 'bet_limits' && (
-            <BetLimitsManager
-              lotteryTypes={lotterySettings}
-              onLogActivity={logActivity}
-            />
-          )}
+
 
           {/* ปฏิทินรอบหวย & Strict Sequential Round Guard */}
           {activeTab === 'round_scheduler' && (

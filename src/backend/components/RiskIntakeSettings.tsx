@@ -28,6 +28,7 @@ interface RoundOption {
 interface Props {
   lotteryTypes?: Record<string, any>;
   onLogActivity?: (action: string, details: string, type: string) => void;
+  defaultTab?: 'rates' | 'intake';
 }
 
 // สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยไทย 14 ประเภท
@@ -64,7 +65,7 @@ const DEFAULT_OTHER_ALLOCATIONS: Record<string, number> = {
   '4 ตัวโต๊ด': 0.5,
 };
 
-export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }: Props) {
+export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, defaultTab = 'rates' }: Props) {
   const lottoList = Object.keys(lotteryTypes).length > 0
     ? Object.keys(lotteryTypes)
     : ['หวยรัฐบาลไทย', 'หวยลาวพัฒนา', 'หวยฮานอยพิเศษ', 'หวยมาเลย์ 4D', 'หวยยี่กี 88 รอบ'];
@@ -72,7 +73,13 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
   const [selectedLottery, setSelectedLottery] = useState<string>(lottoList[0] || 'หวยรัฐบาลไทย');
   
   // ★ แยกเป็น 2 แถบข้อมูลตามคำขอ: 1. ตั้งค่าอัตราจ่าย | 2. ตั้งค่ากิน (คำนวณใส่ตัวเงิน)
-  const [activeSubTab, setActiveSubTab] = useState<'rates' | 'intake'>('rates');
+  const [activeSubTab, setActiveSubTab] = useState<'rates' | 'intake'>(defaultTab);
+
+  useEffect(() => {
+    if (defaultTab) {
+      setActiveSubTab(defaultTab);
+    }
+  }, [defaultTab]);
 
   // ข้อมูลรอบหวยสำหรับตั้งค่าเป็นรอบๆ
   const [rounds, setRounds] = useState<RoundOption[]>([]);
