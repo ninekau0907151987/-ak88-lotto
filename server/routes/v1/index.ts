@@ -23,7 +23,7 @@ import { Router } from 'express';
 import { createAuthMiddleware, requireScope } from '../../middleware/auth';
 import { asyncHandler } from '../../middleware/error-handler';
 import { ok } from '../../lib/response';
-import { getSupabase } from '../../lib/supabase';
+import { getSupabase, isServerSupabaseConfigured } from '../../lib/supabase';
 
 // ---- เส้นแยกโมดูล (เส้นพิเศษ) ----
 import { monitorRoutes } from './monitor.routes';
@@ -77,7 +77,8 @@ export function createV1Router(db: any) {
   api.get('/health', (_req, res) => {
     ok(res, {
       service: 'AK88 Lotto API',
-      version: '2.0.0',
+      version: '2.1.0-supabase',
+      supabaseConnected: isServerSupabaseConfigured(),
       modules: MODULES.map(m => m.key),
       moduleMap: MODULES,
       time: new Date().toISOString(),
