@@ -83,6 +83,26 @@ export function createV1Router(db: any) {
     });
   });
 
+  // ---- ตรวจสอบสถานะการเชื่อมต่อ Supabase PostgreSQL สด ----
+  api.get('/supabase/health', asyncHandler(async (_req, res) => {
+    const { getSupabase } = await import('../../lib/supabase');
+    const supabase = getSupabase();
+    const t0 = Date.now();
+    const { data, count, error } = await supabase.from('lottery_types').select('id', { count: 'exact' });
+    const latency = Date.now() - t0;
+    if (error) {
+      res.status(500).json({ status: 'error', message: error.message });
+      return;
+    }
+    ok(res, {
+      database: 'Supabase PostgreSQL',
+      connected: true,
+      latencyMs: latency,
+      lotteryCount: count ?? data?.length ?? 0,
+      timestamp: new Date().toISOString(),
+    });
+  }));
+
   // ---- หวยยี่กี (อ่านรอบ/ยิงเลข/จัดการหลังบ้าน) ----
   api.use('/yeekee', createYeekeeRouter(db));
 

@@ -1,13 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
-// อ่านค่าจาก Environment variables หรือ localStorage/config
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || (typeof window !== 'undefined' ? (window as any).__SUPABASE_URL__ : '') || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || (typeof window !== 'undefined' ? (window as any).__SUPABASE_ANON_KEY__ : '') || '';
+// ค่าเริ่มต้นสำหรับ Supabase Project: aogylynelbkjjdiclfeq
+const DEFAULT_SUPABASE_URL = 'https://aogylynelbkjjdiclfeq.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_JPASpLsQip_mnqYWsRPCfA_hQAfSCPH';
 
-export const supabase = createClient(
-  supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder-key'
-);
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export const isSupabaseConfigured = () => {
   return Boolean(supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('placeholder'));
