@@ -28,9 +28,11 @@ import LotteryOpenCloseManager from '../components/LotteryOpenCloseManager';
 import RiskIntakeSettings from '../components/RiskIntakeSettings';
 import RiskIntakeMonitor from '../components/RiskIntakeMonitor';
 import LotteryCategorySelector from '../components/LotteryCategorySelector';
+import BlockedNumbersManager from '../components/BlockedNumbersManager';
 
 type AdminTab =
   | 'overview'
+  | 'blocked_numbers'
   | 'intake_monitor'
   | 'payout_rates'
   | 'intake_settings'
@@ -50,6 +52,19 @@ type AdminTab =
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    'ภาพรวม & การเงิน': true,
+    'จัดการหวย & มอนิเตอร์': true,
+    'จัดการเลขอั้น (เลขลด/ปิด)': true,
+    'สมาชิก & บุคลากร': true,
+    'การตั้งค่าระบบ & ประกาศ': true,
+    'API & ความปลอดภัย': true,
+    'ศูนย์ควบคุมพิเศษ': true,
+  });
+
+  const toggleSection = (secName: string) => {
+    setExpandedSections(prev => ({ ...prev, [secName]: !prev[secName] }));
+  };
   const [activeSettingsSubTab, setActiveSettingsSubTab] = useState('lottery');
   const [activeReportsSubTab, setActiveReportsSubTab] = useState('lottery');
   const [activeMembersSubTab, setActiveMembersSubTab] = useState<'users' | 'agents'>('users');
@@ -1838,32 +1853,35 @@ export default function AdminDashboard() {
    * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
    * ================================================================== */
   const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission; section: string }[] = [
-    // 1. ภาพรวม & มอนิเตอร์
-    { id: 'overview',          label: 'แดชบอร์ด',            icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW, section: 'ภาพรวม & มอนิเตอร์' },
-    { id: 'intake_monitor',    label: 'มอนิเตอร์รับกิน',      icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ภาพรวม & มอนิเตอร์' },
+    // 1. ภาพรวม & การเงิน
+    { id: 'overview',          label: 'แดชบอร์ดภาพรวม',       icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW, section: 'ภาพรวม & การเงิน' },
+    { id: 'finance',           label: 'การเงินตัดยอด & บัญชี', icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW,   section: 'ภาพรวม & การเงิน' },
+    { id: 'reports',           label: 'รายงานการเล่น & สถิติ',icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW,    section: 'ภาพรวม & การเงิน' },
 
-    // 2. จัดการหวย & อัตราจ่าย (แยกแถบชัดเจนตามที่ขอ)
-    { id: 'payout_rates',      label: 'ตั้งค่า อัตราจ่าย',    icon: 'price_change',           perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & อัตราจ่าย' },
-    { id: 'intake_settings',   label: 'ตั้งค่ารับกิน',        icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & อัตราจ่าย' },
-    { id: 'lottery_control',   label: 'ดูหวย & เปิด-ปิด',     icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & อัตราจ่าย' },
-    { id: 'round_scheduler',   label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & อัตราจ่าย' },
+    // 2. จัดการหวย & มอนิเตอร์
+    { id: 'intake_monitor',    label: 'มอนิเตอร์รับกินสด',    icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
+    { id: 'intake_settings',   label: 'ตั้งค่ารับกิน & งบ',   icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
+    { id: 'payout_rates',      label: 'ตั้งค่า อัตราจ่าย',    icon: 'price_change',           perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
+    { id: 'lottery_control',   label: 'ดูหวย & เปิด-ปิดแทง',  icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
+    { id: 'round_scheduler',   label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
 
-    // 3. สมาชิก & การเงิน
-    { id: 'members',           label: 'สมาชิก & บัญชีธนาคาร', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW,    section: 'สมาชิก & การเงิน' },
-    { id: 'finance',           label: 'การเงินตัดยอด',        icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW,   section: 'สมาชิก & การเงิน' },
-    { id: 'agents',            label: 'จัดการเอเย่นต์',       icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW,     section: 'สมาชิก & การเงิน' },
+    // 3. จัดการเลขอั้น (เลขลด/ปิด)
+    { id: 'blocked_numbers',   label: 'เลขลด / เลขปิด',       icon: 'block',                  perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการเลขอั้น (เลขลด/ปิด)' },
 
-    // 4. รายงาน
-    { id: 'reports',           label: 'รายงานการเล่น',        icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW,    section: 'รายงาน' },
+    // 4. สมาชิก & บุคลากร
+    { id: 'members',           label: 'สมาชิก & บัญชีธนาคาร', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW,    section: 'สมาชิก & บุคลากร' },
+    { id: 'agents',            label: 'จัดการเอเย่นต์',       icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW,     section: 'สมาชิก & บุคลากร' },
+    { id: 'staff',             label: 'พนักงาน & สิทธิ์',     icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW,     section: 'สมาชิก & บุคลากร' },
 
-    // 5. ตั้งค่าระบบ & ความปลอดภัย
-    { id: 'settings',          label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ตั้งค่าระบบ & ความปลอดภัย' },
-    { id: 'system_control',    label: 'เปิด-ปิดระบบ',         icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ตั้งค่าระบบ & ความปลอดภัย' },
-    { id: 'rules',             label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES, section: 'ตั้งค่าระบบ & ความปลอดภัย' },
-    { id: 'popup',             label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP, section: 'ตั้งค่าระบบ & ความปลอดภัย' },
-    { id: 'api',               label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW,       section: 'ตั้งค่าระบบ & ความปลอดภัย' },
-    { id: 'history',           label: 'ประวัติ & รหัส',      icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'ตั้งค่าระบบ & ความปลอดภัย' },
-    { id: 'staff',             label: 'พนักงาน & สิทธิ์',     icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW,     section: 'ตั้งค่าระบบ & ความปลอดภัย' },
+    // 5. การตั้งค่าระบบ & ประกาศ
+    { id: 'settings',          label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW,  section: 'การตั้งค่าระบบ & ประกาศ' },
+    { id: 'system_control',    label: 'เปิด-ปิดระบบฉุกเฉิน',  icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW,  section: 'การตั้งค่าระบบ & ประกาศ' },
+    { id: 'rules',             label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES, section: 'การตั้งค่าระบบ & ประกาศ' },
+    { id: 'popup',             label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP, section: 'การตั้งค่าระบบ & ประกาศ' },
+
+    // 6. API & ความปลอดภัย
+    { id: 'api',               label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW,       section: 'API & ความปลอดภัย' },
+    { id: 'history',           label: 'ประวัติ & รหัส',      icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'API & ความปลอดภัย' },
   ];
 
   /** ★ เมนูที่ผู้ใช้คนนี้เห็นได้ (กรองตามสิทธิ์) */
@@ -1927,70 +1945,156 @@ export default function AdminDashboard() {
       <aside
         className="w-64 bg-white border-r border-slate-200/90 flex flex-col fixed inset-y-0 shadow-lg shadow-blue-950/5 z-50"
       >
-        <div className="p-5 border-b border-slate-100 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-sm">
-              <span className="material-symbols-outlined">admin_panel_settings</span>
+        <div className="p-4 border-b border-slate-100 bg-white">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-xs">
+                <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
+              </div>
+              <div>
+                <div className="text-[9px] font-black uppercase tracking-widest text-blue-700">Administrator</div>
+                <div className="text-sm font-black leading-tight text-slate-900">Lottery Hub</div>
+              </div>
             </div>
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-blue-700">Administrator</div>
-              <div className="text-base font-black leading-tight text-slate-900">Lottery Hub</div>
-            </div>
+            <button
+              onClick={() => {
+                const anyClosed = Object.values(expandedSections).some(v => !v);
+                setExpandedSections({
+                  'ภาพรวม & การเงิน': anyClosed,
+                  'จัดการหวย & มอนิเตอร์': anyClosed,
+                  'จัดการเลขอั้น (เลขลด/ปิด)': anyClosed,
+                  'สมาชิก & บุคลากร': anyClosed,
+                  'การตั้งค่าระบบ & ประกาศ': anyClosed,
+                  'API & ความปลอดภัย': anyClosed,
+                  'ศูนย์ควบคุมพิเศษ': anyClosed,
+                });
+              }}
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+              title="ขยาย/ยุบเมนูทั้งหมด"
+            >
+              <span className="material-symbols-outlined text-base">unfold_more</span>
+            </button>
           </div>
         </div>
 
-        <nav className="flex-1 p-3.5 space-y-1 overflow-y-auto">
-          {tabs.map((tab, idx) => {
-            const prevTab = idx > 0 ? tabs[idx - 1] : null;
-            const showHeader = !prevTab || prevTab.section !== tab.section;
+        <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
+          {[
+            { title: 'ภาพรวม & การเงิน', icon: 'query_stats' },
+            { title: 'จัดการหวย & มอนิเตอร์', icon: 'casino' },
+            { title: 'จัดการเลขอั้น (เลขลด/ปิด)', icon: 'block' },
+            { title: 'สมาชิก & บุคลากร', icon: 'badge' },
+            { title: 'การตั้งค่าระบบ & ประกาศ', icon: 'settings' },
+            { title: 'API & ความปลอดภัย', icon: 'encrypted' },
+          ].map(sec => {
+            const sectionTabs = tabs.filter(t => t.section === sec.title);
+            if (sectionTabs.length === 0) return null;
+            const isExpanded = expandedSections[sec.title] ?? true;
+            const isCurrentSectionActive = sectionTabs.some(t => t.id === activeTab);
 
             return (
-              <React.Fragment key={tab.id}>
-                {showHeader && (
-                  <div className={`text-[10px] font-black uppercase tracking-wider text-slate-400 px-2 ${idx > 0 ? 'pt-3 mt-2 border-t border-slate-100' : 'pb-1'}`}>
-                    {tab.section}
-                  </div>
-                )}
+              <div key={sec.title} className="rounded-xl border border-slate-100 overflow-hidden bg-white shadow-2xs">
+                {/* Accordion Section Header */}
                 <button
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-black text-xs transition-all duration-200 ${
-                    activeTab === tab.id
-                    ? 'bg-blue-700 text-white shadow-md shadow-blue-700/25 border border-blue-600/50 translate-x-1'
-                    : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50/70 hover:translate-x-1'
+                  type="button"
+                  onClick={() => toggleSection(sec.title)}
+                  className={`w-full flex items-center justify-between px-3 py-2 text-left transition ${
+                    isCurrentSectionActive
+                      ? 'bg-blue-50/80 text-blue-900 font-black'
+                      : 'hover:bg-slate-50 text-slate-700 font-bold'
                   }`}
                 >
-                  <span className="material-symbols-outlined text-lg">{tab.icon}</span>
-                  <span>{tab.label}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`material-symbols-outlined text-base ${isCurrentSectionActive ? 'text-blue-700' : 'text-slate-400'}`}>
+                      {sec.icon}
+                    </span>
+                    <span className="text-xs truncate">{sec.title}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                      isCurrentSectionActive ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-500'
+                    }`}>
+                      {sectionTabs.length}
+                    </span>
+                    <span className={`material-symbols-outlined text-sm text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
+                      expand_more
+                    </span>
+                  </div>
                 </button>
-              </React.Fragment>
+
+                {/* Accordion Tab Items */}
+                {isExpanded && (
+                  <div className="p-1.5 space-y-1 bg-slate-50/50 border-t border-slate-100">
+                    {sectionTabs.map(tab => {
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id)}
+                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 ${
+                            isActive
+                              ? 'bg-blue-700 text-white font-black shadow-sm shadow-blue-700/25 translate-x-0.5'
+                              : 'text-slate-600 hover:text-blue-700 hover:bg-white hover:translate-x-0.5'
+                          }`}
+                        >
+                          <span className={`material-symbols-outlined text-base ${isActive ? 'text-white' : 'text-slate-400'}`}>
+                            {tab.icon}
+                          </span>
+                          <span className="truncate">{tab.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
 
-          <div className="pt-3 mt-3 border-t border-slate-100">
-            <div className="text-[10px] font-black uppercase tracking-wider px-2 mb-2 text-slate-400">
-              ศูนย์ควบคุมพิเศษ
-            </div>
-            <Link
-              to="/admin/yeekee"
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl font-black text-xs transition hover:translate-x-1 shadow-sm border border-amber-200 bg-amber-50/70 text-amber-900"
+          {/* Special Control Center Accordion */}
+          <div className="rounded-xl border border-amber-200/80 overflow-hidden bg-white shadow-2xs mt-2">
+            <button
+              type="button"
+              onClick={() => toggleSection('ศูนย์ควบคุมพิเศษ')}
+              className="w-full flex items-center justify-between px-3 py-2 text-left bg-amber-50/80 hover:bg-amber-100/70 text-amber-950 font-black transition"
             >
-              <span className="material-symbols-outlined text-base text-amber-600">timer</span>
-              <span>★ หวยยี่กี 88 รอบ</span>
-            </Link>
-            <Link
-              to="/admin/game20"
-              className="w-full flex items-center gap-2.5 px-3 py-2 mt-1.5 rounded-xl font-black text-xs transition hover:translate-x-1 border border-slate-200 bg-slate-50 text-slate-700 hover:bg-blue-50/50 hover:text-blue-700"
-            >
-              <span className="material-symbols-outlined text-base">casino</span>
-              <span>หวย 20 ช่อง 6 หลัก</span>
-            </Link>
-            <Link
-              to="/admin/manual"
-              className="w-full flex items-center gap-2.5 px-3 py-2 mt-1.5 rounded-xl font-black text-xs transition hover:translate-x-1 text-slate-500 hover:text-slate-800"
-            >
-              <span className="material-symbols-outlined text-base">menu_book</span>
-              <span>คู่มือ & รหัสผ่าน</span>
-            </Link>
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-base text-amber-600">stars</span>
+                <span className="text-xs">ศูนย์ควบคุมพิเศษ</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-amber-200 text-amber-900">
+                  3
+                </span>
+                <span className={`material-symbols-outlined text-sm text-amber-600 transition-transform duration-200 ${(expandedSections['ศูนย์ควบคุมพิเศษ'] ?? true) ? 'rotate-180' : ''}`}>
+                  expand_more
+                </span>
+              </div>
+            </button>
+
+            {(expandedSections['ศูนย์ควบคุมพิเศษ'] ?? true) && (
+              <div className="p-1.5 space-y-1 bg-amber-50/30 border-t border-amber-100">
+                <Link
+                  to="/admin/yeekee"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-bold text-xs transition border border-amber-200 bg-amber-50/80 text-amber-900 hover:bg-amber-100/80"
+                >
+                  <span className="material-symbols-outlined text-base text-amber-600">timer</span>
+                  <span>★ หวยยี่กี 88 รอบ</span>
+                </Link>
+                <Link
+                  to="/admin/game20"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-bold text-xs transition border border-slate-200 bg-white text-slate-700 hover:bg-blue-50/50 hover:text-blue-700"
+                >
+                  <span className="material-symbols-outlined text-base text-slate-500">casino</span>
+                  <span>หวย 20 ช่อง 6 หลัก</span>
+                </Link>
+                <Link
+                  to="/admin/manual"
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-bold text-xs transition text-slate-500 hover:text-slate-800 hover:bg-white"
+                >
+                  <span className="material-symbols-outlined text-base text-slate-400">menu_book</span>
+                  <span>คู่มือ & รหัสผ่าน</span>
+                </Link>
+              </div>
+            )}
           </div>
         </nav>
 
@@ -2205,6 +2309,16 @@ export default function AdminDashboard() {
             <RiskIntakeMonitor
               lotteryTypes={lotterySettings}
               onLogActivity={logActivity}
+            />
+          )}
+
+          {/* จัดการเลขอั้น (เลขลด / เลขปิด) */}
+          {activeTab === 'blocked_numbers' && (
+            <BlockedNumbersManager
+              lotterySettings={lotterySettings}
+              blockedNumbersList={blockedNumbersList}
+              onLogActivity={(action, details) => logActivity(action, details, 'settings')}
+              session={session}
             />
           )}
 
