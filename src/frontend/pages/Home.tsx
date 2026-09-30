@@ -1,11 +1,17 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { db } from '@/shared/lib/firebase';
 import { collection, onSnapshot, doc } from 'firebase/firestore';
 
 export default function Home() {
   const [lotterySettings, setLotterySettings] = useState<any>({});
   const [userData, setUserData] = useState<any>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'lotteryTypes'), (snapshot) => {
@@ -46,6 +52,30 @@ export default function Home() {
     if (len > 7) return 'text-4xl sm:text-5xl md:text-6xl';
     return 'text-5xl sm:text-6xl md:text-7xl';
   };
+
+  const thaiCloseTime = useMemo(() => {
+    const config = lotterySettings['หวยรัฐบาล'] || lotterySettings['thai'];
+    if (config?.closeTime) return config.closeTime;
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(15, 20, 0, 0);
+    return d.toISOString();
+  }, [lotterySettings]);
+
+  const thaiCountdown = useMemo(() => {
+    const closeTimeMs = new Date(thaiCloseTime).getTime();
+    const nowMs = currentTime.getTime();
+    const diff = closeTimeMs - nowMs;
+    if (diff <= 0) return 'ปิดรับแทงชั่วคราว';
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+    if (days > 0) {
+      return `${days} วัน ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, [thaiCloseTime, currentTime]);
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 font-sans">
@@ -107,6 +137,56 @@ export default function Home() {
           </div>
         )}
 
+        {/* Featured Thai Lottery Banner (หวยเด่น - หวยไทย) */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#2a080f] via-[#0a192f] to-[#2a080f] border-2 border-red-500/80 p-4 sm:p-5 shadow-2xl shadow-red-500/20">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 w-full sm:w-auto">
+              {/* โลโก้เล็กหมุนด้านใน */}
+              <div className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center shrink-0">
+                <div className="absolute inset-0 rounded-full border-2 border-dashed border-red-500 animate-[spin_4s_linear_infinite]" />
+                <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-red-600 via-amber-500 to-red-700 flex items-center justify-center shadow-lg">
+                  <span className="text-xl">🇹🇭</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow flex items-center gap-1 animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                    ⭐ หวยเด่น ยอดนิยมอันดับ 1
+                  </span>
+                  <span className="text-xs text-amber-400 font-bold">อัตราจ่าย 3 ตัวตรง 900 บาท</span>
+                </div>
+                <h3 className="text-white font-black text-lg md:text-xl mt-1 tracking-wide">
+                  หวยรัฐบาลไทย (สลากกินแบ่งรัฐบาล)
+                </h3>
+              </div>
+            </div>
+
+            {/* กล่องตัวอักษรสีแดง กำลังนับถอยหลัง */}
+            <div className="flex items-center gap-3 bg-red-950/60 border border-red-500/50 px-4 py-2.5 rounded-xl w-full sm:w-auto justify-center sm:justify-start">
+              {/* โลโก้เล็กหมุนด้านใน */}
+              <div className="w-5 h-5 rounded-full border border-dashed border-red-400 animate-spin flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-xs text-red-400">autorenew</span>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-red-400 uppercase tracking-wider">กำลังนับถอยหลัง:</div>
+                <div className="text-red-500 font-black text-base sm:text-lg font-mono tracking-wider animate-pulse">
+                  {thaiCountdown}
+                </div>
+              </div>
+            </div>
+
+            <Link
+              to="/lottery/thai"
+              className="w-full sm:w-auto bg-gradient-to-r from-red-600 via-red-500 to-amber-500 hover:brightness-110 text-white font-black text-sm px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 transition active:scale-95 shrink-0"
+            >
+              <span>แทงหวยรัฐบาล</span>
+              <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
+            </Link>
+          </div>
+        </div>
+
         {/* Main Actions */}
         <div className="w-full">
           <Link 
@@ -120,9 +200,18 @@ export default function Home() {
 
         {/* Grid Menu */}
         <div className="grid grid-cols-4 gap-3 md:gap-4 font-black">
-          <Link to="/lottery/thai" className="bg-[#0a192f] border border-[#f5c518]/40 rounded-xl p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:border-[#f5c518] transition active:scale-[0.98]">
-            <span className="material-symbols-outlined text-4xl md:text-5xl mb-2 text-[#f5c518]">account_balance_wallet</span>
-            <span className="text-xs md:text-sm font-black text-[#f5c518]">หวยรัฐบาล</span>
+          <Link to="/lottery/thai" className="relative bg-[#0a192f] border-2 border-red-500/70 rounded-xl p-3 md:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:border-red-400 transition active:scale-[0.98] group overflow-hidden">
+            <div className="absolute top-1 right-1 bg-gradient-to-r from-red-600 to-amber-500 text-white text-[8px] font-black px-1.5 py-0.2 rounded-full animate-pulse">
+              เด่น
+            </div>
+            {/* โลโก้เล็กหมุนด้านใน */}
+            <div className="relative flex items-center justify-center mb-1">
+              <div className="w-9 h-9 md:w-11 md:h-11 rounded-full border-2 border-dashed border-red-500 animate-[spin_5s_linear_infinite]" />
+              <span className="absolute text-xl">🇹🇭</span>
+            </div>
+            <span className="text-xs md:text-sm font-black text-yellow-300">หวยรัฐบาล</span>
+            {/* ตัวอักษรสีแดง กำลังนับถอยหลัง */}
+            <span className="text-[10px] font-black text-red-500 font-mono animate-pulse mt-0.5 line-clamp-1">{thaiCountdown}</span>
           </Link>
           <Link to="/lottery/stock" className="bg-[#0a192f] border border-[#f5c518]/40 rounded-xl p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:border-[#f5c518] transition active:scale-[0.98]">
             <span className="material-symbols-outlined text-4xl md:text-5xl mb-2 text-[#f5c518]">show_chart</span>

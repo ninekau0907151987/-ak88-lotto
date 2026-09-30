@@ -319,7 +319,7 @@ export default function LotteryBet() {
 
   const displayName = getLotteryDisplayName(type);
   const baseLotteryName = getBaseLotteryName(type);
-  const isThaiLottery = displayName === 'หวยรัฐบาล';
+  const isThaiLottery = displayName === 'หวยรัฐบาล' || type === 'thai' || displayName.includes('รัฐบาล');
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'lotteryTypes', baseLotteryName), (doc) => {
@@ -1344,20 +1344,45 @@ export default function LotteryBet() {
           <div className="flex flex-col bg-white border border-[var(--grey-border)] p-3 shadow-sm rounded-t-lg">
             <div className="flex items-center justify-between mb-3 gap-2">
               <div className="flex items-center gap-2 md:gap-3 min-w-0">
-                <div className="w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full border border-gray-200 flex overflow-hidden shadow-sm items-center justify-center bg-white">
+                <div className={`relative w-8 h-8 md:w-10 md:h-10 shrink-0 rounded-full flex overflow-hidden shadow-sm items-center justify-center bg-white ${
+                  isThaiLottery ? 'border-2 border-dashed border-red-500 ring-2 ring-red-500/20' : 'border border-gray-200'
+                }`}>
+                  {isThaiLottery && (
+                    <div className="absolute inset-0 rounded-full border-2 border-dashed border-red-500 animate-[spin_4s_linear_infinite]" />
+                  )}
                   <img src={getLotteryIcon(type)} alt="logo" className="w-full h-full object-cover" />
                 </div>
-                <span className="font-black text-[16px] sm:text-lg md:text-xl lg:text-2xl text-black tracking-tighter truncate">{displayName}</span>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-black text-[16px] sm:text-lg md:text-xl lg:text-2xl text-black tracking-tighter truncate">{displayName}</span>
+                  {isThaiLottery && (
+                    <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow animate-pulse shrink-0">
+                      ⭐ หวยเด่น
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="bg-[#333] text-[11px] sm:text-[12px] md:text-[13px] px-2 py-1 md:py-1.5 md:px-3 text-white flex items-center rounded-[4px] font-bold shrink-0">
-                {lotteryConfig?.closingTime ? (
-                  <span className={isClosed ? 'text-red-500' : ''}>
-                    {isClosed ? 'ปิดรับแล้ว' : '16-Apr-2026 15:20'}
-                  </span>
-                ) : (
-                  '16-Apr-2026 15:20'
-                )}
-              </div>
+              {isThaiLottery ? (
+                <div className="bg-red-950/80 border border-red-500/50 text-[11px] sm:text-[12px] md:text-[13px] px-2 py-1 md:py-1.5 md:px-3 text-red-400 flex items-center gap-1.5 rounded-[4px] font-bold shrink-0">
+                  {/* โลโก้เล็กหมุนด้านใน */}
+                  <div className="w-3.5 h-3.5 rounded-full border border-dashed border-red-400 animate-spin flex items-center justify-center shrink-0">
+                    <span className="material-symbols-outlined text-[9px] text-red-400">autorenew</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-red-500 font-black animate-pulse">
+                    <span className="text-[10px] text-red-400">กำลังนับถอยหลัง:</span>
+                    <span className="font-mono">{isClosed ? 'ปิดรับแล้ว' : '15:20 น.'}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-[#333] text-[11px] sm:text-[12px] md:text-[13px] px-2 py-1 md:py-1.5 md:px-3 text-white flex items-center rounded-[4px] font-bold shrink-0">
+                  {lotteryConfig?.closingTime ? (
+                    <span className={isClosed ? 'text-red-500' : ''}>
+                      {isClosed ? 'ปิดรับแล้ว' : '16-Apr-2026 15:20'}
+                    </span>
+                  ) : (
+                    '16-Apr-2026 15:20'
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5 mt-1">

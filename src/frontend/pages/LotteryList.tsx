@@ -195,8 +195,16 @@ export default function LotteryList() {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  const isThaiLottery = (item: DisplayLotteryItem) => 
+    item.category === 'thai' || item.name.includes('รัฐบาล') || item.name.includes('ไทย');
+
+  const thaiLottery = useMemo(() => {
+    return mergedLotteries.find(isThaiLottery);
+  }, [mergedLotteries]);
+
   const renderCard = (item: DisplayLotteryItem) => {
     const isClosed = !item.isOpen || (item.closeTime && new Date(item.closeTime).getTime() <= currentTime.getTime());
+    const isThai = isThaiLottery(item);
     
     if (isClosed) {
       return (
@@ -223,17 +231,60 @@ export default function LotteryList() {
       <Link 
         key={item.id}
         to={item.path} 
-        className={`${item.bgGradient} rounded-xl shadow-lg overflow-hidden flex flex-col text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 border border-white/10 group`}
+        className={`${item.bgGradient} rounded-xl shadow-lg overflow-hidden flex flex-col text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 border ${
+          isThai 
+            ? 'border-2 border-red-500 shadow-red-500/30 ring-2 ring-red-500/20 relative' 
+            : 'border-white/10'
+        } group`}
       >
-        <div className="py-2.5 text-center text-base font-black tracking-wider flex items-center justify-center gap-1 bg-black/15 group-hover:bg-black/25 transition">
-          <span className="material-symbols-outlined text-sm text-yellow-300">timer</span>
-          {getCountdown(item.closeTime)}
+        {isThai && (
+          <div className="absolute top-1 right-1 z-10 bg-gradient-to-r from-red-600 to-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5 animate-pulse">
+            <span>⭐ หวยเด่น</span>
+          </div>
+        )}
+
+        {/* Countdown Header */}
+        <div className={`py-2.5 text-center text-sm sm:text-base font-black tracking-wider flex items-center justify-center gap-1.5 transition ${
+          isThai 
+            ? 'bg-gradient-to-r from-red-950/80 via-black/50 to-red-950/80 border-b border-red-500/40 text-red-500' 
+            : 'bg-black/15 group-hover:bg-black/25 text-white'
+        }`}>
+          {isThai ? (
+            <>
+              {/* โลโก้เล็กหมุนด้านใน */}
+              <div className="w-4 h-4 rounded-full border border-dashed border-red-500 animate-spin flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined text-[10px] text-red-500">rotate_right</span>
+              </div>
+              {/* ตัวอักษร สี แดง กำลังนับถอยหลัง */}
+              <div className="text-red-500 font-black tracking-wider flex items-center gap-1 animate-pulse">
+                <span className="text-[11px] font-bold text-red-400">กำลังนับถอยหลัง:</span>
+                <span className="font-mono text-sm sm:text-base text-red-500 font-black">
+                  {getCountdown(item.closeTime)}
+                </span>
+              </div>
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-sm text-yellow-300">timer</span>
+              {getCountdown(item.closeTime)}
+            </>
+          )}
         </div>
+
+        {/* Title and Icon */}
         <div className="bg-black/10 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2">
-          <span className="text-xl filter drop-shadow">{item.icon}</span> 
-          <span className="truncate">{item.name}</span>
+          {isThai ? (
+            <div className="relative flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full border-2 border-dashed border-red-500 animate-[spin_5s_linear_infinite]" />
+              <span className="absolute text-xl">🇹🇭</span>
+            </div>
+          ) : (
+            <span className="text-xl filter drop-shadow">{item.icon}</span>
+          )}
+          <span className={`truncate ${isThai ? 'text-yellow-300 font-black drop-shadow' : ''}`}>{item.name}</span>
         </div>
-        <div className="bg-black/25 py-1.5 text-center text-[11px] text-white/90">
+
+        <div className={`py-1.5 text-center text-[11px] ${isThai ? 'bg-black/40 text-amber-200/90 font-bold' : 'bg-black/25 text-white/90'}`}>
           {item.closeTime ? `ปิดรับ ${new Date(item.closeTime).toLocaleString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'เปิดรับแทง 24 ชม.'}
         </div>
       </Link>
@@ -318,6 +369,58 @@ export default function LotteryList() {
             );
           })}
         </div>
+
+        {/* Featured Thai Lottery Spotlight Banner */}
+        {thaiLottery && (selectedCategory === 'all' || selectedCategory === 'thai') && !searchTerm && (
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#2a080f] via-[#111722] to-[#2a080f] border-2 border-red-500/70 p-4 sm:p-5 shadow-2xl shadow-red-500/20">
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5 w-full md:w-auto">
+                {/* โลโก้เล็กหมุนด้านใน */}
+                <div className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center shrink-0">
+                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-red-500 animate-[spin_4s_linear_infinite]" />
+                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-red-600 via-amber-500 to-red-700 flex items-center justify-center shadow-lg">
+                    <span className="text-lg md:text-xl">🇹🇭</span>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow flex items-center gap-1 animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                      ⭐ หวยเด่น ยอดนิยมอันดับ 1
+                    </span>
+                    <span className="text-xs text-amber-400 font-bold">อัตราจ่ายสูงสุด 900 บาท</span>
+                  </div>
+                  <h2 className="text-white font-black text-lg sm:text-xl mt-1 tracking-wide">
+                    หวยรัฐบาลไทย (สลากกินแบ่งรัฐบาล)
+                  </h2>
+                </div>
+              </div>
+
+              {/* กล่องตัวอักษรสีแดง กำลังนับถอยหลัง */}
+              <div className="flex items-center gap-3 bg-red-950/60 border border-red-500/50 px-4 py-2.5 rounded-xl w-full md:w-auto justify-center md:justify-start">
+                {/* โลโก้เล็กหมุนด้านใน */}
+                <div className="w-5 h-5 rounded-full border border-dashed border-red-400 animate-spin flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-xs text-red-400">autorenew</span>
+                </div>
+                <div>
+                  <div className="text-[11px] font-bold text-red-400">กำลังนับถอยหลัง:</div>
+                  <div className="text-red-500 font-black text-base sm:text-lg font-mono tracking-wider animate-pulse">
+                    {getCountdown(thaiLottery.closeTime)}
+                  </div>
+                </div>
+              </div>
+
+              <Link
+                to={thaiLottery.path}
+                className="w-full md:w-auto bg-gradient-to-r from-red-600 via-red-500 to-amber-500 hover:brightness-110 text-white font-black text-sm px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 transition active:scale-95 shrink-0"
+              >
+                <span>แทงหวยรัฐบาล</span>
+                <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Lottery Cards Grid */}
         {filteredLotteries.length === 0 ? (
