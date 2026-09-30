@@ -3765,6 +3765,7 @@ export default function AdminDashboard() {
                     <tr>
                       <th className="p-4">{activeMembersSubTab === 'users' ? 'สมาชิก' : 'เอเย่นต์'}</th>
                       <th className="p-4">{activeMembersSubTab === 'users' ? 'เบอร์โทร' : 'รหัสเอเย่นต์ (API Key)'}</th>
+                      {activeMembersSubTab === 'users' && <th className="p-4">บัญชีธนาคาร</th>}
                       <th className="p-4 text-right">ยอดเงิน / เครดิต</th>
                       <th className="p-4 text-center">{activeMembersSubTab === 'users' ? 'เอเย่นต์ผู้ดูแล' : 'หุ้นส่วน/คอม (%)'}</th>
                       <th className="p-4 text-center">สถานะ</th>
@@ -3781,6 +3782,13 @@ export default function AdminDashboard() {
                               <div className="text-[10px] text-gray-400">{user.firstName} {user.lastName}</div>
                             </td>
                             <td className="p-4 font-bold">{user.phoneNumber}</td>
+                            <td className="p-4">
+                              <div className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                                <span className="material-symbols-outlined text-xs text-blue-600">account_balance</span>
+                                {user.bankName || 'ไม่ระบุธนาคาร'}
+                              </div>
+                              <div className="font-mono text-xs font-bold text-slate-500 mt-0.5">{user.bankAccount || '-'}</div>
+                            </td>
                             <td className="p-4 font-black text-green-600">฿{(user.balance || 0).toLocaleString()}</td>
                             <td className="p-4">
                               <div className="text-xs font-bold text-blue-600">
