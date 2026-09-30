@@ -63,7 +63,7 @@ if (db && emuHost) {
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = Number(process.env.PORT) || 10000;
 
   // ---- 1) requestId: ต้องเป็นตัวแรก เพื่อให้ทุก log มีรหัสติด ----
   app.use(requestId);

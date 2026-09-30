@@ -21,7 +21,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=10000
 
 # Install production curl/wget for health check
 RUN apk --no-cache add curl
@@ -34,11 +34,11 @@ RUN npm ci --only=production && npm cache clean --force
 COPY --from=builder /app/dist ./dist
 
 # Expose internal HTTP port
-EXPOSE 3000
+EXPOSE 10000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:${PORT:-3000}/api/v1/health || exit 1
+  CMD curl -f http://localhost:${PORT:-10000}/api/v1/health || exit 1
 
 # Start AK88 Lotto Production Engine
 CMD ["node", "dist/server.cjs"]
