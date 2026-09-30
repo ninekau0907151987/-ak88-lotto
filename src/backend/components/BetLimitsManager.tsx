@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LotteryCategorySelector from './LotteryCategorySelector';
 
 interface SubTypeLimit {
   baseRate: number;
@@ -222,20 +223,7 @@ export default function BetLimitsManager({ lotteryTypes = {}, onLogActivity }: P
           </div>
         </div>
 
-        {/* Lottery Selector */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <label className="text-xs font-black text-[var(--admin-text-muted)] whitespace-nowrap">เลือกหวย:</label>
-          <select
-            value={selectedLottery}
-            onChange={(e) => setSelectedLottery(e.target.value)}
-            className="flex-1 md:w-56 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
-          >
-            {lottoList.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-
-          <span className={`px-3 py-1.5 rounded-full text-xs font-black border ${
+          <span className={`px-3.5 py-1.5 rounded-full text-xs font-black border ${
             isThai 
               ? 'bg-blue-50 text-blue-700 border-blue-200' 
               : 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -243,7 +231,15 @@ export default function BetLimitsManager({ lotteryTypes = {}, onLogActivity }: P
             {isThai ? '🇹🇭 14 ประเภทย่อย' : '🌏 12 ประเภทย่อย'}
           </span>
         </div>
-      </div>
+
+
+      {/* Unified Category Tabs & Small Sub-lottery Buttons */}
+      <LotteryCategorySelector
+        selectedLottery={selectedLottery}
+        onSelectLottery={setSelectedLottery}
+        lotterySettings={lotteryTypes}
+        title="เลือกหมวดหมู่และประเภทหวยสำหรับตั้งค่าขีดจำกัด"
+      />
 
       {message && (
         <div className={`p-4 rounded-xl text-xs font-bold border flex items-center justify-between ${

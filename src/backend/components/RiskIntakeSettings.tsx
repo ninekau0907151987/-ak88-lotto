@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LotteryCategorySelector from './LotteryCategorySelector';
 
 interface IntakeItem {
   id: number;
@@ -123,20 +124,7 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
           </div>
         </div>
 
-        {/* Lottery Selector */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <label className="text-xs font-black text-slate-600 whitespace-nowrap">เลือกหวย:</label>
-          <select
-            value={selectedLottery}
-            onChange={(e) => setSelectedLottery(e.target.value)}
-            className="flex-1 md:w-56 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
-          >
-            {lottoList.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-
-          <span className={`px-3 py-1.5 rounded-full text-xs font-black border ${
+          <span className={`px-3.5 py-1.5 rounded-full text-xs font-black border ${
             isThai 
               ? 'bg-blue-50 text-blue-700 border-blue-200' 
               : 'bg-emerald-50 text-emerald-700 border-emerald-200'
@@ -144,27 +132,15 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
             {isThai ? '🇹🇭 14 ประเภท (หวยไทย)' : '🌏 12 ประเภท (หวยอื่น)'}
           </span>
         </div>
-      </div>
 
-      {/* Lottery Quick Switching Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {lottoList.map(name => {
-          const isSelected = selectedLottery === name;
-          return (
-            <button
-              key={name}
-              onClick={() => setSelectedLottery(name)}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition whitespace-nowrap flex items-center gap-2 border ${
-                isSelected
-                  ? 'bg-blue-700 text-white border-blue-700 shadow-sm shadow-blue-700/20'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-              }`}
-            >
-              <span>{name}</span>
-            </button>
-          );
-        })}
-      </div>
+
+      {/* Unified Category Tabs & Small Sub-lottery Buttons */}
+      <LotteryCategorySelector
+        selectedLottery={selectedLottery}
+        onSelectLottery={setSelectedLottery}
+        lotterySettings={lotteryTypes}
+        title="เลือกหมวดหมู่และประเภทหวยสำหรับตั้งค่ารับกิน"
+      />
 
       {message && (
         <div className={`p-4 rounded-xl text-xs font-bold border flex items-center justify-between ${

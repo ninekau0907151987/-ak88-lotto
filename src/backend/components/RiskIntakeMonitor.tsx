@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import LotteryCategorySelector from './LotteryCategorySelector';
 
 interface LiveBetNumber {
   number: string;
@@ -210,18 +211,8 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           </div>
         </div>
 
-        {/* Lottery Selector & Controls */}
+        {/* Controls */}
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-          <select
-            value={selectedLottery}
-            onChange={(e) => setSelectedLottery(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none focus:border-blue-600 focus:bg-white"
-          >
-            {lottoList.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-
           <button
             onClick={() => fetchLiveIntake(selectedLottery)}
             disabled={loading}
@@ -244,25 +235,13 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
         </div>
       </div>
 
-      {/* Lottery Quick Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {lottoList.map(name => {
-          const isSelected = selectedLottery === name;
-          return (
-            <button
-              key={name}
-              onClick={() => setSelectedLottery(name)}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition whitespace-nowrap flex items-center gap-2 border ${
-                isSelected
-                  ? 'bg-blue-700 text-white border-blue-700 shadow-sm shadow-blue-700/20'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 hover:border-slate-300'
-              }`}
-            >
-              <span>{name}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* Unified Category Tabs & Small Sub-lottery Buttons */}
+      <LotteryCategorySelector
+        selectedLottery={selectedLottery}
+        onSelectLottery={setSelectedLottery}
+        lotterySettings={lotteryTypes}
+        title="เลือกหมวดหมู่และประเภทหวยสำหรับมอนิเตอร์"
+      />
 
       {message && (
         <div className={`p-4 rounded-xl text-xs font-bold border flex items-center justify-between ${

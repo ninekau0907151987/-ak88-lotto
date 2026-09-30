@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import LotteryCategorySelector from './LotteryCategorySelector';
 
 interface RoundItem {
   id?: string;
@@ -190,20 +191,14 @@ export default function RoundSchedulerManager({ lotteryTypes = {}, onLogActivity
           </div>
         </div>
 
-        {/* Lottery Selector */}
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <label className="text-xs font-black text-[var(--admin-text-muted)] whitespace-nowrap">เลือกหวย:</label>
-          <select
-            value={selectedLottery}
-            onChange={(e) => setSelectedLottery(e.target.value)}
-            className="flex-1 md:w-56 px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
-          >
-            {lottoList.map(name => (
-              <option key={name} value={name}>{name}</option>
-            ))}
-          </select>
-        </div>
       </div>
+
+      {/* Unified Category Tabs & Small Sub-lottery Buttons */}
+      <LotteryCategorySelector
+        selectedLottery={selectedLottery}
+        onSelectLottery={setSelectedLottery}
+        title="เลือกหมวดหมู่และประเภทหวยสำหรับจัดการรอบ"
+      />
 
       {/* Strict Sequential Guard Security Banner */}
       <div className={`p-5 rounded-2xl border shadow-sm transition flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${

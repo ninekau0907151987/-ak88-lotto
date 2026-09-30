@@ -3,29 +3,27 @@ import {
   LOTTERY_CATEGORIES, getLotteryCategory, getCategoryLabel,
   type LotteryCategoryKey
 } from '@/shared/lib/lotteryCatalog';
+import LotteryCategorySelector from './LotteryCategorySelector';
 
 interface Props {
   lotterySettings: Record<string, any>;
   onToggleStatus: (type: string, status: boolean) => Promise<void>;
-  onToggleAllStatus: (status: boolean) => Promise<void>;
+  onToggleAllStatus?: (status: boolean) => Promise<void>;
   onUpdateClosingTime: (type: string, timeStr: string) => Promise<void>;
   onDeleteLottery: (type: string) => Promise<void>;
-  onSyncAllLotteries: () => Promise<void>;
-  onOpenAddModal: () => void;
+  onSyncAllLotteries?: () => Promise<void>;
+  onOpenAddModal?: () => void;
   onOpenResistance?: (type: string) => void;
 }
 
 export default function LotteryOpenCloseManager({
   lotterySettings,
   onToggleStatus,
-  onToggleAllStatus,
   onUpdateClosingTime,
   onDeleteLottery,
-  onSyncAllLotteries,
-  onOpenAddModal,
   onOpenResistance,
 }: Props) {
-  const [categoryFilter, setCategoryFilter] = useState<LotteryCategoryKey>('all');
+  const [selectedLottery, setSelectedLottery] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [closingTimeInputs, setClosingTimeInputs] = useState<Record<string, string>>({});
   const [updatingType, setUpdatingType] = useState<string | null>(null);
@@ -34,16 +32,16 @@ export default function LotteryOpenCloseManager({
 
   // Statistics
   const totalCount = lottoKeys.length;
-  const openCount = lottoKeys.filter(k => lotterySettings[k]?.isOpen && !lotterySettings[k]?.isPaused).length;
+  const openCount = lottoKeys.filter(k => lotterySettings[k]?.isOpen && !lotterySettings[k]?.isPaused && lotterySettings[k]?.status !== 'closed').length;
   const closedCount = totalCount - openCount;
 
-  // Filtered list
+  // Filtered list: If user clicked a specific sub-lottery in LotteryCategorySelector, show it. Otherwise show matching search.
   const filteredKeys = lottoKeys.filter(type => {
-    const data = lotterySettings[type];
-    const catKey = getLotteryCategory(type, data?.category);
-    const matchesCategory = categoryFilter === 'all' || catKey === categoryFilter;
+    if (selectedLottery && type !== selectedLottery) {
+      return false;
+    }
     const matchesSearch = !searchTerm || type.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesCategory && matchesSearch;
+    return matchesSearch;
   });
 
   const handleUpdateSingleClosingTime = async (type: string) => {
@@ -62,8 +60,8 @@ export default function LotteryOpenCloseManager({
 
   return (
     <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="admin-card p-6 bg-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* Top Header Card — No Bulky Buttons */}
+      <div className="admin-card p-6 bg-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-sm">
             <span className="material-symbols-outlined text-2xl">toggle_on</span>
@@ -73,43 +71,34 @@ export default function LotteryOpenCloseManager({
               ศูนย์จัดการและตรวจสอบการเปิด-ปิดหวย (Lottery Status & Schedule Control)
             </h2>
             <p className="text-xs text-slate-500">
-              ตรวจสอบสถานะรับแทง สวิตช์เปิด-ปิดรายประเภท หรือจัดการเวลาปิดรับแบบตารางเรียงลำดับ
+              เลือกหมวดหมู่แท็บด้านบน และเลือกรายชื่อหวยย่อยเป็นปุ่มขนาดเล็กด้านล่าง พร้อมตรวจเช็กสถานะเปิด-ปิดจริง
             </p>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <button
-            onClick={() => onToggleAllStatus(true)}
-            className="flex-1 md:flex-none px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center justify-center gap-1 active:scale-95"
-          >
-            <span className="material-symbols-outlined text-sm">lock_open</span>
-            เปิดหวยทั้งหมด
-          </button>
-          <button
-            onClick={() => onToggleAllStatus(false)}
-            className="flex-1 md:flex-none px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center justify-center gap-1 active:scale-95"
-          >
-            <span className="material-symbols-outlined text-sm">lock</span>
-            ปิดหวยทั้งหมด
-          </button>
-          <button
-            onClick={onSyncAllLotteries}
-            className="flex-1 md:flex-none px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-black transition flex items-center justify-center gap-1 active:scale-95"
-          >
-            <span className="material-symbols-outlined text-sm">sync</span>
-            ซิงค์หวยเต็มระบบ
-          </button>
-          <button
-            onClick={onOpenAddModal}
-            className="flex-1 md:flex-none px-3.5 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-black shadow-sm transition flex items-center justify-center gap-1 active:scale-95"
-          >
-            <span className="material-symbols-outlined text-sm">add_circle</span>
-            เพิ่มหวยใหม่
-          </button>
+        {/* Status Counter Badges */}
+        <div className="flex items-center gap-2">
+          <span className="px-3 py-1.5 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            เปิดรับ {openCount} รายการ
+          </span>
+          <span className="px-3 py-1.5 rounded-full text-xs font-black bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-slate-400"></span>
+            ปิดรับ {closedCount} รายการ
+          </span>
         </div>
       </div>
+
+      {/* Unified Category Tabs & Small Sub-lottery Buttons (ปุ่มขนาดเล็กด้านล่าง) */}
+      <LotteryCategorySelector
+        selectedLottery={selectedLottery}
+        onSelectLottery={(name) => {
+          // If clicked again, toggle/clear filter to show all
+          setSelectedLottery(prev => prev === name ? '' : name);
+        }}
+        lotterySettings={lotterySettings}
+        title="เลือกหมวดหมู่หวย (แท็บด้านบน) และเลือกหวยย่อย (ปุ่มขนาดเล็กด้านล่าง)"
+      />
 
       {/* 3 Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -125,7 +114,7 @@ export default function LotteryOpenCloseManager({
 
         <div className="admin-card p-4 bg-white border border-emerald-200 shadow-sm flex items-center justify-between">
           <div>
-            <div className="text-[11px] font-black text-emerald-600 uppercase tracking-wider">กำลังเปิดรับแทง (Active)</div>
+            <div className="text-[11px] font-black text-emerald-600 uppercase tracking-wider">🟢 กำลังเปิดรับแทง (Active)</div>
             <div className="text-2xl font-black text-emerald-700 mt-1">{openCount} รายการ</div>
           </div>
           <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">
@@ -133,78 +122,62 @@ export default function LotteryOpenCloseManager({
           </div>
         </div>
 
-        <div className="admin-card p-4 bg-white border border-red-200 shadow-sm flex items-center justify-between">
+        <div className="admin-card p-4 bg-white border border-slate-200 shadow-sm flex items-center justify-between bg-slate-50/40">
           <div>
-            <div className="text-[11px] font-black text-red-500 uppercase tracking-wider">ปิดรับแทง (Closed)</div>
-            <div className="text-2xl font-black text-red-600 mt-1">{closedCount} รายการ</div>
+            <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider">⚪ ปิดรับแทง (Closed)</div>
+            <div className="text-2xl font-black text-slate-500 mt-1">{closedCount} รายการ</div>
           </div>
-          <div className="w-11 h-11 rounded-xl bg-red-50 text-red-600 flex items-center justify-center font-black">
+          <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center font-black">
             <span className="material-symbols-outlined text-xl">cancel</span>
           </div>
         </div>
       </div>
 
-      {/* Main Table Card (Requested: ตารางเรียงลำดับ ไม่เอาเป็นช่อง) */}
-      <div className="admin-card bg-white overflow-hidden shadow-sm">
-        {/* Category Tabs & Search Bar */}
-        <div className="p-4 border-b border-slate-200 bg-slate-50/60 space-y-3">
-          {/* Category Tabs */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-1">
-            {LOTTERY_CATEGORIES.map(cat => {
-              const count = lottoKeys.filter(k => {
-                const catKey = getLotteryCategory(k, lotterySettings[k]?.category);
-                return cat.id === 'all' || catKey === cat.id;
-              }).length;
-
-              const isActive = categoryFilter === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setCategoryFilter(cat.id)}
-                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition whitespace-nowrap ${
-                    isActive
-                      ? 'bg-blue-700 text-white shadow-md shadow-blue-700/20'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <span className="material-symbols-outlined text-sm">{cat.icon}</span>
-                  <span>{cat.label}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    isActive ? 'bg-white text-blue-700' : 'bg-slate-100 text-slate-600'
-                  }`}>
-                    {count}
-                  </span>
-                </button>
-              );
-            })}
+      {/* Main Table Card (ตารางข้อมูลแถวและคอลัมน์) */}
+      <div className="admin-card bg-white overflow-hidden shadow-sm border border-slate-200">
+        {/* Search Bar & Reset Selection */}
+        <div className="p-4 border-b border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+          <div className="flex items-center gap-2">
+            <h3 className="text-xs font-black text-slate-800">
+              ตารางข้อมูลประเภทหวย ({filteredKeys.length} รายการ)
+            </h3>
+            {selectedLottery && (
+              <button
+                onClick={() => setSelectedLottery('')}
+                className="px-2.5 py-1 text-[11px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition flex items-center gap-1"
+              >
+                <span>แสดงทุกหวย</span>
+                <span>✕</span>
+              </button>
+            )}
           </div>
 
           {/* Search Box */}
-          <div className="relative">
-            <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-lg">search</span>
+          <div className="relative w-full sm:w-72">
+            <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-base">search</span>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ค้นหาชื่อหวย... เช่น รัฐบาลไทย, ฮานอยพิเศษ, ลาวพัฒนา, นิเคอิเช้า"
-              className="w-full pl-9 pr-8 py-2 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-600"
+              placeholder="ค้นหาชื่อหวย... เช่น รัฐบาลไทย, ฮานอย, ลาว"
+              className="w-full pl-8 pr-8 py-1.5 text-xs bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-600 font-bold"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
               >
-                <span className="material-symbols-outlined text-sm">close</span>
+                <span className="material-symbols-outlined text-xs">close</span>
               </button>
             )}
           </div>
         </div>
 
-        {/* The Ordered Table */}
+        {/* The Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs admin-table">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-100/70 text-slate-600">
+              <tr className="border-b border-slate-200 bg-slate-100/80 text-slate-700">
                 <th className="py-3 px-4 font-black w-12 text-center">#</th>
                 <th className="py-3 px-4 font-black">ชื่อประเภทหวย</th>
                 <th className="py-3 px-4 font-black">หมวดหมู่</th>
@@ -217,14 +190,14 @@ export default function LotteryOpenCloseManager({
             <tbody className="divide-y divide-slate-100">
               {filteredKeys.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-slate-400 text-xs font-bold">
-                    ไม่พบประเภทหวยตามหมวดหมู่หรือคำค้นหาที่ระบุ
+                  <td colSpan={7} className="py-12 text-center text-slate-400 text-xs font-bold bg-slate-50">
+                    ไม่พบประเภทหวยตามเงื่อนไขที่เลือก
                   </td>
                 </tr>
               ) : (
                 filteredKeys.map((type, idx) => {
                   const item = lotterySettings[type];
-                  const isOpen = item?.isOpen && !item?.isPaused;
+                  const isOpen = Boolean(item?.isOpen && !item?.isPaused && item?.status !== 'closed');
                   const catKey = getLotteryCategory(type, item?.category);
                   const catLabel = getCategoryLabel(catKey);
 
@@ -232,19 +205,37 @@ export default function LotteryOpenCloseManager({
                   const isExpired = closingDate && closingDate.getTime() <= Date.now();
 
                   return (
-                    <tr key={type} className="hover:bg-blue-50/20 transition">
+                    <tr
+                      key={type}
+                      className={`transition ${
+                        isOpen
+                          ? 'hover:bg-blue-50/20 bg-white'
+                          : 'bg-slate-50/70 opacity-75 hover:opacity-100'
+                      }`}
+                    >
                       <td className="py-3 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                      
+                      {/* ชื่อประเภทหวย */}
                       <td className="py-3 px-4 font-black text-slate-900">
                         <div className="flex items-center gap-2">
                           <span className="text-base">{item?.icon || '🎯'}</span>
-                          <span>{type}</span>
+                          <span className={isOpen ? 'text-slate-900' : 'text-slate-500'}>{type}</span>
+                          {!isOpen && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-200 text-slate-600 font-black">
+                              ปิดรับ
+                            </span>
+                          )}
                         </div>
                       </td>
+
+                      {/* หมวดหมู่ */}
                       <td className="py-3 px-4">
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                           {catLabel}
                         </span>
                       </td>
+
+                      {/* สวิตช์เปิด-ปิด */}
                       <td className="py-3 px-4 text-center">
                         <button
                           type="button"
@@ -266,6 +257,8 @@ export default function LotteryOpenCloseManager({
                           </span>
                         </button>
                       </td>
+
+                      {/* เวลาปิดรับแทงปัจจุบัน */}
                       <td className="py-3 px-4 font-bold text-slate-600">
                         {closingDate ? (
                           <div className="space-y-0.5">
@@ -278,6 +271,8 @@ export default function LotteryOpenCloseManager({
                           <span className="text-slate-400 italic">ยังไม่กำหนดเวลา</span>
                         )}
                       </td>
+
+                      {/* แก้ไขเวลาปิดรับ */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-1.5">
                           <input
@@ -296,6 +291,8 @@ export default function LotteryOpenCloseManager({
                           </button>
                         </div>
                       </td>
+
+                      {/* การจัดการ */}
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {onOpenResistance && (

@@ -65,12 +65,15 @@ export function lotteryRoutes(db: any) {
     try {
       const open = req.body.open !== false; // default true
       const newStatus = open ? 'open' : 'closed';
-      await updateDoc(doc(db, 'lotteryTypes', req.params.id), {
+      await setDoc(doc(db, 'lotteryTypes', req.params.id), {
+        id: req.params.id,
+        name: req.params.id,
         status: newStatus,
+        isOpen: open,
         bettingOpen: open,
         updatedAt: serverTimestamp(),
-      });
-      res.json({ status: 'success', message: `หวย ${req.params.id} ถูกตั้งเป็น ${open ? 'เปิดรับแทง' : 'ปิดรับแทง'}`, lotteryStatus: newStatus });
+      }, { merge: true });
+      res.json({ status: 'success', message: `หวย ${req.params.id} ถูกตั้งเป็น ${open ? 'เปิดรับแทง' : 'ปิดรับแทง'}`, lotteryStatus: newStatus, isOpen: open });
     } catch (e) {
       res.status(500).json({ status: 'error', message: 'ตั้งค่าไม่สำเร็จ' });
     }

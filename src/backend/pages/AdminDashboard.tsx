@@ -28,6 +28,7 @@ import RoundSchedulerManager from '../components/RoundSchedulerManager';
 import LotteryOpenCloseManager from '../components/LotteryOpenCloseManager';
 import RiskIntakeSettings from '../components/RiskIntakeSettings';
 import RiskIntakeMonitor from '../components/RiskIntakeMonitor';
+import LotteryCategorySelector from '../components/LotteryCategorySelector';
 
 type AdminTab = 'overview' | 'intake_settings' | 'intake_monitor' | 'lottery_control' | 'system_control' | 'bet_limits' | 'round_scheduler' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
 
@@ -2634,80 +2635,40 @@ export default function AdminDashboard() {
                       </div>
                     </div>
 
-                    {/* Selector & Category Filter */}
-                    <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-4">
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-                        <div className="space-y-1">
-                          <label className="text-[10px] font-black text-gray-400 uppercase tracking-wider">
-                            เลือกประเภทหวยที่ต้องการตั้งค่าเรทต้านทาน
-                          </label>
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={selectedResistanceLottery}
-                              onChange={(e) => setSelectedResistanceLottery(e.target.value)}
-                              className="px-4 py-2.5 bg-gray-50 border-2 border-gray-200 rounded-xl text-sm font-black outline-none focus:border-amber-400 text-slate-900"
-                            >
-                              {filteredLotteries.map(name => (
-                                <option key={name} value={name}>
-                                  {lotterySettings[name]?.icon || '🎯'} {name}
-                                </option>
-                              ))}
-                            </select>
-                            <span className="text-xs text-gray-400">
-                              (กำลังตั้งค่า: <strong className="text-amber-600">{selectedResistanceLottery}</strong>)
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => saveResistanceSettings(false)}
-                            className="bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black px-4 py-2.5 rounded-xl shadow transition active:scale-95 text-xs flex items-center gap-1.5"
-                          >
-                            <span className="material-symbols-outlined text-sm">save</span>
-                            บันทึกหวยนี้
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => saveResistanceSettings(true)}
-                            className="bg-[var(--navy-deep)] hover:brightness-110 text-white font-black px-4 py-2.5 rounded-xl shadow transition active:scale-95 text-xs flex items-center gap-1.5"
-                          >
-                            <span className="material-symbols-outlined text-sm">public</span>
-                            นำไปใช้กับทุกหวย
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => resetResistanceDefaults()}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold px-3 py-2.5 rounded-xl transition text-xs"
-                          >
-                            คืนค่าเริ่มต้น
-                          </button>
-                        </div>
+                    {/* Unified Category Tabs & Small Sub-lottery Buttons */}
+                    <div className="space-y-3">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => saveResistanceSettings(false)}
+                          className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-xl shadow-sm transition active:scale-95 text-xs flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-sm">save</span>
+                          บันทึกหวยนี้
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => saveResistanceSettings(true)}
+                          className="bg-blue-700 hover:bg-blue-800 text-white font-black px-4 py-2 rounded-xl shadow-sm transition active:scale-95 text-xs flex items-center gap-1.5"
+                        >
+                          <span className="material-symbols-outlined text-sm">public</span>
+                          นำไปใช้กับทุกหวย
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => resetResistanceDefaults()}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-3 py-2 rounded-xl transition text-xs"
+                        >
+                          คืนค่าเริ่มต้น
+                        </button>
                       </div>
 
-                      {/* Category Badges for Fast Filtering */}
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs font-bold pt-2 border-t border-gray-100">
-                        <span className="text-[10px] text-gray-400 mr-1">หมวดหมู่:</span>
-                        {LOTTERY_CATEGORIES.map(cat => {
-                          const isActive = resistanceCategoryFilter === cat.id;
-                          return (
-                            <button
-                              key={cat.id}
-                              type="button"
-                              onClick={() => setResistanceCategoryFilter(cat.id)}
-                              className={`px-3 py-1 rounded-xl text-xs font-bold transition whitespace-nowrap ${
-                                isActive 
-                                  ? 'bg-slate-800 text-amber-300 font-black shadow-sm' 
-                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                              }`}
-                            >
-                              {cat.label}
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <LotteryCategorySelector
+                        selectedLottery={selectedResistanceLottery}
+                        onSelectLottery={setSelectedResistanceLottery}
+                        lotterySettings={lotterySettings}
+                        title="เลือกหมวดหมู่และประเภทหวยสำหรับตั้งค่าต้านทาน"
+                      />
                     </div>
 
                     {/* Digit Group Tabs (แยกตามหลัก 3 ตัว, 2 ตัว, วิ่ง/รัน, ปักหลัก, 4-5 ตัว) */}
