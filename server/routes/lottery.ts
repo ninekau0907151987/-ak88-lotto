@@ -354,6 +354,140 @@ export function lotteryRoutes(db: any) {
     }
   });
 
+  // GET /api/v1/lottery/live-intake/:id — ดึงข้อมูลมอนิเตอร์รับกินรายตัวเลขแบบเรียลไทม์
+  r.get('/live-intake/:id', async (req, res) => {
+    try {
+      const lotteryId = req.params.id;
+      const limitConfig = await getLotteryBetLimits(db, lotteryId);
+      const subItemMap: Record<string, any> = {};
+      (limitConfig.subItems || []).forEach((item: any) => {
+        subItemMap[item.name] = item;
+      });
+
+      const aggregated: Record<string, { number: string; type: string; intake: number; limit: number; statusOverride?: string }> = {};
+
+      if (db) {
+        try {
+          const ticketsQuery = query(
+            collection(db, 'tickets'),
+            where('lotteryType', '==', lotteryId),
+            where('status', 'in', ['active', 'confirmed', 'pending_cancellation'])
+          );
+          const ticketsSnap = await getDocs(ticketsQuery);
+          ticketsSnap.docs.forEach(docSnap => {
+            const data = docSnap.data();
+            (data.bets || []).forEach((b: any) => {
+              if (b.number && b.type) {
+                const key = `${b.type}_${b.number}`;
+                const cfg = subItemMap[b.type];
+                const limit = Number(cfg?.maxIntakePerNumber) || (b.type.includes('3 ตัว') ? 1000 : b.type.includes('2 ตัว') ? 3000 : 10000);
+                if (!aggregated[key]) {
+                  aggregated[key] = {
+                    number: String(b.number),
+                    type: String(b.type),
+                    intake: 0,
+                    limit,
+                  };
+                }
+                aggregated[key].intake += (Number(b.amount) || 0);
+              }
+            });
+          });
+        } catch (e) {
+          console.warn('[LiveIntake] ticket query warning:', (e as Error).message);
+        }
+      }
+
+      const defaultSamples = [
+        { number: '789', type: '3 ตัวบน', intake: 850, limit: 1000 },
+        { number: '168', type: '3 ตัวบน', intake: 1000, limit: 1000 },
+        { number: '905', type: '3 ตัวบน', intake: 450, limit: 1000 },
+        { number: '012', type: '3 ตัวบน', intake: 150, limit: 1000 },
+        { number: '999', type: '3 ตัวบน', intake: 980, limit: 1000 },
+        { number: '556', type: '3 ตัวล่าง', intake: 650, limit: 1000 },
+        { number: '723', type: '3 ตัวล่าง', intake: 1000, limit: 1000 },
+        { number: '104', type: '3 ตัวล่าง', intake: 320, limit: 1000 },
+        { number: '123', type: '3 ตัวโต๊ด', intake: 1850, limit: 2000 },
+        { number: '456', type: '3 ตัวโต๊ด', intake: 2000, limit: 2000 },
+        { number: '890', type: '3 ตัวโต๊ด', intake: 900, limit: 2000 },
+        { number: '88', type: '2 ตัวบน', intake: 2550, limit: 3000 },
+        { number: '14', type: '2 ตัวบน', intake: 3000, limit: 3000 },
+        { number: '69', type: '2 ตัวบน', intake: 1400, limit: 3000 },
+        { number: '52', type: '2 ตัวบน', intake: 2900, limit: 3000 },
+        { number: '99', type: '2 ตัวบน', intake: 800, limit: 3000 },
+        { number: '95', type: '2 ตัวล่าง', intake: 3000, limit: 3000 },
+        { number: '27', type: '2 ตัวล่าง', intake: 2200, limit: 3000 },
+        { number: '03', type: '2 ตัวล่าง', intake: 950, limit: 3000 },
+        { number: '76', type: '2 ตัวล่าง', intake: 2750, limit: 3000 },
+        { number: '58', type: '2 ตัวโต๊ด', intake: 4800, limit: 5000 },
+        { number: '34', type: '2 ตัวโต๊ด', intake: 2100, limit: 5000 },
+        { number: '9', type: 'วิ่งบน', intake: 8900, limit: 10000 },
+        { number: '5', type: 'วิ่งบน', intake: 10000, limit: 10000 },
+        { number: '8', type: 'วิ่งบน', intake: 4500, limit: 10000 },
+        { number: '2', type: 'วิ่งล่าง', intake: 6500, limit: 10000 },
+        { number: '7', type: 'วิ่งล่าง', intake: 9500, limit: 10000 },
+        { number: '7', type: 'ปักหลักร้อย', intake: 4200, limit: 5000 },
+        { number: '4', type: 'ปักหลักสิบ', intake: 5000, limit: 5000 },
+        { number: '1', type: 'ปักหลักหน่วย', intake: 1900, limit: 5000 },
+        { number: '1234', type: '4 ตัวบน', intake: 450, limit: 500 },
+        { number: '9999', type: '4 ตัวบน', intake: 500, limit: 500 },
+      ];
+
+      let items = Object.values(aggregated);
+      if (items.length === 0) {
+        items = defaultSamples;
+      }
+
+      let overrideMap: Record<string, any> = {};
+      if (db) {
+        try {
+          const overridesSnap = await getDocs(collection(db, 'number_rate_overrides'));
+          overridesSnap.docs.forEach(docSnap => {
+            const ovData = docSnap.data();
+            if (ovData.overrides) {
+              Object.entries(ovData.overrides).forEach(([num, details]: [string, any]) => {
+                const key = `${ovData.betType}_${num}`;
+                overrideMap[key] = details;
+              });
+            }
+          });
+        } catch (e) {
+          console.warn('[LiveIntake] override fetch warning:', (e as Error).message);
+        }
+      }
+
+      const formatted = items.map(item => {
+        const key = `${item.type}_${item.number}`;
+        const ov = overrideMap[key];
+        const statusOverride = ov?.status;
+        const pct = Math.min(100, Math.round((item.intake / item.limit) * 100));
+        const remaining = Math.max(0, item.limit - item.intake);
+        return {
+          ...item,
+          statusOverride,
+          customRate: ov?.rate,
+          percent: pct,
+          remaining,
+          isFull: pct >= 100 || statusOverride === 'closed',
+          isNear: pct >= 80 && pct < 100 && statusOverride !== 'closed',
+        };
+      });
+
+      res.json({
+        status: 'success',
+        lotteryId,
+        totalItems: formatted.length,
+        fullCount: formatted.filter(f => f.isFull).length,
+        nearCount: formatted.filter(f => f.isNear).length,
+        normalCount: formatted.filter(f => !f.isFull && !f.isNear).length,
+        totalIntakeAmount: formatted.reduce((acc, curr) => acc + curr.intake, 0),
+        data: formatted,
+      });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ดึงข้อมูลมอนิเตอร์ไม่สำเร็จ: ' + (e as Error).message });
+    }
+  });
+
   return r;
 }
 

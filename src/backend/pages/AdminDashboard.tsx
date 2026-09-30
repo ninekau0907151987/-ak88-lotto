@@ -26,9 +26,10 @@ import {
 import BetLimitsManager from '../components/BetLimitsManager';
 import RoundSchedulerManager from '../components/RoundSchedulerManager';
 import LotteryOpenCloseManager from '../components/LotteryOpenCloseManager';
-import RiskIntakeManager from '../components/RiskIntakeManager';
+import RiskIntakeSettings from '../components/RiskIntakeSettings';
+import RiskIntakeMonitor from '../components/RiskIntakeMonitor';
 
-type AdminTab = 'overview' | 'intake_management' | 'lottery_control' | 'system_control' | 'bet_limits' | 'round_scheduler' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
+type AdminTab = 'overview' | 'intake_settings' | 'intake_monitor' | 'lottery_control' | 'system_control' | 'bet_limits' | 'round_scheduler' | 'members' | 'agents' | 'settings' | 'reports' | 'finance' | 'rules' | 'popup' | 'api' | 'history' | 'staff';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
@@ -1718,7 +1719,8 @@ export default function AdminDashboard() {
    * ================================================================== */
   const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission }[] = [
     { id: 'overview',          label: 'แดชบอร์ด',            icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW },
-    { id: 'intake_management', label: 'ระบบรับกิน',          icon: 'shield_with_heart',      perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'intake_settings',   label: 'ตั้งค่ารับกิน',        icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW },
+    { id: 'intake_monitor',    label: 'มอนิเตอร์รับกิน',      icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW },
     { id: 'lottery_control',   label: 'ดูหวย & เปิด-ปิด',     icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW },
     { id: 'bet_limits',        label: 'ขีดจำกัดเดิมพัน',      icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW },
     { id: 'round_scheduler',   label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW },
@@ -2048,9 +2050,17 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ระบบรับกิน & ตั้งค่าอัตราจ่ายและส่วนลด (Risk Intake & Margin Control) */}
-          {activeTab === 'intake_management' && (
-            <RiskIntakeManager
+          {/* 1. ตั้งค่ารับกิน (Risk Intake Settings, Rates, Discounts, Quotas) */}
+          {activeTab === 'intake_settings' && (
+            <RiskIntakeSettings
+              lotteryTypes={lotterySettings}
+              onLogActivity={logActivity}
+            />
+          )}
+
+          {/* 2. มอนิเตอร์รับกิน (Live Intake Monitor Table with Rows & Columns) */}
+          {activeTab === 'intake_monitor' && (
+            <RiskIntakeMonitor
               lotteryTypes={lotterySettings}
               onLogActivity={logActivity}
             />
