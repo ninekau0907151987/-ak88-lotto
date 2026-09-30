@@ -23,6 +23,7 @@ import { Router } from 'express';
 import { createAuthMiddleware, requireScope } from '../../middleware/auth';
 import { asyncHandler } from '../../middleware/error-handler';
 import { ok } from '../../lib/response';
+import { getSupabase } from '../../lib/supabase';
 
 // ---- เส้นแยกโมดูล (เส้นพิเศษ) ----
 import { monitorRoutes } from './monitor.routes';
@@ -85,7 +86,6 @@ export function createV1Router(db: any) {
 
   // ---- ตรวจสอบสถานะการเชื่อมต่อ Supabase PostgreSQL สด ----
   api.get('/supabase/health', asyncHandler(async (_req, res) => {
-    const { getSupabase } = await import('../../lib/supabase');
     const supabase = getSupabase();
     const t0 = Date.now();
     const { data, count, error } = await supabase.from('lottery_types').select('id', { count: 'exact' });
