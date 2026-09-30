@@ -9,16 +9,100 @@ import {
   getLotteryCategory 
 } from '@/shared/lib/lotteryCatalog';
 
-interface DisplayLotteryItem {
+export type LotteryStatus = 'open' | 'waiting_result' | 'upcoming' | 'closed';
+
+interface ProcessedLotteryItem {
   id: string;
   name: string;
   category: LotteryCategoryKey;
   icon: string;
   path: string;
   bgGradient: string;
-  isOpen: boolean;
-  isHidden: boolean;
-  closeTime: string | null;
+  status: LotteryStatus;
+  countdownText: string;
+  footerText: string;
+  sortScore: number;
+}
+
+// ตารางเวลาเปิด-ปิดรับแทงมาตรฐานรายวัน (สำหรับหวยต่างประเทศและหุ้น)
+const STANDARD_LOTTERY_SCHEDULES: Record<string, { open: string; close: string }> = {
+  // --- 1. หวยฮานอย ---
+  'ฮานอย(HD)': { open: '06:00', close: '11:15' },
+  'ฮานอยสตาร์': { open: '06:00', close: '12:15' },
+  'ฮานอยTV': { open: '06:00', close: '14:15' },
+  'ฮานอยกาชาด': { open: '06:00', close: '16:15' },
+  'ฮานอยพิเศษ': { open: '06:00', close: '17:00' },
+  'หวยฮานอย': { open: '06:00', close: '18:00' },
+  'ฮานอยสามัคคี': { open: '06:00', close: '17:15' },
+  'ฮานอย(VIP)': { open: '06:00', close: '19:00' },
+  'ฮานอย(EXTRA)': { open: '06:00', close: '22:15' },
+  'หวยฮานอยชุด': { open: '06:00', close: '18:00' },
+
+  // --- 2. หวยลาว ---
+  'หวยลาวประตูชัย': { open: '06:00', close: '08:45' },
+  'หวยลาวสันติภาพ': { open: '06:00', close: '09:45' },
+  'หวยประชาชนลาว': { open: '06:00', close: '10:45' },
+  'ลาว(EXTRA)': { open: '06:00', close: '11:15' },
+  'หวยลาวTV': { open: '06:00', close: '13:15' },
+  'หวยลาวHD': { open: '06:00', close: '14:45' },
+  'หวยลาวสตาร์': { open: '06:00', close: '15:45' },
+  'ลาว VIP': { open: '06:00', close: '20:15' },
+  'หวยลาวสตาร์(VIP)': { open: '06:00', close: '21:45' },
+  'ลาวกาชาด': { open: '06:00', close: '23:15' },
+  'หวยลาวพัฒนาชุด': { open: '06:00', close: '20:00' },
+
+  // --- 3. หวยหุ้น VIP & หุ้นรอบวัน ---
+  'นิเคอิ VIP (เช้า)': { open: '06:00', close: '09:20' },
+  'หุ้นนิเคอิรอบเช้า': { open: '06:00', close: '09:20' },
+  'จีน VIP (เช้า)': { open: '06:00', close: '10:20' },
+  'จีนรอบเช้า': { open: '06:00', close: '10:20' },
+  'ฮั่งเส็ง VIP (เช้า)': { open: '06:00', close: '10:50' },
+  'ฮั่งเส็งรอบเช้า': { open: '06:00', close: '10:50' },
+  'ไต้หวัน VIP': { open: '06:00', close: '12:20' },
+  'หุ้นไต้หวัน': { open: '06:00', close: '12:20' },
+  'เกาหลี VIP': { open: '06:00', close: '12:50' },
+  'หุ้นเกาหลี': { open: '06:00', close: '12:50' },
+  'นิเคอิ VIP (บ่าย)': { open: '06:00', close: '12:50' },
+  'นิเคอิปิดบ่าย': { open: '06:00', close: '12:50' },
+  'จีน VIP (บ่าย)': { open: '06:00', close: '13:50' },
+  'จีนปิดรอบบ่าย': { open: '06:00', close: '13:50' },
+  'ฮั่งเส็ง VIP (บ่าย)': { open: '06:00', close: '14:50' },
+  'ฮั่งเส็งปิดบ่าย': { open: '06:00', close: '14:50' },
+  'สิงคโปร์ VIP': { open: '06:00', close: '15:50' },
+  'หุ้นสิงคโปร์': { open: '06:00', close: '15:50' },
+  'หุ้นไทยปิดเย็น': { open: '06:00', close: '16:20' },
+  'หุ้นอินเดีย': { open: '06:00', close: '16:40' },
+  'เวียดนาม VIP (เช้า)': { open: '06:00', close: '09:00' },
+  'เวียดนาม VIP (บ่าย)': { open: '06:00', close: '13:00' },
+  'เวียดนาม VIP (เย็น)': { open: '06:00', close: '16:30' },
+  'หุ้นอียิปต์': { open: '06:00', close: '18:50' },
+  'อังกฤษ(VIP)': { open: '06:00', close: '22:20' },
+  'หุ้นอังกฤษ': { open: '06:00', close: '22:20' },
+  'เยอรมัน(VIP)': { open: '06:00', close: '22:20' },
+  'หุ้นเยอรมัน': { open: '06:00', close: '22:20' },
+  'รัสเซีย(VIP)': { open: '06:00', close: '22:30' },
+  'หุ้นรัสเซีย': { open: '06:00', close: '22:30' },
+  'ดาวน์โจนส์(VIP)': { open: '18:00', close: '03:00' },
+  'หุ้นดาวน์โจนส์': { open: '18:00', close: '03:00' },
+  'ดาวน์โจนส์ TV': { open: '18:00', close: '03:30' },
+  'ดาวน์โจนส์ STAR': { open: '18:00', close: '04:00' },
+  'ดาวน์โจนส์ MIDNIGHT': { open: '18:00', close: '00:00' },
+  'ดาวน์โจนส์ EXTRA': { open: '18:00', close: '01:30' },
+  'หวยมาเลย์': { open: '06:00', close: '18:00' },
+};
+
+function formatDuration(diffMs: number): string {
+  if (diffMs <= 0) return '00:00:00';
+  const totalSec = Math.floor(diffMs / 1000);
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const minutes = Math.floor((totalSec % 3600) / 60);
+  const seconds = totalSec % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (days > 0) {
+    return `${days} วัน ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  }
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
 export default function LotteryList() {
@@ -31,10 +115,11 @@ export default function LotteryList() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [lotteryTypes, setLotteryTypes] = useState<any[]>([]);
 
+  // อัปเดตเวลานับถอยหลังทุก 1 วินาที
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     
-    // Fetch Lottery Types in real-time from Firestore
+    // ดึงข้อมูลประเภทหวยจาก Firestore แบบ Real-time
     const qLottery = query(collection(db, 'lotteryTypes'));
     const unsubLottery = onSnapshot(qLottery, (snap) => {
       setLotteryTypes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -48,7 +133,7 @@ export default function LotteryList() {
     };
   }, []);
 
-  // Sync category filter with URL query param if present
+  // ซิงค์หมวดหมู่กับ URL Query
   useEffect(() => {
     const catParam = searchParams.get('category') as LotteryCategoryKey;
     if (catParam && catParam !== selectedCategory) {
@@ -66,34 +151,14 @@ export default function LotteryList() {
     }
   };
 
-  // Mock default closing times
-  const tomorrow = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 1);
-    d.setHours(15, 20, 0);
-    return d.toISOString();
-  }, []);
+  // รวมรายการ Master Catalog กับ Firestore
+  const rawLotteries = useMemo(() => {
+    const map = new Map<string, any>();
 
-  const todayEvening = useMemo(() => {
-    const d = new Date();
-    d.setHours(18, 0, 0);
-    return d.toISOString();
-  }, []);
-
-  // Merge Master Catalog with custom items from Firestore
-  const mergedLotteries = useMemo<DisplayLotteryItem[]>(() => {
-    const map = new Map<string, DisplayLotteryItem>();
-
-    // 1. Populate from Master Catalog
+    // 1. นำข้อมูลจาก Master Catalog
     MASTER_LOTTERY_CATALOG.forEach(master => {
-      // Find matching Firestore config if exists
       const config = lotteryTypes.find(l => l.name === master.name || l.id === master.name);
       const cat = getLotteryCategory(master.name, config?.category || master.category);
-      
-      let defaultClose = todayEvening;
-      if (cat === 'thai') defaultClose = tomorrow;
-      if (cat === 'yeekee') defaultClose = null;
-
       map.set(master.name, {
         id: master.name,
         name: master.name,
@@ -103,15 +168,14 @@ export default function LotteryList() {
         bgGradient: master.bgGradient,
         isOpen: config ? config.isOpen !== false : true,
         isHidden: config ? config.isHidden === true : false,
-        closeTime: config?.closeTime || defaultClose,
+        config: config || null,
       });
     });
 
-    // 2. Populate any additional lotteries created via Admin panel
+    // 2. นำข้อมูลที่เพิ่มใหม่จากแอดมินใน Firestore
     lotteryTypes.forEach(custom => {
       const name = custom.name || custom.id;
       if (!name) return;
-
       if (!map.has(name)) {
         const cat = getLotteryCategory(name, custom.category);
         let path = `/lottery/${encodeURIComponent(name)}`;
@@ -147,145 +211,346 @@ export default function LotteryList() {
           bgGradient: gradient,
           isOpen: custom.isOpen !== false,
           isHidden: custom.isHidden === true,
-          closeTime: custom.closeTime || todayEvening,
+          config: custom,
         });
       }
     });
 
-    return Array.from(map.values()).filter(item => !item.isHidden);
-  }, [lotteryTypes, tomorrow, todayEvening]);
+    return Array.from(map.values());
+  }, [lotteryTypes]);
 
-  // Compute category counts
+  // ประมวลผลสถานะตามเวลา (Time-Driven Status & Sorting)
+  const processedLotteries = useMemo<ProcessedLotteryItem[]>(() => {
+    const now = currentTime.getTime();
+
+    return rawLotteries.map(item => {
+      const cfg = item.config;
+
+      // 1. ถ้าปิดรับแทงจากระบบ หรือถูกสั่งซ่อน -> สถานะ closed (ปิดไม่แสดงเลย)
+      if (item.isOpen === false || item.isHidden === true || cfg?.isOpen === false) {
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          icon: item.icon,
+          path: item.path,
+          bgGradient: item.bgGradient,
+          status: 'closed' as LotteryStatus,
+          countdownText: '',
+          footerText: 'ปิดรับแทง',
+          sortScore: 999999,
+        };
+      }
+
+      // 2. หวยยี่กี -> เปิดตลอด 24 ชม.
+      if (item.category === 'yeekee' || item.name.includes('ยี่กี')) {
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          icon: item.icon,
+          path: item.path,
+          bgGradient: item.bgGradient,
+          status: 'open' as LotteryStatus,
+          countdownText: 'เปิดรับแทงตลอด',
+          footerText: 'เปิดแทง 24 ชม.',
+          sortScore: 500, // เปิดรอบ อยู่ด้านหน้า
+        };
+      }
+
+      // 3. หวยที่มีการกำหนดเวลาใน Firestore (closeTime / openTime)
+      if (cfg?.closeTime || cfg?.closingTime) {
+        const closeTimeMs = new Date(cfg.closeTime || cfg.closingTime).getTime();
+        const openTimeMs = cfg.openTime ? new Date(cfg.openTime).getTime() : 0;
+        const isSettled = cfg.isSettled === true;
+
+        if (isSettled) {
+          return {
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            icon: item.icon,
+            path: item.path,
+            bgGradient: item.bgGradient,
+            status: 'closed' as LotteryStatus,
+            countdownText: '',
+            footerText: 'ออกผลรางวัลแล้ว',
+            sortScore: 999999,
+          };
+        }
+
+        // ยังไม่ถึงเวลาเปิด
+        if (openTimeMs > 0 && now < openTimeMs) {
+          const diff = openTimeMs - now;
+          return {
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            icon: item.icon,
+            path: item.path,
+            bgGradient: item.bgGradient,
+            status: 'upcoming' as LotteryStatus,
+            countdownText: formatDuration(diff),
+            footerText: `เปิดรับ ${new Date(openTimeMs).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.`,
+            sortScore: 3000 + diff / 1000,
+          };
+        }
+
+        // กำลังเปิดรับแทง
+        if (now < closeTimeMs) {
+          const diff = closeTimeMs - now;
+          return {
+            id: item.id,
+            name: item.name,
+            category: item.category,
+            icon: item.icon,
+            path: item.path,
+            bgGradient: item.bgGradient,
+            status: 'open' as LotteryStatus,
+            countdownText: formatDuration(diff),
+            footerText: `ปิดรับ ${new Date(closeTimeMs).toLocaleString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
+            sortScore: 100 + diff / 1000, // ใกล้ปิดที่สุด อยู่หน้าสุด
+          };
+        }
+
+        // ถึงเวลาปิดแล้วแต่ยังไม่ออกผล -> รอผล
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          icon: item.icon,
+          path: item.path,
+          bgGradient: item.bgGradient,
+          status: 'waiting_result' as LotteryStatus,
+          countdownText: '',
+          footerText: 'ปิดรับแล้ว • รอผลรางวัล',
+          sortScore: 2000,
+        };
+      }
+
+      // 4. หวยไทย / ธนาคาร (หวยธกส., หวยออมสิน)
+      if (item.category === 'thai') {
+        const tomorrow1520 = new Date(currentTime);
+        tomorrow1520.setDate(tomorrow1520.getDate() + 1);
+        tomorrow1520.setHours(15, 20, 0, 0);
+        const diff = tomorrow1520.getTime() - now;
+
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          icon: item.icon,
+          path: item.path,
+          bgGradient: item.bgGradient,
+          status: 'open' as LotteryStatus,
+          countdownText: formatDuration(diff),
+          footerText: `ปิดรับ ${tomorrow1520.toLocaleDateString('th-TH', { day: '2-digit', month: 'short' })} 15:20`,
+          sortScore: 150 + diff / 1000,
+        };
+      }
+
+      // 5. หวยรายวันตามตารางมาตรฐาน (ฮานอย, ลาว, หวยหุ้น)
+      const sched = STANDARD_LOTTERY_SCHEDULES[item.name] || { open: '06:00', close: '18:00' };
+      const [hOpen, mOpen] = sched.open.split(':').map(Number);
+      const [hClose, mClose] = sched.close.split(':').map(Number);
+
+      const openDate = new Date(currentTime);
+      openDate.setHours(hOpen, mOpen, 0, 0);
+
+      const closeDate = new Date(currentTime);
+      closeDate.setHours(hClose, mClose, 0, 0);
+
+      // กรณีข้ามวัน เช่น ดาวน์โจนส์ เปิด 18:00 ปิด 03:00 วันรุ่งขึ้น
+      if (hClose < hOpen) {
+        if (currentTime.getHours() >= hOpen) {
+          closeDate.setDate(closeDate.getDate() + 1);
+        } else {
+          openDate.setDate(openDate.getDate() - 1);
+        }
+      }
+
+      const openTimeMs = openDate.getTime();
+      const closeTimeMs = closeDate.getTime();
+
+      // A: เปิดแต่ไม่ถึงเวลา (เวลาก่อนเวลาเปิด) -> เทามีเวลาถอยหลัง เวลาสีแดง
+      if (now < openTimeMs) {
+        const diff = openTimeMs - now;
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          icon: item.icon,
+          path: item.path,
+          bgGradient: item.bgGradient,
+          status: 'upcoming' as LotteryStatus,
+          countdownText: formatDuration(diff),
+          footerText: `เปิดรับ ${sched.open} น.`,
+          sortScore: 3000 + diff / 1000,
+        };
+      }
+
+      // B: เปิดรอบ (ถึงเวลาเปิดแล้ว และยังไม่ถึงเวลาปิด) -> มีสี มีเวลา จัดเรียงอยู่ด้านหน้า
+      if (now >= openTimeMs && now < closeTimeMs) {
+        const diff = closeTimeMs - now;
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          icon: item.icon,
+          path: item.path,
+          bgGradient: item.bgGradient,
+          status: 'open' as LotteryStatus,
+          countdownText: formatDuration(diff),
+          footerText: `ปิดรับ ${sched.close} น.`,
+          sortScore: 100 + diff / 1000, // ปิดเร็วสุดเรียงอยู่หน้าสุด
+        };
+      }
+
+      // C: รอผล (หลังปิดรับแทงไม่เกิน 60 นาที) -> ขึ้น รอผล เท่านั้น
+      const waitingWindowMs = 60 * 60 * 1000;
+      if (now >= closeTimeMs && now < closeTimeMs + waitingWindowMs) {
+        return {
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          icon: item.icon,
+          path: item.path,
+          bgGradient: item.bgGradient,
+          status: 'waiting_result' as LotteryStatus,
+          countdownText: '',
+          footerText: 'ปิดรับแล้ว • รอผลรางวัล',
+          sortScore: 2000,
+        };
+      }
+
+      // D: หมดรอบของวันนี้แล้ว -> รอเปิดรอบวันพรุ่งนี้
+      const nextOpenDate = new Date(openDate);
+      nextOpenDate.setDate(nextOpenDate.getDate() + 1);
+      const diffNext = nextOpenDate.getTime() - now;
+
+      return {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        icon: item.icon,
+        path: item.path,
+        bgGradient: item.bgGradient,
+        status: 'upcoming' as LotteryStatus,
+        countdownText: formatDuration(diffNext),
+        footerText: `เปิดรับพรุ่งนี้ ${sched.open} น.`,
+        sortScore: 3000 + diffNext / 1000,
+      };
+    });
+  }, [rawLotteries, currentTime]);
+
+  // คำนวณจำนวนหวยในแต่ละหมวดหมู่ (นับเฉพาะที่ไม่ปิด: "ปิดไม่แสดงเลย")
   const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: mergedLotteries.length };
+    const activeLotteries = processedLotteries.filter(l => l.status !== 'closed');
+    const counts: Record<string, number> = { all: activeLotteries.length };
     LOTTERY_CATEGORIES.forEach(c => {
       if (c.id !== 'all') {
-        counts[c.id] = mergedLotteries.filter(l => l.category === c.id).length;
+        counts[c.id] = activeLotteries.filter(l => l.category === c.id).length;
       }
     });
     return counts;
-  }, [mergedLotteries]);
+  }, [processedLotteries]);
 
-  // Filtered by selected category and search term
-  const filteredLotteries = useMemo(() => {
-    return mergedLotteries.filter(item => {
-      const matchCategory = selectedCategory === 'all' || item.category === selectedCategory;
-      const matchSearch = !searchTerm.trim() || item.name.toLowerCase().includes(searchTerm.trim().toLowerCase());
-      return matchCategory && matchSearch;
-    });
-  }, [mergedLotteries, selectedCategory, searchTerm]);
+  // กรองและจัดเรียง:
+  // 1. ปิดไม่แสดงเลย (filter status !== 'closed')
+  // 2. จัดเรียง: เปิดรอบอยู่ด้านหน้า (ใกล้ปิดสุดขึ้นก่อน) -> รอผล -> เปิดแต่ไม่ถึงเวลา
+  const displayedLotteries = useMemo(() => {
+    return processedLotteries
+      .filter(item => item.status !== 'closed') // ปิดไม่แสดงเลย
+      .filter(item => {
+        const matchCategory = selectedCategory === 'all' || item.category === selectedCategory;
+        const matchSearch = !searchTerm.trim() || item.name.toLowerCase().includes(searchTerm.trim().toLowerCase());
+        return matchCategory && matchSearch;
+      })
+      .sort((a, b) => a.sortScore - b.sortScore); // จัดเรียงตามลำดับเวลา
+  }, [processedLotteries, selectedCategory, searchTerm]);
 
-  // Helper to format countdown
-  const getCountdown = (closeTimeStr: string | null) => {
-    if (!closeTimeStr) return 'เปิดรับแทงตลอด';
-    const closeTime = new Date(closeTimeStr).getTime();
-    const now = currentTime.getTime();
-    const diff = closeTime - now;
-    
-    if (diff <= 0) return 'ปิดรับแทง';
-    
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-    
-    if (days > 0) {
-      return `${days} วัน ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  const isThaiLottery = (item: DisplayLotteryItem) => 
-    item.category === 'thai' || item.name.includes('รัฐบาล') || item.name.includes('ไทย');
-
-  const thaiLottery = useMemo(() => {
-    return mergedLotteries.find(isThaiLottery);
-  }, [mergedLotteries]);
-
-  const renderCard = (item: DisplayLotteryItem) => {
-    const isClosed = !item.isOpen || (item.closeTime && new Date(item.closeTime).getTime() <= currentTime.getTime());
-    const isThai = isThaiLottery(item);
-    
-    if (isClosed) {
+  // เรนเดอร์การ์ดตามสถานะที่กำหนด
+  const renderCard = (item: ProcessedLotteryItem) => {
+    // -------------------------------------------------------------
+    // สถานะที่ 1: รอผล (ขึ้น รอผล เท่านั้น)
+    // -------------------------------------------------------------
+    if (item.status === 'waiting_result') {
       return (
         <div 
           key={item.id} 
-          className="bg-gradient-to-b from-[#4a4a4a] to-[#2d3436] rounded-xl shadow-md overflow-hidden flex flex-col text-white opacity-85 border border-white/5"
+          className="bg-gradient-to-b from-[#2d2218] via-[#1f1913] to-[#120f0d] rounded-xl shadow-md overflow-hidden flex flex-col text-white border border-amber-500/40 relative"
         >
-          <div className="py-2.5 text-center text-sm font-bold tracking-wider flex items-center justify-center gap-1 text-rose-300 bg-black/20">
-            <span className="material-symbols-outlined text-[16px]">schedule</span>
-            ปิดรับแทงชั่วคราว
+          {/* หัวการ์ด: ขึ้น รอผล เท่านั้น (ไม่มีเวลานับถอยหลัง) */}
+          <div className="py-2.5 text-center text-xs sm:text-sm font-black tracking-wider flex items-center justify-center gap-1.5 bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-black shadow-inner">
+            <span className="material-symbols-outlined text-[16px] animate-spin">hourglass_top</span>
+            <span className="text-sm font-black tracking-wide">รอผล</span>
           </div>
-          <div className="bg-black/10 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2">
-            <span className="text-xl">{item.icon}</span> 
+
+          <div className="bg-black/20 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2 text-amber-200">
+            <span className="text-xl filter drop-shadow">{item.icon}</span> 
             <span className="truncate">{item.name}</span>
           </div>
-          <div className="bg-black/40 py-1.5 text-center text-[11px] text-gray-400">
-            เปิดแทง 0 รอบ
+
+          <div className="py-1.5 text-center text-[11px] bg-black/40 text-amber-400/90 font-bold">
+            {item.footerText}
           </div>
         </div>
       );
     }
 
+    // -------------------------------------------------------------
+    // สถานะที่ 2: เปิดแต่ไม่ถึงเวลา (เทามีเวลาถอยหลัง เวลาสีแดง)
+    // -------------------------------------------------------------
+    if (item.status === 'upcoming') {
+      return (
+        <div 
+          key={item.id} 
+          className="bg-gradient-to-b from-[#374151] to-[#1f2937] rounded-xl shadow-md overflow-hidden flex flex-col text-gray-200 border border-gray-700/80"
+        >
+          {/* หัวการ์ด: เทามีเวลาถอยหลัง เวลาสีแดง */}
+          <div className="py-2.5 text-center text-xs sm:text-sm font-black tracking-wider flex items-center justify-center gap-1.5 bg-black/40 border-b border-gray-700">
+            <span className="text-[11px] font-bold text-gray-400">นับถอยหลัง:</span>
+            <span className="font-mono text-sm sm:text-base text-red-500 font-black animate-pulse">
+              {item.countdownText}
+            </span>
+          </div>
+
+          <div className="bg-black/10 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2 text-gray-300">
+            <span className="text-xl opacity-80">{item.icon}</span> 
+            <span className="truncate">{item.name}</span>
+          </div>
+
+          <div className="py-1.5 text-center text-[11px] bg-black/30 text-gray-400 font-medium">
+            {item.footerText}
+          </div>
+        </div>
+      );
+    }
+
+    // -------------------------------------------------------------
+    // สถานะที่ 3: เปิดรอบ (มีสี มีเวลา จัดเรียงอยู่ด้านหน้า)
+    // -------------------------------------------------------------
     return (
       <Link 
         key={item.id}
         to={item.path} 
-        className={`${item.bgGradient} rounded-xl shadow-lg overflow-hidden flex flex-col text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 border ${
-          isThai 
-            ? 'border-2 border-red-500 shadow-red-500/30 ring-2 ring-red-500/20 relative' 
-            : 'border-white/10'
-        } group`}
+        className={`${item.bgGradient} rounded-xl shadow-lg overflow-hidden flex flex-col text-white hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 border border-white/10 group`}
       >
-        {isThai && (
-          <div className="absolute top-1 right-1 z-10 bg-gradient-to-r from-red-600 to-amber-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full shadow flex items-center gap-0.5 animate-pulse">
-            <span>⭐ หวยเด่น</span>
-          </div>
-        )}
-
-        {/* Countdown Header */}
-        <div className={`py-2.5 text-center text-sm sm:text-base font-black tracking-wider flex items-center justify-center gap-1.5 transition ${
-          isThai 
-            ? 'bg-gradient-to-r from-red-950/80 via-black/50 to-red-950/80 border-b border-red-500/40 text-red-500' 
-            : 'bg-black/15 group-hover:bg-black/25 text-white'
-        }`}>
-          {isThai ? (
-            <>
-              {/* โลโก้เล็กหมุนด้านใน */}
-              <div className="w-4 h-4 rounded-full border border-dashed border-red-500 animate-spin flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[10px] text-red-500">rotate_right</span>
-              </div>
-              {/* ตัวอักษร สี แดง กำลังนับถอยหลัง */}
-              <div className="text-red-500 font-black tracking-wider flex items-center gap-1 animate-pulse">
-                <span className="text-[11px] font-bold text-red-400">กำลังนับถอยหลัง:</span>
-                <span className="font-mono text-sm sm:text-base text-red-500 font-black">
-                  {getCountdown(item.closeTime)}
-                </span>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="material-symbols-outlined text-sm text-yellow-300">timer</span>
-              {getCountdown(item.closeTime)}
-            </>
-          )}
+        {/* หัวการ์ด: มีเวลา */}
+        <div className="py-2.5 text-center text-sm sm:text-base font-black tracking-wider flex items-center justify-center gap-1.5 bg-black/20 group-hover:bg-black/30 transition">
+          <span className="material-symbols-outlined text-sm text-yellow-300">timer</span>
+          <span className="font-mono text-yellow-300 font-black">{item.countdownText}</span>
         </div>
 
-        {/* Title and Icon */}
+        {/* ชื่อหวยและไอคอน */}
         <div className="bg-black/10 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2">
-          {isThai ? (
-            <div className="relative flex items-center justify-center">
-              <div className="w-8 h-8 rounded-full border-2 border-dashed border-red-500 animate-[spin_5s_linear_infinite]" />
-              <span className="absolute text-xl">🇹🇭</span>
-            </div>
-          ) : (
-            <span className="text-xl filter drop-shadow">{item.icon}</span>
-          )}
-          <span className={`truncate ${isThai ? 'text-yellow-300 font-black drop-shadow' : ''}`}>{item.name}</span>
+          <span className="text-xl filter drop-shadow">{item.icon}</span>
+          <span className="truncate">{item.name}</span>
         </div>
 
-        <div className={`py-1.5 text-center text-[11px] ${isThai ? 'bg-black/40 text-amber-200/90 font-bold' : 'bg-black/25 text-white/90'}`}>
-          {item.closeTime ? `ปิดรับ ${new Date(item.closeTime).toLocaleString('th-TH', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'เปิดรับแทง 24 ชม.'}
+        {/* แถบระบุเวลาปิดรับ */}
+        <div className="py-1.5 text-center text-[11px] bg-black/25 text-white/90 font-medium">
+          {item.footerText}
         </div>
       </Link>
     );
@@ -317,7 +582,7 @@ export default function LotteryList() {
       {/* Main Container */}
       <div className="max-w-6xl mx-auto p-3 sm:p-5 space-y-4">
         
-        {/* Search Bar & Stats */}
+        {/* ค้นหาชื่อหวย & สถิติรายการ */}
         <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-[#161b22] p-3 rounded-2xl border border-gray-800">
           <div className="relative flex-1">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-lg">search</span>
@@ -339,15 +604,16 @@ export default function LotteryList() {
           </div>
 
           <div className="text-xs text-gray-400 flex items-center gap-2 justify-end px-2">
-            <span>ทั้งหมด: <strong className="text-amber-400">{filteredLotteries.length}</strong> รายการ</span>
+            <span>ทั้งหมด: <strong className="text-amber-400">{displayedLotteries.length}</strong> รายการ</span>
           </div>
         </div>
 
-        {/* Category Filter Tabs */}
+        {/* แถบหมวดหมู่หวย (Category Filter Tabs) */}
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none text-xs font-bold">
           {LOTTERY_CATEGORIES.map(cat => {
             const isActive = selectedCategory === cat.id;
             const count = categoryCounts[cat.id] || 0;
+
             return (
               <button
                 key={cat.id}
@@ -370,67 +636,15 @@ export default function LotteryList() {
           })}
         </div>
 
-        {/* Featured Thai Lottery Spotlight Banner */}
-        {thaiLottery && (selectedCategory === 'all' || selectedCategory === 'thai') && !searchTerm && (
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#2a080f] via-[#111722] to-[#2a080f] border-2 border-red-500/70 p-4 sm:p-5 shadow-2xl shadow-red-500/20">
-            <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-3.5 w-full md:w-auto">
-                {/* โลโก้เล็กหมุนด้านใน */}
-                <div className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center shrink-0">
-                  <div className="absolute inset-0 rounded-full border-2 border-dashed border-red-500 animate-[spin_4s_linear_infinite]" />
-                  <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-tr from-red-600 via-amber-500 to-red-700 flex items-center justify-center shadow-lg">
-                    <span className="text-lg md:text-xl">🇹🇭</span>
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full shadow flex items-center gap-1 animate-pulse">
-                      <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-                      ⭐ หวยเด่น ยอดนิยมอันดับ 1
-                    </span>
-                    <span className="text-xs text-amber-400 font-bold">อัตราจ่ายสูงสุด 900 บาท</span>
-                  </div>
-                  <h2 className="text-white font-black text-lg sm:text-xl mt-1 tracking-wide">
-                    หวยรัฐบาลไทย (สลากกินแบ่งรัฐบาล)
-                  </h2>
-                </div>
-              </div>
-
-              {/* กล่องตัวอักษรสีแดง กำลังนับถอยหลัง */}
-              <div className="flex items-center gap-3 bg-red-950/60 border border-red-500/50 px-4 py-2.5 rounded-xl w-full md:w-auto justify-center md:justify-start">
-                {/* โลโก้เล็กหมุนด้านใน */}
-                <div className="w-5 h-5 rounded-full border border-dashed border-red-400 animate-spin flex items-center justify-center shrink-0">
-                  <span className="material-symbols-outlined text-xs text-red-400">autorenew</span>
-                </div>
-                <div>
-                  <div className="text-[11px] font-bold text-red-400">กำลังนับถอยหลัง:</div>
-                  <div className="text-red-500 font-black text-base sm:text-lg font-mono tracking-wider animate-pulse">
-                    {getCountdown(thaiLottery.closeTime)}
-                  </div>
-                </div>
-              </div>
-
-              <Link
-                to={thaiLottery.path}
-                className="w-full md:w-auto bg-gradient-to-r from-red-600 via-red-500 to-amber-500 hover:brightness-110 text-white font-black text-sm px-6 py-3 rounded-xl shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 transition active:scale-95 shrink-0"
-              >
-                <span>แทงหวยรัฐบาล</span>
-                <span className="material-symbols-outlined text-sm font-bold">arrow_forward</span>
-              </Link>
-            </div>
-          </div>
-        )}
-
-        {/* Lottery Cards Grid */}
-        {filteredLotteries.length === 0 ? (
+        {/* ตารางการ์ดหวย (Lottery Cards Grid) */}
+        {displayedLotteries.length === 0 ? (
           <div className="text-center py-16 bg-[#161b22] rounded-2xl border border-dashed border-gray-800">
             <span className="material-symbols-outlined text-5xl text-gray-600 mb-2">search_off</span>
-            <p className="text-gray-400 font-bold text-sm">ไม่พบรายการหวยที่ค้นหา</p>
+            <p className="text-gray-400 font-bold text-sm">ไม่พบรายการหวยที่เปิดรับในขณะนี้</p>
             <p className="text-gray-600 text-xs mt-1">ลองเปลี่ยนคำค้นหา หรือเลือกหมวดหมู่อื่นดูนะคะ</p>
             {searchTerm && (
               <button 
-                onClick={() => setSearchTerm('')}
+                onClick={() => setSearchTerm('')} 
                 className="mt-3 px-3 py-1 bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold hover:bg-amber-500/30 transition"
               >
                 ล้างคำค้นหา
@@ -439,7 +653,7 @@ export default function LotteryList() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {filteredLotteries.map(item => renderCard(item))}
+            {displayedLotteries.map(item => renderCard(item))}
           </div>
         )}
 
