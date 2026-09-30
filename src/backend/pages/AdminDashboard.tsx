@@ -61,8 +61,62 @@ export default function AdminDashboard() {
   const [newLotteryCategory, setNewLotteryCategory] = useState<LotteryCategoryKey>('thai');
   const [newLotteryIsOpen, setNewLotteryIsOpen] = useState(true);
   const [autoBlockCount, setAutoBlockCount] = useState(50);
+  // ★ Rules Management State
+  const [rulesSubTab, setRulesSubTab] = useState<'general' | 'lottery'>('general');
   const [rulesContent, setRulesContent] = useState('');
-  const [popupContent, setPopupContent] = useState({ title: '', body: '', imageUrl: '', active: false });
+  const [selectedRulesLottery, setSelectedRulesLottery] = useState<string>('');
+  const [lotteryRulesText, setLotteryRulesText] = useState<string>('');
+  const [lotteryRulesImageUrl, setLotteryRulesImageUrl] = useState<string>('');
+  const [isSavingRules, setIsSavingRules] = useState(false);
+
+  // ★ Popup & Welcome Management State
+  const [popupSubTab, setPopupSubTab] = useState<'announcement' | 'welcome'>('announcement');
+  const [popupContent, setPopupContent] = useState<{
+    title: string;
+    body: string;
+    imageUrl: string;
+    active: boolean;
+    type: 'general' | 'promotion' | 'maintenance' | 'urgent';
+    target: 'all' | 'specific';
+    targetUsers: string;
+    showOnce: boolean;
+    linkUrl: string;
+    actionText: string;
+  }>({
+    title: 'ยินดีต้อนรับสู่ AK88 LOTTO',
+    body: 'ระบบฝาก-ถอนออโต้ ตลอด 24 ชั่วโมง อัตราจ่ายสูงสุดบาทละ 1,000',
+    imageUrl: '',
+    active: false,
+    type: 'general',
+    target: 'all',
+    targetUsers: '',
+    showOnce: false,
+    linkUrl: '',
+    actionText: 'ดูรายละเอียด'
+  });
+  const [welcomeContent, setWelcomeContent] = useState<{
+    enabled: boolean;
+    title: string;
+    subtitle: string;
+    bonusNotice: string;
+    imageUrl: string;
+    buttonText: string;
+    features: string[];
+  }>({
+    enabled: true,
+    title: 'ยินดีต้อนรับสู่ AK88 LOTTO! 🎉',
+    subtitle: 'เว็บแทงหวยออนไลน์มาตรฐานระดับสากล อัตราจ่ายสูงสุด บาทละ 1,000',
+    bonusNotice: 'สมาชิกใหม่รับสิทธิ์ร่วมสนุกและรับโบนัสพิเศษ!',
+    imageUrl: '',
+    buttonText: 'เริ่มต้นใช้งานทันที',
+    features: [
+      'ครบทุกหวยดัง: รัฐบาลไทย ยี่กี 88 รอบ ฮานอย ลาว หุ้น',
+      'ระบบฝาก-ถอนเงินออโต้ QR Code สแกนจ่ายปรับยอดไวใน 30 วิ',
+      'จ่ายเต็ม ปลอดภัย 100% พร้อมบริการซัพพอร์ตตลอด 24 ชั่วโมง'
+    ]
+  });
+  const [isSavingPopup, setIsSavingPopup] = useState(false);
+  const [isSavingWelcome, setIsSavingWelcome] = useState(false);
   const [apiKeyStatus, setApiKeyStatus] = useState({ connected: true, lastCheck: new Date().toISOString() });
   const [users, setUsers] = useState<any[]>([]);
   const [agents, setAgents] = useState<any[]>([]);
@@ -562,7 +616,41 @@ export default function AdminDashboard() {
 
     // Listen to popup
     const unsubscribePopup = onSnapshot(doc(db, 'settings', 'popup'), (doc) => {
-      if (doc.exists()) setPopupContent(doc.data() as any);
+      if (doc.exists()) {
+        const d = doc.data();
+        setPopupContent({
+          title: d.title || '',
+          body: d.body || '',
+          imageUrl: d.imageUrl || '',
+          active: !!d.active,
+          type: d.type || 'general',
+          target: d.target || 'all',
+          targetUsers: d.targetUsers || '',
+          showOnce: !!d.showOnce,
+          linkUrl: d.linkUrl || '',
+          actionText: d.actionText || 'ดูรายละเอียด'
+        });
+      }
+    });
+
+    // Listen to welcome modal
+    const unsubscribeWelcome = onSnapshot(doc(db, 'settings', 'welcome'), (doc) => {
+      if (doc.exists()) {
+        const d = doc.data();
+        setWelcomeContent({
+          enabled: d.enabled !== false,
+          title: d.title || 'ยินดีต้อนรับสู่ AK88 LOTTO! 🎉',
+          subtitle: d.subtitle || 'เว็บแทงหวยออนไลน์มาตรฐานระดับสากล อัตราจ่ายสูงสุด บาทละ 1,000',
+          bonusNotice: d.bonusNotice || '',
+          imageUrl: d.imageUrl || '',
+          buttonText: d.buttonText || 'เริ่มต้นใช้งานทันที',
+          features: Array.isArray(d.features) ? d.features : [
+            'ครบทุกหวยดัง: รัฐบาลไทย ยี่กี 88 รอบ ฮานอย ลาว หุ้น',
+            'ระบบฝาก-ถอนเงินออโต้ QR Code สแกนจ่ายปรับยอดไวใน 30 วิ',
+            'จ่ายเต็ม ปลอดภัย 100% พร้อมบริการซัพพอร์ตตลอด 24 ชั่วโมง'
+          ]
+        });
+      }
     });
 
     return () => {
@@ -577,8 +665,23 @@ export default function AdminDashboard() {
       unsubscribeResults();
       unsubscribeRules();
       unsubscribePopup();
+      unsubscribeWelcome();
     };
   }, []);
+
+  // Sync selected lottery rules when selection or catalog updates
+  useEffect(() => {
+    if (selectedRulesLottery && lotterySettings[selectedRulesLottery]) {
+      const lot = lotterySettings[selectedRulesLottery];
+      setLotteryRulesText(lot.rules?.text || '');
+      setLotteryRulesImageUrl(lot.rules?.imageUrl || '');
+    } else if (!selectedRulesLottery && Object.keys(lotterySettings).length > 0) {
+      const firstKey = Object.keys(lotterySettings)[0];
+      setSelectedRulesLottery(firstKey);
+      setLotteryRulesText(lotterySettings[firstKey]?.rules?.text || '');
+      setLotteryRulesImageUrl(lotterySettings[firstKey]?.rules?.imageUrl || '');
+    }
+  }, [selectedRulesLottery, lotterySettings]);
 
   const logActivity = async (action: string, details: string, type: 'credit' | 'settings' | 'lottery' | 'system' | 'result' | 'agent' | 'security' | 'staff') => {
     try {
@@ -4292,58 +4395,762 @@ export default function AdminDashboard() {
             </div>
            )}
 
-          {/* 7. กติกาการเล่น */}
+          {/* 7. กติกาการเล่น (เชื่อมต่อหลังบ้าน <-> หน้าบ้าน) */}
           {activeTab === 'rules' && (
-            <div className="admin-card p-8">
-               <h3 className="font-black text-[var(--navy-deep)] mb-6 flex items-center gap-2">
-                 <span className="material-symbols-outlined text-[var(--gold-vibrant)]">gavel</span>
-                 จัดการกติกาการเล่น
-               </h3>
-               <div className="space-y-4">
-                  <textarea 
-                    className="w-full h-[400px] border rounded-2xl p-6 font-medium text-gray-600 outline-none focus:border-[var(--gold-vibrant)]"
-                    defaultValue="กติกาการเล่นระบบหวยออนไลน์... (ตัวอย่าง)"
-                  />
-                  <div className="flex justify-end">
-                     <button className="bg-[var(--navy-deep)] text-[var(--gold-vibrant)] px-8 py-3 rounded-xl font-black shadow-lg">บันทึกกติกา</button>
+            <div className="space-y-6">
+              {/* Header Card */}
+              <div className="admin-card p-6 bg-gradient-to-r from-[var(--navy-deep)] to-[#112240] text-white">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-[var(--gold-vibrant)]/20 text-[var(--gold-vibrant)] flex items-center justify-center font-bold">
+                      <span className="material-symbols-outlined text-2xl">gavel</span>
+                    </div>
+                    <div>
+                      <h3 className="font-black text-lg text-white">จัดการกติกาการเล่น (เชื่อมต่อหน้าบ้านอัตโนมัติ)</h3>
+                      <p className="text-xs text-amber-200/80">แก้ไขกติกาที่นี่ ข้อมูลจะอัปเดตไปแสดงผลที่หน้าบ้าน /rules ทันที</p>
+                    </div>
                   </div>
-               </div>
+
+                  {/* Sub-tab switcher */}
+                  <div className="flex items-center bg-white/10 p-1 rounded-xl">
+                    <button
+                      onClick={() => setRulesSubTab('general')}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        rulesSubTab === 'general'
+                          ? 'bg-[var(--gold-vibrant)] text-[var(--navy-deep)] shadow'
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">public</span>
+                      <span>กติกาการเล่นทั่วไป</span>
+                    </button>
+                    <button
+                      onClick={() => setRulesSubTab('lottery')}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        rulesSubTab === 'lottery'
+                          ? 'bg-[var(--gold-vibrant)] text-[var(--navy-deep)] shadow'
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">casino</span>
+                      <span>กติกากำหนดรายหวย</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sub-tab 1: General Rules */}
+              {rulesSubTab === 'general' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Column: Editor & Templates */}
+                  <div className="lg:col-span-2 admin-card p-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-gray-500 uppercase tracking-wider">
+                        เนื้อหากติกาการเล่นทั่วไป (Markdown / ข้อความธรรมดา)
+                      </span>
+
+                      {/* Quick template helpers */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const standardTemplate = `1. ข้อกำหนดการเดิมพันและการตัดรอบ
+- ระบบจะเปิดรับแทงและปิดรับแทงตามเวลาที่กำหนดในแต่ละประเภทหวยอย่างเคร่งครัด
+- สมาชิกมีหน้าที่ตรวจสอบความถูกต้องของตัวเลขและยอดเงินก่อนกดยืนยันส่งโพยเสมอ
+- หากมีการส่งโพยหลังเวลาปิดรับแทง ระบบจะถือว่าการแทงรอบนั้นเป็นโมฆะและคืนเครดิตทันที
+
+2. การฝาก-ถอนเงิน และอัตราจ่าย
+- ระบบฝากเงินผ่าน QR Code อัตโนมัติ ปรับยอดเครดิตภายใน 30 วินาที
+- การถอนเงินจะโอนเข้าเฉพาะบัญชีธนาคารที่มีชื่อตรงกับที่ลงทะเบียนไว้เท่านั้น
+- อัตราจ่ายสูงสุด 3 ตัวตรง บาทละ 900-1,000 และ 2 ตัวตรง บาทละ 90-100
+
+3. เงื่อนไขการคืนเครดิตกรณีโมฆะ
+- หากตลาดหลักทรัพย์หรือกองสลากไม่มีการออกผลรางวัลตามกำหนด ทางระบบจะยกเลิกโพยและคืนเครดิตให้ลูกค้าเต็มจำนวน
+- การตัดสินของคณะทำงาน AK88 ถือเป็นที่สิ้นสุดในกรณีเกิดเหตุขัดข้องทางเทคนิคที่ไม่คาดคิด`;
+                            setRulesContent(standardTemplate);
+                          }}
+                          className="text-[11px] bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold px-2.5 py-1 rounded-lg border border-amber-200 transition"
+                        >
+                          + ใส่เทมเพลตมาตรฐาน
+                        </button>
+                      </div>
+                    </div>
+
+                    <textarea
+                      value={rulesContent}
+                      onChange={(e) => setRulesContent(e.target.value)}
+                      placeholder="ระบุข้อกำหนด กติกาการเล่น และเงื่อนไขการให้บริการ..."
+                      className="w-full h-96 border border-gray-300 rounded-2xl p-4 font-mono text-xs md:text-sm text-gray-800 outline-none focus:border-[var(--gold-vibrant)] focus:ring-2 focus:ring-[var(--gold-vibrant)]/20 transition leading-relaxed"
+                    />
+
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="text-xs text-gray-400">
+                        ความยาวข้อความ: {rulesContent.length} ตัวอักษร
+                      </span>
+
+                      <button
+                        onClick={async () => {
+                          setIsSavingRules(true);
+                          try {
+                            await setDoc(doc(db, 'settings', 'rules'), {
+                              content: rulesContent,
+                              updatedAt: new Date().toISOString(),
+                              updatedBy: session?.displayName || 'Admin'
+                            }, { merge: true });
+                            await logActivity('บันทึกกติกาการเล่นทั่วไป', 'อัปเดตกติกาการเล่นทั่วไปในระบบ', 'settings');
+                            alert('บันทึกกติกาการเล่นทั่วไปเรียบร้อยแล้ว หน้าบ้านซิงค์ข้อมูลทันที');
+                          } catch (e: any) {
+                            alert('เกิดข้อผิดพลาด: ' + (e?.message || e));
+                          } finally {
+                            setIsSavingRules(false);
+                          }
+                        }}
+                        disabled={isSavingRules}
+                        className="bg-[var(--navy-deep)] text-[var(--gold-vibrant)] px-8 py-3 rounded-xl font-black shadow-lg hover:brightness-110 transition flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-lg">save</span>
+                        <span>{isSavingRules ? 'กำลังบันทึก...' : 'บันทึกกติกาการเล่นทั่วไป'}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Preview on Frontoffice */}
+                  <div className="admin-card p-6 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-4 pb-2 border-b">
+                        <span className="material-symbols-outlined text-[var(--gold-vibrant)]">preview</span>
+                        <h4 className="font-bold text-sm text-[var(--navy-deep)]">ตัวอย่างแสดงผลหน้าบ้าน (/rules)</h4>
+                      </div>
+
+                      <div className="bg-gray-50 border rounded-2xl p-4 max-h-[460px] overflow-y-auto space-y-3">
+                        <div className="bg-[#0a192f] text-white p-3 rounded-xl flex items-center gap-2">
+                          <span className="material-symbols-outlined text-[#f5c518] text-base">shield</span>
+                          <span className="text-xs font-bold">กติกาและข้อกำหนดการใช้งานทั่วไป</span>
+                        </div>
+                        <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed font-sans">
+                          {rulesContent || 'ยังไม่มีการระบุข้อความกติกา...'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-gray-400 mt-4 text-center">
+                      ลูกค้าหน้าบ้านสามารถเข้าดูได้จากปุ่ม "กติกา" บนแถบเมนู
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-tab 2: Per-Lottery Rules */}
+              {rulesSubTab === 'lottery' && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Left Column: Editor */}
+                  <div className="lg:col-span-2 admin-card p-6 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Lottery Selector */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-black text-gray-500 uppercase">เลือกประเภทหวยที่ต้องการตั้งกติกา</label>
+                        <select
+                          value={selectedRulesLottery}
+                          onChange={(e) => setSelectedRulesLottery(e.target.value)}
+                          className="w-full p-3 border rounded-xl font-bold text-sm bg-white outline-none focus:border-[var(--gold-vibrant)]"
+                        >
+                          {Object.keys(lotterySettings).map((lotKey) => (
+                            <option key={lotKey} value={lotKey}>
+                              {lotterySettings[lotKey]?.name || lotKey}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Banner Image URL */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-black text-gray-500 uppercase">ลิงก์รูปภาพแบนเนอร์กติกา (ถ้ามี)</label>
+                        <input
+                          type="text"
+                          value={lotteryRulesImageUrl}
+                          onChange={(e) => setLotteryRulesImageUrl(e.target.value)}
+                          placeholder="https://example.com/banner-rules.jpg"
+                          className="w-full p-3 border rounded-xl text-xs outline-none focus:border-[var(--gold-vibrant)]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick Template button */}
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const lotName = lotterySettings[selectedRulesLottery]?.name || selectedRulesLottery;
+                          setLotteryRulesText(`กติกาและวิธีการเล่น ${lotName}
+- ระบบเปิดรับแทงทุกวันตามกำหนดรอบ
+- ปิดรับแทงก่อนเวลาออกผลรางวัล 10 นาที
+- อัตราจ่ายและรางวัลอ้างอิงตามตารางมาตรฐานของระบบ
+- ในกรณีที่ไม่มีการออกผลรางวัลตามกำหนด ระบบจะทำการยกเลิกโพยและคืนเครดิตให้ลูกค้าเต็มจำนวน`);
+                        }}
+                        className="text-[11px] bg-blue-50 hover:bg-blue-100 text-blue-800 font-bold px-2.5 py-1 rounded-lg border border-blue-200 transition"
+                      >
+                        + ใส่เทมเพลตสำหรับ {lotterySettings[selectedRulesLottery]?.name || selectedRulesLottery}
+                      </button>
+                    </div>
+
+                    {/* Textarea */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-gray-500 uppercase">รายละเอียดกติกาเฉพาะหวยนี้</label>
+                      <textarea
+                        value={lotteryRulesText}
+                        onChange={(e) => setLotteryRulesText(e.target.value)}
+                        placeholder="ระบุข้อความกติกา วิธีการเล่น และเวลาเปิด-ปิด..."
+                        className="w-full h-80 border border-gray-300 rounded-2xl p-4 font-mono text-xs md:text-sm text-gray-800 outline-none focus:border-[var(--gold-vibrant)] leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="text-xs text-gray-400">
+                        หวยที่กำลังแก้ไข: <strong className="text-[var(--navy-deep)]">{lotterySettings[selectedRulesLottery]?.name || selectedRulesLottery}</strong>
+                      </span>
+
+                      <button
+                        onClick={async () => {
+                          if (!selectedRulesLottery) return;
+                          setIsSavingRules(true);
+                          try {
+                            await setDoc(doc(db, 'lotteryTypes', selectedRulesLottery), {
+                              rules: {
+                                text: lotteryRulesText,
+                                imageUrl: lotteryRulesImageUrl
+                              }
+                            }, { merge: true });
+                            await logActivity('บันทึกกติกาเฉพาะหวย', `อัปเดตกติกาหวย ${selectedRulesLottery} เรียบร้อย`, 'lottery');
+                            alert(`บันทึกกติกาสำหรับ ${lotterySettings[selectedRulesLottery]?.name || selectedRulesLottery} เรียบร้อยแล้ว`);
+                          } catch (e: any) {
+                            alert('เกิดข้อผิดพลาด: ' + (e?.message || e));
+                          } finally {
+                            setIsSavingRules(false);
+                          }
+                        }}
+                        disabled={isSavingRules}
+                        className="bg-[var(--navy-deep)] text-[var(--gold-vibrant)] px-8 py-3 rounded-xl font-black shadow-lg hover:brightness-110 transition flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <span className="material-symbols-outlined text-lg">save</span>
+                        <span>{isSavingRules ? 'กำลังบันทึก...' : `บันทึกกติกา ${lotterySettings[selectedRulesLottery]?.name || selectedRulesLottery}`}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Preview */}
+                  <div className="admin-card p-6 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-4 pb-2 border-b">
+                        <span className="material-symbols-outlined text-[var(--gold-vibrant)]">preview</span>
+                        <h4 className="font-bold text-sm text-[var(--navy-deep)]">ตัวอย่างแสดงผลเฉพาะหวยนี้</h4>
+                      </div>
+
+                      <div className="bg-gray-50 border rounded-2xl p-4 max-h-[460px] overflow-y-auto space-y-3">
+                        <div className="bg-[#0a192f] text-white p-3 rounded-xl">
+                          <span className="text-[10px] text-[#f5c518] font-bold">กติกาเฉพาะประเภท</span>
+                          <div className="text-sm font-black">{lotterySettings[selectedRulesLottery]?.name || selectedRulesLottery}</div>
+                        </div>
+
+                        {lotteryRulesImageUrl && (
+                          <div className="rounded-xl overflow-hidden border">
+                            <img src={lotteryRulesImageUrl} alt="Banner Preview" className="w-full h-28 object-cover" />
+                          </div>
+                        )}
+
+                        <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed">
+                          {lotteryRulesText || 'ยังไม่มีการระบุกติกาสำหรับหวยนี้...'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-[11px] text-gray-400 mt-4 text-center">
+                      เชื่อมโยงอัตโนมัติไปยัง /lottery/{selectedRulesLottery}/rules
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* 8. ระบบป๊อปอัพ */}
+          {/* 8. ระบบป๊อปอัพ (ทั้งหมด / เฉพาะคน / เลือกประเภท / ยินดีต้อนรับสมาชิกใหม่) */}
           {activeTab === 'popup' && (
-            <div className="admin-card p-8">
-               <h3 className="font-black text-[var(--navy-deep)] mb-6 flex items-center gap-2">
-                 <span className="material-symbols-outlined text-[var(--gold-vibrant)]">notification_important</span>
-                 จัดการป๊อปอัพประกาศหน้าบ้าน
-               </h3>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                     <div className="space-y-2">
-                        <label className="text-xs font-black text-gray-400 uppercase">หัวข้อประกาศ</label>
-                        <input type="text" className="w-full p-4 border rounded-2xl outline-none" placeholder="เช่น ยินดีต้อนรับสู่ระบบ" />
-                     </div>
-                     <div className="space-y-2">
-                        <label className="text-xs font-black text-gray-400 uppercase">เนื้อหา</label>
-                        <textarea className="w-full h-32 p-4 border rounded-2xl outline-none" placeholder="ระบุข้อความ..." />
-                     </div>
-                     <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl">
-                        <span className="text-sm font-bold text-gray-500 flex-1">เปิดใช้งานป๊อปอัพทันที</span>
-                         <label className="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" className="sr-only peer" />
-                            <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--gold-vibrant)]"></div>
-                         </label>
-                     </div>
-                     <button className="w-full bg-[var(--navy-deep)] text-[var(--gold-vibrant)] py-4 rounded-2xl font-black mt-4">อัปเดตประกาศ</button>
+            <div className="space-y-6">
+              {/* Header Card */}
+              <div className="admin-card p-6 bg-gradient-to-r from-[var(--navy-deep)] to-[#112240] text-white">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-[var(--gold-vibrant)]/20 text-[var(--gold-vibrant)] flex items-center justify-center font-bold">
+                      <span className="material-symbols-outlined text-2xl">notification_important</span>
+                    </div>
+                    <div>
+                      <h3 className="font-black text-lg text-white">จัดการระบบป๊อปอัพ & ประกาศหน้าเว็บ</h3>
+                      <p className="text-xs text-amber-200/80">กำหนดเป้าหมาย ทั้งหมด / เฉพาะคน และหน้าต่างต้อนรับสมาชิกใหม่อัตโนมัติ</p>
+                    </div>
                   </div>
-                  <div className="bg-gray-100 rounded-3xl flex items-center justify-center p-8 border-4 border-dashed border-gray-200">
-                     <div className="text-center text-gray-400">
-                         <span className="material-symbols-outlined text-4xl mb-2">preview</span>
-                         <div className="text-xs font-bold">ตัวอย่างการแสดงผลบนมือถือ</div>
-                     </div>
+
+                  {/* Sub-tab Switcher */}
+                  <div className="flex items-center bg-white/10 p-1 rounded-xl">
+                    <button
+                      onClick={() => setPopupSubTab('announcement')}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        popupSubTab === 'announcement'
+                          ? 'bg-[var(--gold-vibrant)] text-[var(--navy-deep)] shadow'
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">campaign</span>
+                      <span>ป๊อปอัพประกาศ (ทั่วไป/เฉพาะคน)</span>
+                    </button>
+                    <button
+                      onClick={() => setPopupSubTab('welcome')}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${
+                        popupSubTab === 'welcome'
+                          ? 'bg-[var(--gold-vibrant)] text-[var(--navy-deep)] shadow'
+                          : 'text-gray-300 hover:text-white'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-sm">celebration</span>
+                      <span>ยินดีต้อนรับสมาชิกใหม่ (ครั้งเดียว)</span>
+                    </button>
                   </div>
-               </div>
+                </div>
+              </div>
+
+              {/* Sub-tab 1: Announcement Popup */}
+              {popupSubTab === 'announcement' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                  {/* Left Column: Form Settings */}
+                  <div className="lg:col-span-7 admin-card p-6 space-y-5">
+                    {/* Active Switch */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+                      <div>
+                        <div className="text-sm font-bold text-gray-800">เปิดใช้งานป๊อปอัพประกาศทันที</div>
+                        <div className="text-xs text-gray-500">หากเปิดใช้งาน ลูกค้าที่เข้าเว็บจะเห็นป๊อปอัพนี้ทันที</div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={popupContent.active}
+                          onChange={(e) => setPopupContent(prev => ({ ...prev, active: e.target.checked }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
+                    </div>
+
+                    {/* Target Selector: ทั้งหมด vs เฉพาะคน */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-500 uppercase">กลุ่มเป้าหมายผู้รับประกาศ</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setPopupContent(prev => ({ ...prev, target: 'all' }))}
+                          className={`p-3.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                            popupContent.target === 'all'
+                              ? 'bg-[var(--navy-deep)] text-[var(--gold-vibrant)] border-[var(--navy-deep)] shadow'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-base">group</span>
+                          <span>สมาชิกทุกคน (ทั้งหมด)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPopupContent(prev => ({ ...prev, target: 'specific' }))}
+                          className={`p-3.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition ${
+                            popupContent.target === 'specific'
+                              ? 'bg-[var(--navy-deep)] text-[var(--gold-vibrant)] border-[var(--navy-deep)] shadow'
+                              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-base">person_search</span>
+                          <span>ระบุเฉพาะคน (Specific)</span>
+                        </button>
+                      </div>
+
+                      {/* If specific, show input for target usernames */}
+                      {popupContent.target === 'specific' && (
+                        <div className="mt-3 p-4 bg-purple-50/70 border border-purple-200 rounded-2xl space-y-2">
+                          <label className="text-xs font-black text-purple-900 flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-sm">badge</span>
+                            ระบุชื่อผู้ใช้ (Username) หรือเบอร์โทรศัพท์ที่ต้องการส่งประกาศ
+                          </label>
+                          <textarea
+                            value={popupContent.targetUsers}
+                            onChange={(e) => setPopupContent(prev => ({ ...prev, targetUsers: e.target.value }))}
+                            placeholder="ระบุชื่อผู้ใช้ เช่น user01, user02, 0812345678 (คั่นด้วยจุลภาคหรือขึ้นบรรทัดใหม่)"
+                            className="w-full h-20 p-3 border border-purple-200 rounded-xl text-xs bg-white outline-none focus:border-purple-500 font-mono"
+                          />
+                          <p className="text-[10px] text-purple-700">
+                            * ระบบจะตรวจสอบชื่อผู้ใช้ที่ล็อกอินอยู่ หากตรงกันจะแสดงผลเฉพาะบุคคลนั้น
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Announcement Type Selector: เลือกประเภทได้แจ้ง */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-500 uppercase">ประเภทประกาศ</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {[
+                          { id: 'general', label: '📢 ทั่วไป', color: 'border-blue-300 text-blue-700' },
+                          { id: 'promotion', label: '🎁 โปรโมชั่น', color: 'border-emerald-300 text-emerald-700' },
+                          { id: 'maintenance', label: '⚠️ ปิดปรับปรุง', color: 'border-amber-300 text-amber-700' },
+                          { id: 'urgent', label: '🚨 ด่วนสำคัญ', color: 'border-red-300 text-red-700' }
+                        ].map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setPopupContent(prev => ({ ...prev, type: t.id as any }))}
+                            className={`p-2.5 rounded-xl border text-xs font-bold transition text-center ${
+                              popupContent.type === t.id
+                                ? 'bg-[var(--navy-deep)] text-[var(--gold-vibrant)] border-[var(--navy-deep)] ring-2 ring-[var(--gold-vibrant)]/30'
+                                : 'bg-white hover:bg-gray-50 ' + t.color
+                            }`}
+                          >
+                            {t.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Title */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-gray-500 uppercase">หัวข้อประกาศ</label>
+                      <input
+                        type="text"
+                        value={popupContent.title}
+                        onChange={(e) => setPopupContent(prev => ({ ...prev, title: e.target.value }))}
+                        className="w-full p-3.5 border rounded-2xl outline-none font-bold text-sm focus:border-[var(--gold-vibrant)]"
+                        placeholder="เช่น แจ้งกำหนดการเปิดรับแทงหวยงวดใหม่"
+                      />
+                    </div>
+
+                    {/* Body */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-gray-500 uppercase">เนื้อหาประกาศ</label>
+                      <textarea
+                        value={popupContent.body}
+                        onChange={(e) => setPopupContent(prev => ({ ...prev, body: e.target.value }))}
+                        className="w-full h-28 p-3.5 border rounded-2xl outline-none text-xs md:text-sm focus:border-[var(--gold-vibrant)] leading-relaxed"
+                        placeholder="ระบุข้อความประกาศ..."
+                      />
+                    </div>
+
+                    {/* Image URL & Link URL */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-black text-gray-500 uppercase">ลิงก์รูปภาพประกอบ (URL)</label>
+                        <input
+                          type="text"
+                          value={popupContent.imageUrl}
+                          onChange={(e) => setPopupContent(prev => ({ ...prev, imageUrl: e.target.value }))}
+                          className="w-full p-3 border rounded-xl text-xs outline-none focus:border-[var(--gold-vibrant)]"
+                          placeholder="https://example.com/image.jpg"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-black text-gray-500 uppercase">ลิงก์ปลายทางเมื่อคลิก (Link URL)</label>
+                        <input
+                          type="text"
+                          value={popupContent.linkUrl}
+                          onChange={(e) => setPopupContent(prev => ({ ...prev, linkUrl: e.target.value }))}
+                          className="w-full p-3 border rounded-xl text-xs outline-none focus:border-[var(--gold-vibrant)]"
+                          placeholder="เช่น /lottery หรือ /deposit"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Button Text & Show Once Toggle */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-black text-gray-500 uppercase">ข้อความบนปุ่มกด</label>
+                        <input
+                          type="text"
+                          value={popupContent.actionText}
+                          onChange={(e) => setPopupContent(prev => ({ ...prev, actionText: e.target.value }))}
+                          className="w-full p-3 border rounded-xl text-xs outline-none focus:border-[var(--gold-vibrant)]"
+                          placeholder="เช่น ดูรายละเอียด, ไปแทงหวย"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border mt-5 sm:mt-0">
+                        <input
+                          type="checkbox"
+                          id="popupShowOnce"
+                          checked={popupContent.showOnce}
+                          onChange={(e) => setPopupContent(prev => ({ ...prev, showOnce: e.target.checked }))}
+                          className="w-4 h-4 text-[var(--gold-vibrant)] rounded"
+                        />
+                        <label htmlFor="popupShowOnce" className="text-xs text-gray-700 font-bold cursor-pointer">
+                          แสดงครั้งเดียวต่อรอบการใช้งาน
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      onClick={async () => {
+                        setIsSavingPopup(true);
+                        try {
+                          await setDoc(doc(db, 'settings', 'popup'), {
+                            ...popupContent,
+                            updatedAt: new Date().toISOString(),
+                            updatedBy: session?.displayName || 'Admin'
+                          });
+                          await logActivity('ตั้งค่าป๊อปอัพประกาศ', `อัปเดตป๊อปอัพ: ${popupContent.title} (กลุ่มเป้าหมาย: ${popupContent.target === 'all' ? 'ทั้งหมด' : 'เฉพาะคน'})`, 'system');
+                          alert('อัปเดตป๊อปอัพประกาศเรียบร้อยแล้ว หน้าบ้านจะแสดงผลตามกลุ่มเป้าหมายทันที');
+                        } catch (e: any) {
+                          alert('เกิดข้อผิดพลาด: ' + (e?.message || e));
+                        } finally {
+                          setIsSavingPopup(false);
+                        }
+                      }}
+                      disabled={isSavingPopup}
+                      className="w-full bg-[var(--navy-deep)] text-[var(--gold-vibrant)] py-4 rounded-2xl font-black shadow-lg hover:brightness-110 transition flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined">save</span>
+                      <span>{isSavingPopup ? 'กำลังบันทึก...' : 'บันทึกและอัปเดตประกาศทันที'}</span>
+                    </button>
+                  </div>
+
+                  {/* Right Column: Mobile Simulation Mockup */}
+                  <div className="lg:col-span-5 flex flex-col items-center">
+                    <div className="w-full max-w-sm bg-gray-900 rounded-[40px] p-4 shadow-2xl border-4 border-gray-700 relative">
+                      {/* Notch */}
+                      <div className="w-32 h-4 bg-gray-800 rounded-full mx-auto mb-3"></div>
+
+                      <div className="text-[10px] text-center font-bold text-gray-400 mb-2 uppercase tracking-wider">
+                        จำลองการแสดงผลบนมือถือลูกค้า
+                      </div>
+
+                      {/* Phone Screen Mockup */}
+                      <div className="bg-[#051121] rounded-3xl p-4 min-h-[480px] flex flex-col justify-center relative overflow-hidden border border-[#f5c518]/30">
+                        {/* Dim Overlay */}
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10"></div>
+
+                        {/* Popup Modal Mockup */}
+                        <div className="relative z-20 bg-[#0a192f] border-2 border-[#f5c518] rounded-2xl overflow-hidden shadow-2xl">
+                          {popupContent.imageUrl && (
+                            <img src={popupContent.imageUrl} alt="Banner" className="w-full h-24 object-cover" />
+                          )}
+                          <div className="p-4 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-[#f5c518]/20 text-[#f5c518] border border-[#f5c518]/40">
+                                {popupContent.type === 'promotion' ? '🎁 โปรโมชั่น' : popupContent.type === 'maintenance' ? '⚠️ ปิดปรับปรุง' : popupContent.type === 'urgent' ? '🚨 ด่วนสำคัญ' : '📢 ประกาศ'}
+                              </span>
+                              {popupContent.target === 'specific' && (
+                                <span className="text-[8px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold">
+                                  เฉพาะคุณ
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="text-xs font-black text-white">{popupContent.title || 'หัวข้อประกาศ'}</div>
+                            <div className="text-[11px] text-gray-300 leading-tight whitespace-pre-wrap">{popupContent.body || 'รายละเอียดข้อความประกาศ...'}</div>
+
+                            <div className="pt-2 flex gap-2">
+                              <span className="flex-1 text-center py-1.5 text-[10px] text-gray-300 bg-white/10 rounded-lg">ปิด</span>
+                              {popupContent.linkUrl && (
+                                <span className="flex-1 text-center py-1.5 text-[10px] font-bold text-[#0a192f] bg-[#f5c518] rounded-lg">
+                                  {popupContent.actionText || 'ดูรายละเอียด'}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Sub-tab 2: Welcome Modal (ยินดีต้อนรับสมาชิกใหม่ แสดงครั้งเดียว ทำแบบยืดหยุ่น) */}
+              {popupSubTab === 'welcome' && (
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                  {/* Left Column: Form Settings */}
+                  <div className="lg:col-span-7 admin-card p-6 space-y-5">
+                    {/* Active Switch */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+                      <div>
+                        <div className="text-sm font-bold text-gray-800">เปิดใช้งานหน้าต่างต้อนรับสมาชิกใหม่</div>
+                        <div className="text-xs text-gray-500">แสดงสำหรับสมาชิกใหม่/ผู้เข้าใช้งานครั้งแรกเพียง 1 ครั้งอย่างยืดหยุ่น</div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={welcomeContent.enabled}
+                          onChange={(e) => setWelcomeContent(prev => ({ ...prev, enabled: e.target.checked }))}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                      </label>
+                    </div>
+
+                    {/* Title */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-gray-500 uppercase">หัวข้อต้อนรับ</label>
+                      <input
+                        type="text"
+                        value={welcomeContent.title}
+                        onChange={(e) => setWelcomeContent(prev => ({ ...prev, title: e.target.value }))}
+                        className="w-full p-3.5 border rounded-2xl outline-none font-bold text-sm focus:border-[var(--gold-vibrant)]"
+                        placeholder="เช่น ยินดีต้อนรับสู่ AK88 LOTTO! 🎉"
+                      />
+                    </div>
+
+                    {/* Subtitle */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-gray-500 uppercase">คำบรรยายสั้น</label>
+                      <input
+                        type="text"
+                        value={welcomeContent.subtitle}
+                        onChange={(e) => setWelcomeContent(prev => ({ ...prev, subtitle: e.target.value }))}
+                        className="w-full p-3.5 border rounded-2xl outline-none text-xs md:text-sm focus:border-[var(--gold-vibrant)]"
+                        placeholder="เว็บแทงหวยออนไลน์มาตรฐานระดับสากล อัตราจ่ายสูงสุด บาทละ 1,000"
+                      />
+                    </div>
+
+                    {/* Bonus Notice */}
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-gray-500 uppercase">ข้อความสิทธิพิเศษ / โปรโมชั่นต้อนรับ</label>
+                      <input
+                        type="text"
+                        value={welcomeContent.bonusNotice}
+                        onChange={(e) => setWelcomeContent(prev => ({ ...prev, bonusNotice: e.target.value }))}
+                        className="w-full p-3.5 border rounded-2xl outline-none text-xs md:text-sm focus:border-[var(--gold-vibrant)] bg-amber-50/50"
+                        placeholder="สมาชิกใหม่รับสิทธิ์ร่วมสนุกและรับโบนัสพิเศษทันที!"
+                      />
+                    </div>
+
+                    {/* Banner Image URL & Button Text */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-black text-gray-500 uppercase">ลิงก์ภาพแบนเนอร์ต้อนรับ (ถ้ามี)</label>
+                        <input
+                          type="text"
+                          value={welcomeContent.imageUrl}
+                          onChange={(e) => setWelcomeContent(prev => ({ ...prev, imageUrl: e.target.value }))}
+                          className="w-full p-3 border rounded-xl text-xs outline-none focus:border-[var(--gold-vibrant)]"
+                          placeholder="https://example.com/welcome-banner.jpg"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-black text-gray-500 uppercase">ข้อความปุ่มกดเริ่มต้น</label>
+                        <input
+                          type="text"
+                          value={welcomeContent.buttonText}
+                          onChange={(e) => setWelcomeContent(prev => ({ ...prev, buttonText: e.target.value }))}
+                          className="w-full p-3 border rounded-xl text-xs outline-none focus:border-[var(--gold-vibrant)]"
+                          placeholder="เริ่มต้นใช้งานทันที"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Features (3 Items) */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-500 uppercase">จุดเด่นที่แสดงในหน้าต่างต้อนรับ (3 ข้อ)</label>
+                      {(welcomeContent.features || []).map((feat, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={feat}
+                            onChange={(e) => {
+                              const newFeatures = [...(welcomeContent.features || [])];
+                              newFeatures[idx] = e.target.value;
+                              setWelcomeContent(prev => ({ ...prev, features: newFeatures }));
+                            }}
+                            className="flex-1 p-2.5 border rounded-xl text-xs outline-none focus:border-[var(--gold-vibrant)]"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Submit Button */}
+                    <button
+                      onClick={async () => {
+                        setIsSavingWelcome(true);
+                        try {
+                          await setDoc(doc(db, 'settings', 'welcome'), {
+                            ...welcomeContent,
+                            updatedAt: new Date().toISOString(),
+                            updatedBy: session?.displayName || 'Admin'
+                          });
+                          await logActivity('ตั้งค่ายินดีต้อนรับสมาชิกใหม่', `อัปเดต Welcome Modal: ${welcomeContent.title}`, 'system');
+                          alert('อัปเดตหน้าต่างยินดีต้อนรับสมาชิกใหม่เรียบร้อยแล้ว');
+                        } catch (e: any) {
+                          alert('เกิดข้อผิดพลาด: ' + (e?.message || e));
+                        } finally {
+                          setIsSavingWelcome(false);
+                        }
+                      }}
+                      disabled={isSavingWelcome}
+                      className="w-full bg-[var(--navy-deep)] text-[var(--gold-vibrant)] py-4 rounded-2xl font-black shadow-lg hover:brightness-110 transition flex items-center justify-center gap-2 mt-4 disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined">save</span>
+                      <span>{isSavingWelcome ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่ายินดีต้อนรับ'}</span>
+                    </button>
+                  </div>
+
+                  {/* Right Column: Simulation Mockup */}
+                  <div className="lg:col-span-5 flex flex-col items-center">
+                    <div className="w-full max-w-sm bg-gray-900 rounded-[40px] p-4 shadow-2xl border-4 border-gray-700 relative">
+                      {/* Notch */}
+                      <div className="w-32 h-4 bg-gray-800 rounded-full mx-auto mb-3"></div>
+
+                      <div className="text-[10px] text-center font-bold text-gray-400 mb-2 uppercase tracking-wider">
+                        จำลองหน้าต่างต้อนรับบนมือถือลูกค้า
+                      </div>
+
+                      {/* Screen */}
+                      <div className="bg-[#051121] rounded-3xl p-4 min-h-[480px] flex flex-col justify-center relative overflow-hidden border border-[#f5c518]/30">
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px] z-10"></div>
+
+                        {/* Modal Mockup */}
+                        <div className="relative z-20 bg-[#0a192f] border-2 border-[#f5c518] rounded-2xl overflow-hidden shadow-2xl p-4 text-center space-y-2.5">
+                          <div className="w-10 h-10 mx-auto rounded-full bg-[#f5c518]/20 text-[#f5c518] flex items-center justify-center">
+                            <span className="material-symbols-outlined text-xl">celebration</span>
+                          </div>
+
+                          <div className="text-xs font-black text-white">{welcomeContent.title}</div>
+                          <div className="text-[10px] text-gray-300 leading-tight">{welcomeContent.subtitle}</div>
+
+                          {welcomeContent.bonusNotice && (
+                            <div className="bg-[#f5c518]/15 border border-[#f5c518]/40 rounded-xl p-2 text-left flex items-center gap-2">
+                              <span className="material-symbols-outlined text-[#f5c518] text-base">military_tech</span>
+                              <div className="text-[9px] text-amber-200 leading-tight">{welcomeContent.bonusNotice}</div>
+                            </div>
+                          )}
+
+                          <div className="space-y-1 text-left pt-1">
+                            {(welcomeContent.features || []).map((f, i) => (
+                              <div key={i} className="flex items-center gap-1.5 text-[9px] text-gray-200 bg-white/5 p-1.5 rounded-lg">
+                                <span className="material-symbols-outlined text-emerald-400 text-xs">check_circle</span>
+                                <span>{f}</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="pt-2 flex flex-col gap-1.5">
+                            <span className="py-2 text-[10px] font-black text-[#0a192f] bg-[#f5c518] rounded-xl shadow">
+                              {welcomeContent.buttonText || 'เริ่มต้นใช้งานทันที'}
+                            </span>
+                            <span className="py-1 text-[9px] text-gray-400">
+                              📖 ดูไกด์แนะนำระบบ (5 ฟังก์ชัน)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

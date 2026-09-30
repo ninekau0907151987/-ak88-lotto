@@ -109,6 +109,10 @@ export default function App() {
           <Route path="lottery/game20/rules" element={<Game20Guide />} />
           <Route path="game20/guide" element={<Game20Guide />} />
 
+          {/* ★ กติกาและวิธีเล่น เชื่อมหลังบ้าน-หน้าบ้าน */}
+          <Route path="rules" element={<LotteryRules />} />
+          <Route path="lottery/rules" element={<LotteryRules />} />
+
           {/* 2) dynamic :type — ต้องอยู่หลัง static ทั้งหมด */}
           <Route path="lottery/:type/rules" element={<LotteryRules />} />
           <Route path="lottery/:type" element={<LotteryBet />} />

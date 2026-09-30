@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { db } from '@/shared/lib/firebase';
 import { doc, onSnapshot } from 'firebase/firestore';
+import SitePopupModal from '@/frontend/components/SitePopupModal';
+import OnboardingTour from '@/frontend/components/OnboardingTour';
 
 /**
  * Layout — โครงสร้างหน้าบ้านหลักสำหรับลูกค้า (Production Real System)
@@ -97,8 +99,8 @@ export default function Layout() {
     <div className="min-h-screen bg-gray-50 pb-20 font-sans">
       {/* Header Bar */}
       <header className="bg-[#0a192f] border-b border-[#f5c518]/20 px-3 md:px-6 py-2.5 flex items-center justify-between sticky top-0 z-50 shadow-md">
-        {/* Logo */}
-        <div className="flex items-center gap-3">
+        {/* Logo & Quick Links */}
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link to="/tickets" className="flex items-center justify-center w-9 h-9 rounded-full hover:bg-white/5 transition text-[#f5c518]" title="ประวัติโพยหวย">
             <span className="material-symbols-outlined text-xl">history</span>
           </Link>
@@ -106,6 +108,26 @@ export default function Layout() {
             <span className="text-2xl font-bold text-white tracking-wider">AK</span>
             <span className="text-2xl font-black text-[#f5c518] drop-shadow">88</span>
           </Link>
+
+          {/* Quick Guide & Rules buttons */}
+          <div className="hidden sm:flex items-center gap-1.5 ml-2">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-ak88-tour'))}
+              className="flex items-center gap-1 bg-[#f5c518]/10 hover:bg-[#f5c518]/20 text-[#f5c518] border border-[#f5c518]/30 px-2.5 py-1 rounded-xl text-xs font-bold transition"
+              title="แนะนำฟังก์ชันการใช้งาน 5 ขั้นตอน"
+            >
+              <span className="material-symbols-outlined text-sm">explore</span>
+              <span>แนะนำระบบ</span>
+            </button>
+            <Link
+              to="/rules"
+              className="flex items-center gap-1 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 px-2.5 py-1 rounded-xl text-xs font-bold transition"
+              title="กติกาและวิธีการเล่น"
+            >
+              <span className="material-symbols-outlined text-sm">gavel</span>
+              <span>กติกา</span>
+            </Link>
+          </div>
         </div>
 
         {/* User Balance & Actions */}
@@ -192,6 +214,12 @@ export default function Layout() {
         {navItem('/tickets', 'receipt_long', 'โพยหวย', location.pathname === '/tickets')}
         {navItem('/profile', 'person', 'ฉัน', location.pathname === '/profile')}
       </nav>
+
+      {/* ป๊อปอัพประกาศ & ยินดีต้อนรับสมาชิกใหม่ เชื่อมโยงหลังบ้าน */}
+      <SitePopupModal />
+
+      {/* ระบบไกด์แนะนำเว็บ 5 ฟังก์ชันหลัก สำหรับผู้ใช้งาน */}
+      <OnboardingTour />
     </div>
   );
 }
