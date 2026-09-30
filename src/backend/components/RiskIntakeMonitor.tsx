@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import LotteryCategorySelector from './LotteryCategorySelector';
+import { useRoundCountdown } from '@/shared/lib/roundTimer';
 
 interface LiveBetNumber {
   number: string;
@@ -14,17 +15,54 @@ interface LiveBetNumber {
   customRate?: number;
 }
 
+interface RoundOption {
+  id: string;
+  roundNumber: string;
+  openTime?: string;
+  closeTime?: string;
+  resultTime?: string;
+  status?: string;
+}
+
 interface Props {
   lotteryTypes?: Record<string, any>;
   onLogActivity?: (action: string, details: string, type: string) => void;
 }
 
 export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: Props) {
-  const lottoList = Object.keys(lotteryTypes).length > 0
-    ? Object.keys(lotteryTypes)
-    : ['หวยรัฐบาลไทย', 'หวยลาวพัฒนา', 'หวยฮานอยพิเศษ', 'หวยมาเลย์ 4D', 'หวยยี่กี 88 รอบ'];
+  // กรองเฉพาะหวยที่กำลังเปิดให้บริการ (Active Only) เป็นค่าเริ่มต้น
+  const [showOnlyOpen, setShowOnlyOpen] = useState(true);
 
-  const [selectedLottery, setSelectedLottery] = useState<string>(lottoList[0] || 'หวยรัฐบาลไทย');
+  // คำนวณรายชื่อหวยที่เปิดรับแทงอยู่
+  const openLottoKeys = useMemo(() => {
+    return Object.keys(lotteryTypes).filter(k => {
+      const lot = lotteryTypes[k];
+      return lot?.isOpen !== false && !lot?.isPaused && lot?.status !== 'closed' && lot?.bettingOpen !== false;
+    });
+  }, [lotteryTypes]);
+
+  const allLottoKeys = useMemo(() => {
+    const keys = Object.keys(lotteryTypes);
+    return keys.length > 0 ? keys : ['หวยรัฐบาลไทย', 'หวยลาวพัฒนา', 'หวยฮานอยพิเศษ', 'หวยมาเลย์ 4D', 'หวยยี่กี 88 รอบ'];
+  }, [lotteryTypes]);
+
+  // หวยที่แสดงในหมวดหมู่
+  const displayLottoList = useMemo(() => {
+    if (showOnlyOpen && openLottoKeys.length > 0) {
+      return openLottoKeys;
+    }
+    return allLottoKeys;
+  }, [showOnlyOpen, openLottoKeys, allLottoKeys]);
+
+  const [selectedLottery, setSelectedLottery] = useState<string>(
+    openLottoKeys[0] || allLottoKeys[0] || 'หวยรัฐบาลไทย'
+  );
+
+  // Rounds state
+  const [rounds, setRounds] = useState<RoundOption[]>([]);
+  const [selectedRoundId, setSelectedRoundId] = useState<string>('');
+  const [loadingRounds, setLoadingRounds] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -48,6 +86,56 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 15;
+
+  // เลือกรอบปัจจุบัน
+  const currentRound = useMemo(() => {
+    return rounds.find(r => r.id === selectedRoundId) || rounds[0] || null;
+  }, [rounds, selectedRoundId]);
+
+  // ตัวจับเวลานับถอยหลัง & สถานะสี 3 ระดับ (จะเปิด / กำลังเปิด / รอออกผล)
+  const timerState = useRoundCountdown(
+    currentRound?.openTime,
+    currentRound?.closeTime,
+    currentRound?.resultTime,
+    currentRound?.status
+  );
+
+  // ตรวจว่าหวยนี้เปิดให้บริการอยู่หรือไม่
+  const isLotteryOpen = useMemo(() => {
+    const lot = lotteryTypes[selectedLottery];
+    if (!lot) return true;
+    return lot.isOpen !== false && !lot.isPaused && lot.status !== 'closed' && lot.bettingOpen !== false;
+  }, [lotteryTypes, selectedLottery]);
+
+  // ดึงรอบหวย
+  const fetchRounds = async (lotId: string) => {
+    setLoadingRounds(true);
+    try {
+      const res = await fetch(`/api/v1/rounds?type=${encodeURIComponent(lotId)}`);
+      const json = await res.json();
+      if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+        setRounds(json.data);
+        // เลือกรอบที่เปิดอยู่เป็นอันดับแรก
+        const activeRound = json.data.find((r: any) => r.status === 'open' || r.status === 'active') || json.data[0];
+        setSelectedRoundId(activeRound.id);
+      } else {
+        const sampleRound: RoundOption = {
+          id: `round-${lotId}-curr`,
+          roundNumber: 'งวดปัจจุบัน (รอบเปิดให้บริการ)',
+          openTime: new Date(Date.now() - 3600000 * 2).toISOString(),
+          closeTime: new Date(Date.now() + 3600000 * 4).toISOString(),
+          resultTime: new Date(Date.now() + 3600000 * 5).toISOString(),
+          status: 'open',
+        };
+        setRounds([sampleRound]);
+        setSelectedRoundId(sampleRound.id);
+      }
+    } catch {
+      setRounds([]);
+    } finally {
+      setLoadingRounds(false);
+    }
+  };
 
   // Fetch real-time intake data from API
   const fetchLiveIntake = async (lotId: string) => {
@@ -74,6 +162,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
 
   useEffect(() => {
     fetchLiveIntake(selectedLottery);
+    fetchRounds(selectedLottery);
     setCurrentPage(1);
   }, [selectedLottery]);
 
@@ -162,12 +251,10 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
   // Filtered live bets based on tabs, risk filter, and search
   const filteredBets = useMemo(() => {
     return liveBets.filter(b => {
-      // 1. Bet Type Tab
       if (selectedMonitorType !== 'all' && b.type !== selectedMonitorType) {
         return false;
       }
 
-      // 2. Risk Status Filter
       const isClosed = b.statusOverride === 'closed';
       const isFull = b.intake >= b.limit || isClosed;
       const isNear = (b.intake / b.limit) >= 0.8 && !isFull;
@@ -177,7 +264,6 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
       if (monitorRiskFilter === 'near' && !isNear) return false;
       if (monitorRiskFilter === 'normal' && !isNormal) return false;
 
-      // 3. Search Number
       if (searchNumber.trim() && !b.number.includes(searchNumber.trim())) {
         return false;
       }
@@ -195,28 +281,44 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
 
   return (
     <div className="space-y-6">
-      {/* Top Header Card */}
-      <div className="admin-card p-6 bg-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200">
+      {/* 1. Top Header Card with Filter Toggle for Currently Open Only */}
+      <div className="admin-card p-6 bg-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200 rounded-2xl">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-sm">
             <span className="material-symbols-outlined text-2xl">monitoring</span>
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-900">
-              มอนิเตอร์รับกินรายตัวเลข (Live Risk Intake Monitor)
+              มอนิเตอร์รับกินสด (Live Risk Intake Monitor)
             </h2>
             <p className="text-xs text-slate-500">
-              ตรวจเช็กยอดแทงสะสมรายตัวเลขแบบเรียลไทม์ แสดงผลเป็นตารางแถวและคอลัมน์ แยกแถบตามชนิดการแทง
+              ตรวจเช็กยอดแทงสะสมรายตัวเลขแบบเรียลไทม์ พร้อมตัวนับเวลารอบหวย 3 สถานะสี
             </p>
           </div>
         </div>
 
-        {/* Controls */}
+        {/* Controls & Filter Toggle */}
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {/* ตัวกรองเฉพาะหวยที่กำลังเปิดให้บริการเท่านั้น */}
+          <button
+            onClick={() => setShowOnlyOpen(!showOnlyOpen)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-2 border shadow-sm ${
+              showOnlyOpen
+                ? 'bg-emerald-600 text-white border-emerald-600 shadow-emerald-600/20'
+                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${showOnlyOpen ? 'bg-white animate-pulse' : 'bg-slate-400'}`}></span>
+            {showOnlyOpen ? 'แสดงเฉพาะหวยที่เปิดรับแทงอยู่' : 'แสดงหวยทั้งหมด'}
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-black/20 font-bold">
+              {openLottoKeys.length} หวย
+            </span>
+          </button>
+
           <button
             onClick={() => fetchLiveIntake(selectedLottery)}
             disabled={loading}
-            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition flex items-center gap-1.5"
+            className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition flex items-center gap-1.5 border border-slate-200"
             title="กดเพื่อรีเฟรชข้อมูลล่าสุด"
           >
             <span className={`material-symbols-outlined text-sm ${loading ? 'animate-spin' : ''}`}>sync</span>
@@ -235,13 +337,72 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
         </div>
       </div>
 
-      {/* Unified Category Tabs & Small Sub-lottery Buttons */}
+      {/* 2. Unified Category Tabs & Small Sub-lottery Buttons */}
       <LotteryCategorySelector
         selectedLottery={selectedLottery}
         onSelectLottery={setSelectedLottery}
         lotterySettings={lotteryTypes}
         title="เลือกหมวดหมู่และประเภทหวยสำหรับมอนิเตอร์"
       />
+
+      {/* 3. กล่องแจ้งเตือนสถานะหวย & ตัวจับเวลานับถอยหลัง 3 สี (จะเปิด / กำลังเปิด / รอออกผล) */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5 whitespace-nowrap">
+              <span className="material-symbols-outlined text-sm text-blue-600">event_available</span>
+              รอบที่มอนิเตอร์:
+            </span>
+            {loadingRounds ? (
+              <span className="text-xs text-slate-400">กำลังโหลดรอบ...</span>
+            ) : rounds.length > 0 ? (
+              <select
+                value={selectedRoundId}
+                onChange={(e) => setSelectedRoundId(e.target.value)}
+                className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition"
+              >
+                {rounds.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.roundNumber} ({r.status === 'open' ? '🟢 เปิดรับ' : r.status === 'resulted' ? 'ออกผลแล้ว' : 'ปิดแล้ว'})
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span className="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-1.5 rounded-lg">
+                รอบปกติ (กำลังเปิดให้บริการ)
+              </span>
+            )}
+          </div>
+
+          {/* ★ กล่องเวลานับถอยหลัง 3 สี เด่นชัดตามคำขอ ★ */}
+          <div className={`px-5 py-3 rounded-xl border flex items-center gap-3 text-xs font-black shadow-sm ${timerState.boxClass}`}>
+            <span className={`px-3 py-1 rounded-lg text-xs font-black border ${timerState.badgeClass}`}>
+              {timerState.label}
+            </span>
+            <span className="text-sm font-black">{timerState.countdownText}</span>
+          </div>
+        </div>
+
+        {/* ถ้าหวยปิดอยู่แต่ผู้ใช้เปิดดู ให้ขึ้นแถบเตือนสีส้มทอง */}
+        {!isLotteryOpen && (
+          <div className="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-amber-600 text-base">info</span>
+              <span>
+                หวย <b>{selectedLottery}</b> ปิดให้บริการอยู่ในขณะนี้ (ระบบมอนิเตอร์จะเน้นแสดงยอดสดของรอบที่กำลังเปิดรับแทง)
+              </span>
+            </div>
+            {openLottoKeys.length > 0 && (
+              <button
+                onClick={() => setSelectedLottery(openLottoKeys[0])}
+                className="text-xs text-amber-800 underline font-black hover:text-amber-950 ml-2"
+              >
+                สลับไปดู {openLottoKeys[0]} (เปิดอยู่)
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {message && (
         <div className={`p-4 rounded-xl text-xs font-bold border flex items-center justify-between ${
@@ -254,9 +415,9 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
         </div>
       )}
 
-      {/* 4 Summary Metric Cards */}
+      {/* 4. 4 Summary Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="admin-card p-5 bg-white border border-slate-200 shadow-sm">
+        <div className="admin-card p-5 bg-white border border-slate-200 shadow-sm rounded-2xl">
           <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-sm text-blue-600">format_list_numbered</span>
             ตัวเลขที่มอนิเตอร์ทั้งหมด
@@ -267,7 +428,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           <p className="text-[10px] text-slate-400 mt-1">ตัวเลขที่มีการแทงเข้ามาในรอบปัจจุบัน</p>
         </div>
 
-        <div className="admin-card p-5 bg-white border border-rose-200 shadow-sm bg-rose-50/20">
+        <div className="admin-card p-5 bg-white border border-rose-200 shadow-sm bg-rose-50/20 rounded-2xl">
           <div className="text-[11px] font-black text-rose-500 uppercase tracking-wider mb-1 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-sm text-red-600">block</span>
             🔴 เต็มเพดานรับกิน (สกัดกั้น)
@@ -278,7 +439,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           <p className="text-[10px] text-rose-400 mt-1">งดรับแทงเพิ่มอัตโนมัติ ป้องกันขาดทุน</p>
         </div>
 
-        <div className="admin-card p-5 bg-white border border-amber-200 shadow-sm bg-amber-50/20">
+        <div className="admin-card p-5 bg-white border border-amber-200 shadow-sm bg-amber-50/20 rounded-2xl">
           <div className="text-[11px] font-black text-amber-600 uppercase tracking-wider mb-1 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-sm text-amber-600">warning</span>
             🟡 ใกล้เต็มเพดาน (80-99%)
@@ -289,7 +450,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           <p className="text-[10px] text-amber-500 mt-1">เตรียมลดอัตราจ่ายหรือจำกัดรับ</p>
         </div>
 
-        <div className="admin-card p-5 bg-white border border-slate-200 shadow-sm">
+        <div className="admin-card p-5 bg-white border border-slate-200 shadow-sm rounded-2xl">
           <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-sm text-emerald-600">payments</span>
             ยอดเงินรับกินสะสมรวม
@@ -297,17 +458,14 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           <div className="text-2xl font-black text-emerald-700 mt-2">
             ฿{summaryData.totalIntakeAmount.toLocaleString()}
           </div>
-          <p className="text-[10px] text-slate-400 mt-1">รวมยอดเดิมพันสะสมทุกตัวเลขในงวดนี้</p>
+          <p className="text-[10px] text-slate-400 mt-1">รวมยอดเดิมพันสะสมทุกตัวเลขในรอบนี้</p>
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* ★ ตารางมอนิเตอร์ข้อมูลแบบแถวและคอลัมน์ (DATA TABLE VIEW) ★ */}
-      {/* ========================================================================= */}
-      <div className="admin-card bg-white overflow-hidden shadow-sm border border-slate-200 space-y-4 p-5">
+      {/* 5. ตารางมอนิเตอร์ข้อมูลแบบแถวและคอลัมน์ (DATA TABLE VIEW) */}
+      <div className="admin-card bg-white overflow-hidden shadow-sm border border-slate-200 space-y-4 p-5 rounded-2xl">
         {/* Controls: Bet Type Tabs & Search */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border-b border-slate-100 pb-4">
-          {/* Quick Search */}
           <div className="relative w-full md:w-64">
             <span className="material-symbols-outlined absolute left-3 top-2.5 text-slate-400 text-sm">search</span>
             <input
@@ -447,85 +605,70 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
                       }`}
                     >
                       <td className="py-3 px-3 text-center font-bold text-slate-400">{rowNumber}</td>
-
-                      {/* หมายเลข (Number Badge) */}
                       <td className="py-3 px-4">
                         <span className="text-base font-black text-slate-900 px-3 py-1 bg-white border border-slate-200 rounded-lg shadow-2xs inline-block">
                           {b.number}
                         </span>
                       </td>
-
-                      {/* ชนิดการแทง */}
                       <td className="py-3 px-3 font-black text-slate-800">
                         <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-[11px] font-bold">
                           {b.type}
                         </span>
                       </td>
-
-                      {/* ยอดแทงสะสม (กินไปแล้ว) */}
                       <td className="py-3 px-3 font-black text-slate-900">
                         ฿{b.intake.toLocaleString()}
                       </td>
-
-                      {/* 🎯 เพดานรับกินตัวนี้ */}
                       <td className="py-3 px-3 font-black text-blue-900 bg-blue-50/30 border-x border-blue-100">
                         ฿{b.limit.toLocaleString()} / ตัว
                       </td>
-
-                      {/* คงเหลือรับได้อีก */}
                       <td className="py-3 px-3 font-black">
                         <span className={remaining === 0 ? 'text-red-600' : 'text-emerald-700'}>
                           {remaining === 0 ? 'งดรับเพิ่ม' : `฿${remaining.toLocaleString()}`}
                         </span>
                       </td>
-
-                      {/* ความคืบหน้า (%) */}
                       <td className="py-3 px-4">
                         <div className="space-y-1">
-                          <div className="flex justify-between text-[10px] font-black text-slate-600">
-                            <span>{percent}%</span>
-                            <span>{isClosed ? 'บล็อก' : isFull ? 'เต็มโควตา' : isNear ? 'เฝ้าระวัง' : 'ปกติ'}</span>
+                          <div className="flex justify-between items-center text-[10px] font-black">
+                            <span className={isFull ? 'text-red-600' : isNear ? 'text-amber-600' : 'text-slate-600'}>
+                              {percent}%
+                            </span>
+                            <span className="text-slate-400">100%</span>
                           </div>
-                          <div className="h-2 rounded-full bg-slate-100 overflow-hidden border border-slate-200">
+                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                             <div
-                              className={`h-full transition-all duration-300 ${
-                                isClosed || isFull
-                                  ? 'bg-red-600'
-                                  : isNear
-                                  ? 'bg-amber-500'
-                                  : 'bg-blue-600'
+                              className={`h-full rounded-full transition-all duration-300 ${
+                                isFull ? 'bg-red-600' : isNear ? 'bg-amber-500' : 'bg-emerald-500'
                               }`}
                               style={{ width: `${percent}%` }}
                             />
                           </div>
                         </div>
                       </td>
-
-                      {/* สถานะ */}
                       <td className="py-3 px-3 text-center">
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black border inline-block ${
-                          isClosed
-                            ? 'bg-red-600 text-white border-red-700'
-                            : isFull
-                            ? 'bg-red-100 text-red-800 border-red-200'
-                            : isNear
-                            ? 'bg-amber-100 text-amber-800 border-amber-200'
-                            : 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                        }`}>
-                          {isClosed ? '🔒 ปิดรับ' : isFull ? '🔴 เต็มเพดาน' : isNear ? '🟡 ใกล้เต็ม' : '🟢 ปกติ'}
+                        <span
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase inline-block border ${
+                            isClosed
+                              ? 'bg-red-100 text-red-700 border-red-200'
+                              : isDiscounted
+                              ? 'bg-amber-100 text-amber-700 border-amber-200'
+                              : isFull
+                              ? 'bg-rose-100 text-rose-700 border-rose-200'
+                              : isNear
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}
+                        >
+                          {isClosed ? 'ปิดรับ' : isDiscounted ? 'ลดจ่าย' : isFull ? 'เต็มเพดาน' : isNear ? 'ใกล้เต็ม' : 'ปกติ'}
                         </span>
                       </td>
-
-                      {/* คำสั่งจัดการด่วน */}
                       <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           {isClosed ? (
                             <button
                               onClick={() => handleQuickAction(b, 'restore')}
                               disabled={isProcessing}
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-black transition flex items-center gap-1"
+                              className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-[10px] font-black transition disabled:opacity-50"
                             >
-                              <span className="material-symbols-outlined text-xs">lock_open</span>
                               ปลดล็อก
                             </button>
                           ) : (
@@ -533,19 +676,15 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
                               <button
                                 onClick={() => handleQuickAction(b, 'close')}
                                 disabled={isProcessing}
-                                className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-[10px] font-black transition flex items-center gap-1"
-                                title="สั่งปิดรับแทงเลขนี้ทันที"
+                                className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-lg text-[10px] font-black transition disabled:opacity-50"
                               >
-                                <span className="material-symbols-outlined text-xs">block</span>
                                 ปิดรับ
                               </button>
                               <button
                                 onClick={() => handleQuickAction(b, 'discount')}
                                 disabled={isProcessing}
-                                className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-lg text-[10px] font-black transition flex items-center gap-1"
-                                title="ปรับลดอัตราจ่ายเลขนี้"
+                                className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[10px] font-black transition disabled:opacity-50"
                               >
-                                <span className="material-symbols-outlined text-xs">trending_down</span>
                                 ลดจ่าย
                               </button>
                             </>
@@ -560,36 +699,46 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           </div>
         )}
 
-        {/* Pagination Footer */}
+        {/* Pagination Controls */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500 font-bold">
-            <div>
-              แสดง {(currentPage - 1) * pageSize + 1} ถึง {Math.min(currentPage * pageSize, filteredBets.length)} จาก {filteredBets.length} รายการ
-            </div>
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+            <span className="text-xs text-slate-500 font-bold">
+              หน้า {currentPage} จาก {totalPages} (ทั้งหมด {filteredBets.length} รายการ)
+            </span>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"
               >
                 ย้อนกลับ
               </button>
-              <span className="px-2 font-black text-slate-800">{currentPage} / {totalPages}</span>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                const pageNum = i + 1;
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-8 h-8 rounded-lg text-xs font-bold transition ${
+                      currentPage === pageNum
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'border border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
               <button
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40"
+                className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"
               >
                 ถัดไป
               </button>
             </div>
           </div>
         )}
-
-        <div className="text-[11px] text-slate-400 flex items-center gap-1.5 pt-1">
-          <span className="material-symbols-outlined text-sm text-blue-600">info</span>
-          ระบบตารางมอนิเตอร์จะตรวจสอบยอดรับกินรายตัวเลข หากตัวเลขใดมียอดแทงสะสมถึงเพดานรับกิน ระบบ Guard ใน `betting.service.ts` จะสกัดกั้นการแทงของตัวเลขนั้นทันที
-        </div>
       </div>
     </div>
   );
