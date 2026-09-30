@@ -146,7 +146,7 @@ export default function LotterySetBet() {
   // Sync Tickets History
   useEffect(() => {
     if (!isLoggedIn || !currentUserId) {
-      setRecentTickets([]);
+      setActiveTickets([]);
       return;
     }
 

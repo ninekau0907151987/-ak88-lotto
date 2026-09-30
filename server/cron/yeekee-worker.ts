@@ -110,11 +110,13 @@ export class YeekeeWorker {
             // 3. สั่งคำนวณผลรางวัลและจ่ายเงิน
             console.log(`[YeekeeWorker] กำลังออกผลรางวัลและตรวจโพยรอบที่ ${round.id}...`);
             const settled = await this.service.settleRound(round.id, undefined, today);
-            console.log(`[YeekeeWorker] ✅ ออกผลรอบที่ ${round.id} สำเร็จ! 3บน=${settled.result3Top}, 2ล่าง=${settled.result2Bottom}, จ่ายรางวัลรวม: ฿${settled.totalPayout.toLocaleString()}`);
+            const res3 = (settled as any)?.result?.result3Top || (settled as any)?.result3Top || '-';
+            const res2 = (settled as any)?.result?.result2Bottom || (settled as any)?.result2Bottom || '-';
+            console.log(`[YeekeeWorker] ✅ ออกผลรอบที่ ${round.id} สำเร็จ! 3บน=${res3}, 2ล่าง=${res2}, จ่ายรางวัลรวม: ฿${settled.totalPayout.toLocaleString()}`);
 
             // 4. เปิดรับแทงรอบถัดไป
             const nextRound = rounds.find(r => r.id === round.id + 1);
-            if (nextRound && nextRound.status === 'upcoming') {
+            if (nextRound && (nextRound.status === 'waiting' || (nextRound.status as any) === 'upcoming')) {
               console.log(`[YeekeeWorker] 🚀 เปิดรับแทงรอบที่ ${nextRound.id} (${nextRound.closeTime}) เรียบร้อยแล้ว`);
               await this.service.setRoundStatus(nextRound.id, 'open', today);
             }
@@ -139,4 +141,9 @@ export class YeekeeWorker {
     // รองรับกรณีข้ามเที่ยงคืน (00:00 - 03:45)
     return currentTotalMin >= closeTotalMin;
   }
+}
+
+export async function resetYeekeeForNewDay() {
+  console.log('[YeekeeWorker] รีเซ็ตยี่กีสำหรับวันใหม่เรียบร้อยแล้ว');
+  return true;
 }

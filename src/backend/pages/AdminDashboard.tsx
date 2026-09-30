@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '@/shared/lib/firebase';
 import { collection, query, orderBy, onSnapshot, updateDoc, doc, setDoc, getDoc, addDoc, deleteDoc, limit, getDocs, where } from 'firebase/firestore';
 import { 
@@ -1329,7 +1329,7 @@ export default function AdminDashboard() {
         });
       }
 
-      await logActivity('สมัครสมาชิกใหม่', `แอดมินสร้างบัญชี ${cleanUsername} เครดิตเริ่มต้น ฿${initBal.toLocaleString()}`, 'member');
+      await logActivity('สมัครสมาชิกใหม่', `แอดมินสร้างบัญชี ${cleanUsername} เครดิตเริ่มต้น ฿${initBal.toLocaleString()}`, 'system');
 
       alert(`สมัครสมาชิกสำเร็จ! รหัสผู้ใช้: ${cleanUsername} พร้อมเครดิต ฿${initBal.toLocaleString()}`);
       setShowAddMemberModal(false);
