@@ -221,13 +221,6 @@ export default function YeekeeAdmin() {
             <span className="material-symbols-outlined text-sm font-black">storefront</span>
             ดูหน้าบ้านสมาชิก
           </Link>
-          <Link
-            to="/portal"
-            className="bg-white/10 hover:bg-white/20 text-white text-xs px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition"
-          >
-            <span className="material-symbols-outlined text-sm">dashboard_customize</span>
-            ทางเข้า Portal
-          </Link>
           <span className="text-xs bg-[#F4C430]/20 text-[#F4C430] border border-[#F4C430]/40 px-2.5 py-1 rounded-full font-bold hidden sm:inline">
             ระบบจับยี่กี 15 นาที
           </span>

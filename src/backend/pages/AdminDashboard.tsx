@@ -2055,14 +2055,6 @@ export default function AdminDashboard() {
               <span className="material-symbols-outlined text-sm">storefront</span>
               ดูหน้าบ้านสมาชิก
             </Link>
-            <Link
-              to="/portal"
-              className="px-3 py-2 rounded-xl font-bold text-xs border flex items-center gap-1 transition"
-              style={{ borderColor: 'var(--admin-border)', color: 'var(--admin-text)' }}
-            >
-              <span className="material-symbols-outlined text-sm">dashboard_customize</span>
-              Portal
-            </Link>
             <div className="text-right hidden md:block">
               <div className="text-sm font-black" style={{ color: 'var(--admin-text)' }}>Super Admin</div>
               <div className="text-[10px] font-bold flex items-center justify-end gap-1" style={{ color: '#2e7d32' }}>
