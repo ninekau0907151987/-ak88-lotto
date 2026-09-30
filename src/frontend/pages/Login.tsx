@@ -26,33 +26,71 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // 1) ตรวจสอบสิทธิ์เจ้าของระบบ / แอดมิน (Admin / Owner Backoffice)
-      if ((loginInput === 'admin' || loginInput === 'owner' || loginInput === '1234') && (passInput === '1234' || passInput === 'admin' || passInput === 'admin1234')) {
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('adminAuth', 'true');
-        localStorage.setItem('userRole', 'admin');
-        localStorage.setItem('username', 'Admin_AK88');
-        saveSession({
-          uid: 'owner',
-          username: loginInput || 'Admin_AK88',
-          displayName: 'ผู้บริหารระบบ AK88 (Super Admin)',
-          role: 'owner',
-        });
-        localStorage.setItem('currentUser', JSON.stringify({
-          username: 'Admin_AK88',
-          role: 'admin',
-          name: 'เจ้าของระบบ AK88',
-          loginAt: new Date().toISOString()
-        }));
-        navigate('/admin');
-        return;
-      }
-
-      // 2) ตรวจสอบฐานข้อมูล Firestore สำหรับสมาชิก (Members) และเอเย่นต์ (Agents)
       const { collection, getDocs, query, where } = await import('firebase/firestore');
       const { db } = await import('@/shared/lib/firebase');
 
-      // ตรวจสอบในตารางเอเย่นต์ / แอดมิน
+      // 1) ตรวจสอบในตารางสมาชิก (users) ด้วย Username หรือ เบอร์โทรศัพท์ ก่อนเสมอ
+      let qUser = query(collection(db, 'users'), where('username', '==', loginInput));
+      let userSnapshot = await getDocs(qUser);
+
+      // ถ้าไม่พบด้วย Username ลองค้นหาด้วยเบอร์โทรศัพท์ (phoneNumber)
+      if (userSnapshot.empty) {
+        qUser = query(collection(db, 'users'), where('phoneNumber', '==', loginInput));
+        userSnapshot = await getDocs(qUser);
+      }
+
+      if (!userSnapshot.empty) {
+        const userDoc = userSnapshot.docs[0];
+        const userData = userDoc.data();
+
+        // ตรวจสอบความถูกต้องของรหัสผ่าน
+        if (userData.password !== passInput) {
+          setError('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
+          setLoading(false);
+          return;
+        }
+
+        if (userData.status === 'suspended' || userData.status === 'banned') {
+          setError('บัญชีของท่านถูกระงับการใช้งานชั่วคราว กรุณาติดต่อฝ่ายบริการลูกค้า');
+          setLoading(false);
+          return;
+        }
+
+        // บันทึกสถานะการล็อกอินสมาชิก
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userId', userDoc.id);
+        localStorage.setItem('username', userData.username || loginInput);
+        localStorage.setItem('userRole', userData.role || 'user');
+
+        // หากผู้ใช้มีสิทธิ์ระดับ admin หรือ owner ให้บันทึก session สิทธิ์ไว้ด้วยเพื่อให้เข้าถึง /admin ได้
+        if (userData.role === 'admin' || userData.role === 'owner') {
+          localStorage.setItem('adminAuth', 'true');
+          saveSession({
+            uid: userDoc.id,
+            username: userData.username || loginInput,
+            displayName: userData.name || userData.username || 'Admin',
+            role: 'owner',
+          });
+        } else {
+          localStorage.removeItem('adminAuth');
+        }
+
+        localStorage.setItem('currentUser', JSON.stringify({
+          userId: userDoc.id,
+          username: userData.username,
+          name: userData.firstName ? `${userData.firstName} ${userData.lastName || ''}` : (userData.name || userData.username),
+          phone: userData.phoneNumber,
+          balance: userData.balance ?? 0,
+          role: userData.role || 'user',
+          loginAt: new Date().toISOString()
+        }));
+
+        // ★ นำทางไปยัง "หน้าบ้าน" (/) เสมอ สำหรับการเข้าสู่ระบบผ่านหน้าบ้าน
+        navigate('/');
+        return;
+      }
+
+      // 2) ตรวจสอบในตารางเอเย่นต์ (agents)
       const qAgent = query(collection(db, 'agents'), where('username', '==', loginInput), where('password', '==', passInput));
       const agentSnapshot = await getDocs(qAgent);
       if (!agentSnapshot.empty) {
@@ -62,45 +100,45 @@ export default function Login() {
         localStorage.setItem('adminAuth', 'true');
         localStorage.setItem('userRole', 'agent');
         localStorage.setItem('agentId', agentDoc.id);
+        localStorage.setItem('userId', agentDoc.id);
         localStorage.setItem('username', agentData.name || loginInput);
-        navigate('/admin');
-        return;
-      }
-
-      // ตรวจสอบในตารางสมาชิก (users) ด้วย Username
-      let qUser = query(collection(db, 'users'), where('username', '==', loginInput), where('password', '==', passInput));
-      let userSnapshot = await getDocs(qUser);
-
-      // ถ้าไม่พบ ลองค้นหาด้วยเบอร์โทรศัพท์ (phoneNumber)
-      if (userSnapshot.empty) {
-        qUser = query(collection(db, 'users'), where('phoneNumber', '==', loginInput), where('password', '==', passInput));
-        userSnapshot = await getDocs(qUser);
-      }
-
-      if (!userSnapshot.empty) {
-        const userDoc = userSnapshot.docs[0];
-        const userData = userDoc.data();
-
-        if (userData.status === 'suspended' || userData.status === 'banned') {
-          setError('บัญชีของท่านถูกระงับการใช้งานชั่วคราว กรุณาติดต่อฝ่ายบริการลูกค้า');
-          return;
-        }
-
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.removeItem('adminAuth');
-        localStorage.setItem('userRole', 'user');
-        localStorage.setItem('userId', userDoc.id);
-        localStorage.setItem('username', userData.username || loginInput);
         localStorage.setItem('currentUser', JSON.stringify({
-          userId: userDoc.id,
-          username: userData.username,
-          name: userData.firstName ? `${userData.firstName} ${userData.lastName || ''}` : userData.username,
-          phone: userData.phoneNumber,
-          balance: userData.balance ?? 0,
-          role: 'user',
+          userId: agentDoc.id,
+          username: loginInput,
+          name: agentData.name || loginInput,
+          balance: agentData.credit ?? 0,
+          role: 'agent',
           loginAt: new Date().toISOString()
         }));
 
+        // เข้าสู่ระบบหน้าบ้านสำเร็จ
+        navigate('/');
+        return;
+      }
+
+      // 3) Fallback สิทธิ์ผู้ดูแลระบบหลัก (Master Admin / Owner) ที่ล็อกอินด้วยชื่อ admin / owner
+      if ((loginInput === 'admin' || loginInput === 'owner') && (passInput === '1234' || passInput === 'admin' || passInput === 'admin1234')) {
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('adminAuth', 'true');
+        localStorage.setItem('userRole', 'admin');
+        localStorage.setItem('username', 'Admin_AK88');
+        localStorage.setItem('userId', 'owner_admin_id');
+        saveSession({
+          uid: 'owner',
+          username: loginInput || 'Admin_AK88',
+          displayName: 'ผู้บริหารระบบ AK88 (Super Admin)',
+          role: 'owner',
+        });
+        localStorage.setItem('currentUser', JSON.stringify({
+          userId: 'owner_admin_id',
+          username: 'Admin_AK88',
+          role: 'admin',
+          name: 'เจ้าของระบบ AK88',
+          balance: 999999,
+          loginAt: new Date().toISOString()
+        }));
+
+        // แม้จะเป็นแอดมิน เมื่อเข้าสู่ระบบที่หน้าบ้าน ให้นำทางไปยังหน้าบ้าน (/) เพื่อใช้งานหน้าบ้าน
         navigate('/');
         return;
       }

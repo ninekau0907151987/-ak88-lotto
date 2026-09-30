@@ -127,6 +127,16 @@ export default function Layout() {
               <span className="material-symbols-outlined text-sm">gavel</span>
               <span>กติกา</span>
             </Link>
+            {(localStorage.getItem('adminAuth') === 'true' || localStorage.getItem('userRole') === 'admin' || localStorage.getItem('userRole') === 'owner' || localStorage.getItem('userRole') === 'agent') && (
+              <Link
+                to="/admin"
+                className="flex items-center gap-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 hover:text-white border border-blue-400/40 px-2.5 py-1 rounded-xl text-xs font-bold transition"
+                title="ไปยังระบบจัดการหลังบ้าน (Backoffice)"
+              >
+                <span className="material-symbols-outlined text-sm">admin_panel_settings</span>
+                <span>จัดการหลังบ้าน</span>
+              </Link>
+            )}
           </div>
         </div>
 
