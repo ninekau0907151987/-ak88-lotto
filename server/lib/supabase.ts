@@ -2,8 +2,8 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
 
-let defaultUrl = '';
-let defaultKey = '';
+let defaultUrl = 'https://aogylynelbkjjdiclfeq.supabase.co';
+let defaultKey = 'sb_publishable_JPASpLsQip_mnqYWsRPCfA_hQAfSCPH';
 
 const configPath = path.resolve(process.cwd(), 'supabase-config.json');
 if (fs.existsSync(configPath)) {
