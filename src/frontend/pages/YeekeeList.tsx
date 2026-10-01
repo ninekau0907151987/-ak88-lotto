@@ -1,7 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { YeekeeRound } from '@/shared/lib/yeekee';
+import { YeekeeRound, generateDailyRounds, determineRoundStatus } from '@/shared/lib/yeekee';
 
+/**
+ * YeekeeList — หน้ารายการรอบหวยจับยี่กี 88 รอบ
+ * ★ ทำงานแบบ Client-Side ได้เลย ไม่ต้องพึ่ง API Server ★
+ * - ใช้ generateDailyRounds() สร้างรอบ 88 รอบ
+ * - ใช้ determineRoundStatus() คำนวณสถานะรอบจากเวลาจริง
+ * - ถ้ามี API ก็ sync ข้อมูลผลรางวัลเพิ่มเติม
+ */
 export default function YeekeeList() {
   const navigate = useNavigate();
   const [rounds, setRounds] = useState<YeekeeRound[]>([]);
@@ -10,31 +17,98 @@ export default function YeekeeList() {
   const [selectedRoundForShoot, setSelectedRoundForShoot] = useState<number>(1);
   const [shooting, setShooting] = useState(false);
   const [shootSuccess, setShootSuccess] = useState('');
+  const [currentTime, setCurrentTime] = useState(new Date());
 
-  // โหลดรอบจริงจากเซิร์ฟเวอร์
-  const loadRounds = async () => {
-    try {
-      const res = await fetch('/api/v1/yeekee/rounds');
-      const json = await res.json();
-      if (json?.data) {
-        setRounds(json.data);
-        const open = json.data.find((r: YeekeeRound) => r.status === 'open');
-        if (open) setSelectedRoundForShoot(open.id);
-      }
-    } catch (e) {
-      console.error('Failed to load yeekee rounds:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // ★ สร้างรอบ 88 รอบฝั่ง Client + อัพเดทสถานะตามเวลาจริง
+  const generateAndUpdateRounds = useCallback(() => {
+    const now = new Date();
+    setCurrentTime(now);
+    const todayStr = now.toISOString().slice(0, 10);
+    const baseRounds = generateDailyRounds(todayStr);
 
-  useEffect(() => {
-    loadRounds();
-    const interval = setInterval(loadRounds, 15000); // รีเฟรชทุก 15 วินาที
-    return () => clearInterval(interval);
+    // คำนวณสถานะแต่ละรอบตามเวลาปัจจุบัน
+    const updatedRounds = baseRounds.map(r => ({
+      ...r,
+      status: determineRoundStatus(r, now),
+    }));
+
+    setRounds(updatedRounds);
+
+    // เลือกรอบแรกที่เปิดอยู่สำหรับยิงเลข
+    const openRound = updatedRounds.find(r => r.status === 'open');
+    if (openRound) setSelectedRoundForShoot(openRound.id);
+
+    setLoading(false);
   }, []);
 
-  // ยิงเลข 5 หลัก
+  // ★ ลอง sync ผลจาก API ถ้ามี (optional — ไม่มีก็ไม่เป็นไร)
+  const syncFromServer = useCallback(async () => {
+    try {
+      const res = await fetch('/api/v1/yeekee/rounds');
+      if (!res.ok) return;
+      const json = await res.json();
+      if (json?.data && Array.isArray(json.data)) {
+        // merge settled results จาก server เข้ากับ client rounds
+        setRounds(prev => prev.map(clientRound => {
+          const serverRound = json.data.find((sr: YeekeeRound) => sr.id === clientRound.id);
+          if (serverRound && serverRound.status === 'settled') {
+            return { ...clientRound, ...serverRound, status: 'settled' as const };
+          }
+          return clientRound;
+        }));
+      }
+    } catch {
+      // ไม่มี server ก็ไม่เป็นไร — ทำงาน client-side ได้
+    }
+  }, []);
+
+  useEffect(() => {
+    generateAndUpdateRounds();
+    syncFromServer();
+
+    // อัพเดทสถานะทุก 10 วินาที
+    const interval = setInterval(() => {
+      generateAndUpdateRounds();
+    }, 10_000);
+
+    // sync จาก server ทุก 30 วินาที (ถ้ามี)
+    const syncInterval = setInterval(syncFromServer, 30_000);
+
+    return () => {
+      clearInterval(interval);
+      clearInterval(syncInterval);
+    };
+  }, [generateAndUpdateRounds, syncFromServer]);
+
+  // ★ คำนวณ countdown สำหรับรอบที่เปิดอยู่
+  const getCountdown = useCallback((closeTimeStr: string) => {
+    const [h, m] = closeTimeStr.split(':').map(Number);
+    const now = new Date();
+    const close = new Date(now);
+    close.setHours(h, m, 0, 0);
+
+    // ถ้าเวลาปิดเป็นวันรุ่งขึ้น (เช่น 00:00 - 03:45)
+    if (close.getTime() < now.getTime() - 12 * 60 * 60 * 1000) {
+      close.setDate(close.getDate() + 1);
+    }
+
+    const diff = close.getTime() - now.getTime();
+    if (diff <= 0) return '00:00';
+    const mins = Math.floor(diff / 60000);
+    const secs = Math.floor((diff % 60000) / 1000);
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, []);
+
+  // ★ นับรอบแต่ละสถานะ
+  const stats = useMemo(() => {
+    const open = rounds.filter(r => r.status === 'open').length;
+    const settled = rounds.filter(r => r.status === 'settled').length;
+    const closed = rounds.filter(r => r.status === 'closed').length;
+    const waiting = rounds.filter(r => r.status === 'waiting').length;
+    return { open, settled, closed, waiting };
+  }, [rounds]);
+
+  // ★ ยิงเลข 5 หลัก
   const handleShoot = async (e: React.FormEvent) => {
     e.preventDefault();
     const clean = shootNumber.trim().replace(/\D/g, '');
@@ -59,16 +133,38 @@ export default function YeekeeList() {
       if (json.status === 'success') {
         setShootSuccess(`ยิงเลข ${clean} ในรอบที่ ${selectedRoundForShoot} สำเร็จ!`);
         setShootNumber('');
-        loadRounds();
+        syncFromServer();
       } else {
         alert(json.message || 'เกิดข้อผิดพลาดในการยิงเลข');
       }
-    } catch (e) {
-      alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้');
+    } catch {
+      alert('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ (ระบบยิงเลขต้องใช้เซิร์ฟเวอร์)');
     } finally {
       setShooting(false);
     }
   };
+
+  // ★ เรียงรอบ: เปิดอยู่ก่อน → ปิดรับ(รอผล) → ออกผลแล้ว → รอเปิด
+  const sortedRounds = useMemo(() => {
+    const statusOrder: Record<string, number> = { open: 0, closed: 1, settled: 2, waiting: 3 };
+    return [...rounds].sort((a, b) => {
+      const oa = statusOrder[a.status] ?? 4;
+      const ob = statusOrder[b.status] ?? 4;
+      if (oa !== ob) return oa - ob;
+      return a.id - b.id;
+    });
+  }, [rounds]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--bg-grey-light)] flex items-center justify-center">
+        <div className="text-center">
+          <span className="material-symbols-outlined text-4xl text-[var(--gold-vibrant)] animate-spin">progress_activity</span>
+          <p className="text-sm text-gray-500 mt-2">กำลังโหลดรอบยี่กี...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--bg-grey-light)] pb-24">
@@ -83,7 +179,7 @@ export default function YeekeeList() {
             <h1 className="text-white font-black text-lg">หวยจับยี่กี (88 รอบสด)</h1>
           </div>
         </div>
-        <button onClick={loadRounds} className="text-white/80 hover:text-white text-xs flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded">
+        <button onClick={generateAndUpdateRounds} className="text-white/80 hover:text-white text-xs flex items-center gap-1 bg-white/10 px-2.5 py-1 rounded">
           <span className="material-symbols-outlined text-sm">refresh</span>
           รีเฟรช
         </button>
@@ -99,6 +195,26 @@ export default function YeekeeList() {
           <span className="font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
             สูตร: ผลรวม − ลำดับที่ 16
           </span>
+        </div>
+
+        {/* ★ สถิติรอบวันนี้ */}
+        <div className="grid grid-cols-4 gap-2">
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-2 text-center">
+            <div className="text-lg font-black text-emerald-700">{stats.open}</div>
+            <div className="text-[10px] text-emerald-600 font-bold">เปิดอยู่</div>
+          </div>
+          <div className="bg-gray-100 border border-gray-200 rounded-lg p-2 text-center">
+            <div className="text-lg font-black text-gray-600">{stats.closed}</div>
+            <div className="text-[10px] text-gray-500 font-bold">รอผล</div>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 text-center">
+            <div className="text-lg font-black text-amber-700">{stats.settled}</div>
+            <div className="text-[10px] text-amber-600 font-bold">ออกผลแล้ว</div>
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-2 text-center">
+            <div className="text-lg font-black text-blue-700">{stats.waiting}</div>
+            <div className="text-[10px] text-blue-600 font-bold">รอเปิด</div>
+          </div>
         </div>
 
         {/* Shooting panel for members */}
@@ -121,6 +237,9 @@ export default function YeekeeList() {
               {rounds.filter(r => r.status === 'open' || r.status === 'waiting').slice(0, 10).map(r => (
                 <option key={r.id} value={r.id}>รอบที่ {r.id} ({r.openTime})</option>
               ))}
+              {rounds.filter(r => r.status === 'open').length === 0 && (
+                <option disabled>ไม่มีรอบที่เปิดรับ</option>
+              )}
             </select>
             <input
               type="text"
@@ -148,7 +267,7 @@ export default function YeekeeList() {
 
         {/* 88 Rounds Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
-          {rounds.map((r) => {
+          {sortedRounds.map((r) => {
             const isOpen = r.status === 'open';
             const isSettled = r.status === 'settled';
             const isClosed = r.status === 'closed';
@@ -165,6 +284,9 @@ export default function YeekeeList() {
                   </div>
                   <div className="font-black text-[var(--navy-deep)] text-xl">รอบที่ {r.id}</div>
                   <div className="text-xs text-gray-600 font-mono mt-0.5">{r.openTime} - {r.closeTime} น.</div>
+                  <div className="text-[11px] font-mono text-red-600 font-bold mt-1">
+                    ⏱ เหลือ {getCountdown(r.closeTime)}
+                  </div>
                   <div className="mt-2 w-full bg-[#1A2238] text-[var(--gold-vibrant)] py-1 rounded text-xs font-bold">
                     เข้าแทงรอบนี้
                   </div>
@@ -185,10 +307,10 @@ export default function YeekeeList() {
                   <div className="text-[10px] text-gray-500 font-mono">{r.openTime} - {r.closeTime}</div>
                   <div className="mt-1 flex items-center gap-1.5 font-mono">
                     <span className="text-sm font-black text-rose-600 bg-white px-1.5 py-0.5 rounded border border-rose-200">
-                      บน: {r.result3Top}
+                      บน: {r.result3Top || '---'}
                     </span>
                     <span className="text-sm font-black text-indigo-700 bg-white px-1.5 py-0.5 rounded border border-indigo-200">
-                      ล่าง: {r.result2Bottom}
+                      ล่าง: {r.result2Bottom || '---'}
                     </span>
                   </div>
                 </div>
