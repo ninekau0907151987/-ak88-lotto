@@ -8,6 +8,7 @@ import {
   LotteryCategoryKey, 
   getLotteryCategory 
 } from '@/shared/lib/lotteryCatalog';
+import NationalFlag from '@/shared/components/NationalFlag';
 
 export type LotteryStatus = 'open' | 'waiting_result' | 'upcoming' | 'closed';
 
@@ -487,7 +488,7 @@ export default function LotteryList() {
           </div>
 
           <div className="bg-black/20 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2 text-amber-200">
-            <span className="text-xl filter drop-shadow">{item.icon}</span> 
+            <NationalFlag name={item.name} category={item.category} size="md" /> 
             <span className="truncate">{item.name}</span>
           </div>
 
@@ -516,7 +517,7 @@ export default function LotteryList() {
           </div>
 
           <div className="bg-black/10 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2 text-gray-300">
-            <span className="text-xl opacity-80">{item.icon}</span> 
+            <NationalFlag name={item.name} category={item.category} size="md" /> 
             <span className="truncate">{item.name}</span>
           </div>
 
@@ -544,7 +545,7 @@ export default function LotteryList() {
 
         {/* ชื่อหวยและไอคอน */}
         <div className="bg-black/10 py-3 text-center text-base font-black flex items-center justify-center gap-2 px-2">
-          <span className="text-xl filter drop-shadow">{item.icon}</span>
+          <NationalFlag name={item.name} category={item.category} size="md" />
           <span className="truncate">{item.name}</span>
         </div>
 
