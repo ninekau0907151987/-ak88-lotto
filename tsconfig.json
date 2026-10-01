@@ -19,6 +19,12 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "firebase/firestore": [
+        "./src/shared/lib/supabase-firestore-adapter.ts"
+      ],
+      "firebase/app": [
+        "./src/shared/lib/supabase-firestore-adapter.ts"
       ]
     },
     "allowImportingTsExtensions": true,

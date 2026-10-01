@@ -1,7 +1,9 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore } from 'firebase/firestore';
-// @ts-ignore
-import firebaseConfig from '../../../firebase-applet-config.json';
+/**
+ * src/shared/lib/firebase.ts
+ * ==================================================================
+ * ★ ปิด Firebase Firestore เรียบร้อยแล้ว -> สลับใช้ Supabase PostgreSQL 100% ★
+ * ==================================================================
+ */
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+export * from './supabase-firestore-adapter';
+export { db, supabaseClient } from './supabase-firestore-adapter';
