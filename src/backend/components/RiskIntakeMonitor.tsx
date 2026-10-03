@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import LotteryCategorySelector from './LotteryCategorySelector';
 import { useRoundCountdown } from '@/shared/lib/roundTimer';
+import { db } from '@/shared/lib/firebase';
+import { collection, getDocs, query, where, limit, addDoc } from 'firebase/firestore';
 
 interface LiveBetNumber {
   number: string;
@@ -110,54 +112,129 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
   // ดึงรอบหวย
   const fetchRounds = async (lotId: string) => {
     setLoadingRounds(true);
+    let foundRounds: RoundOption[] = [];
     try {
       const res = await fetch(`/api/v1/rounds?type=${encodeURIComponent(lotId)}`);
-      const json = await res.json();
-      if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-        setRounds(json.data);
-        // เลือกรอบที่เปิดอยู่เป็นอันดับแรก
-        const activeRound = json.data.find((r: any) => r.status === 'open' || r.status === 'active') || json.data[0];
-        setSelectedRoundId(activeRound.id);
-      } else {
-        const sampleRound: RoundOption = {
-          id: `round-${lotId}-curr`,
-          roundNumber: 'งวดปัจจุบัน (รอบเปิดให้บริการ)',
-          openTime: new Date(Date.now() - 3600000 * 2).toISOString(),
-          closeTime: new Date(Date.now() + 3600000 * 4).toISOString(),
-          resultTime: new Date(Date.now() + 3600000 * 5).toISOString(),
-          status: 'open',
-        };
-        setRounds([sampleRound]);
-        setSelectedRoundId(sampleRound.id);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          foundRounds = json.data;
+        }
       }
-    } catch {
-      setRounds([]);
-    } finally {
-      setLoadingRounds(false);
+    } catch {}
+
+    // Fallback: ดึงจาก Supabase โดยตรง (สำหรับ Vercel static)
+    if (foundRounds.length === 0) {
+      try {
+        const snap = await getDocs(query(collection(db, 'lottery_rounds'), where('lottery_type', '==', lotId), limit(10)));
+        if (!snap.empty) {
+          foundRounds = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+        }
+      } catch {}
     }
+
+    if (foundRounds.length > 0) {
+      setRounds(foundRounds);
+      const activeRound = foundRounds.find((r: any) => r.status === 'open' || r.status === 'active') || foundRounds[0];
+      setSelectedRoundId(activeRound.id);
+    } else {
+      const sampleRound: RoundOption = {
+        id: `round-${lotId}-curr`,
+        roundNumber: 'งวดปัจจุบัน (รอบเปิดให้บริการ)',
+        openTime: new Date(Date.now() - 3600000 * 2).toISOString(),
+        closeTime: new Date(Date.now() + 3600000 * 4).toISOString(),
+        resultTime: new Date(Date.now() + 3600000 * 5).toISOString(),
+        status: 'open',
+      };
+      setRounds([sampleRound]);
+      setSelectedRoundId(sampleRound.id);
+    }
+    setLoadingRounds(false);
   };
 
-  // Fetch real-time intake data from API
+  // Fetch real-time intake data from API with Supabase fallback
   const fetchLiveIntake = async (lotId: string) => {
     setLoading(true);
+    let success = false;
     try {
       const res = await fetch(`/api/v1/lottery/live-intake/${encodeURIComponent(lotId)}`);
-      const json = await res.json();
-      if (json.status === 'success') {
-        setLiveBets(json.data || []);
-        setSummaryData({
-          totalItems: json.totalItems || json.data?.length || 0,
-          fullCount: json.fullCount || 0,
-          nearCount: json.nearCount || 0,
-          normalCount: json.normalCount || 0,
-          totalIntakeAmount: json.totalIntakeAmount || 0,
-        });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === 'success') {
+          setLiveBets(json.data || []);
+          setSummaryData({
+            totalItems: json.totalItems || json.data?.length || 0,
+            fullCount: json.fullCount || 0,
+            nearCount: json.nearCount || 0,
+            normalCount: json.normalCount || 0,
+            totalIntakeAmount: json.totalIntakeAmount || 0,
+          });
+          success = true;
+        }
       }
     } catch (e: any) {
-      console.warn('Fetch live intake fallback:', e.message);
-    } finally {
-      setLoading(false);
+      // Fallback to Supabase below
     }
+
+    // Fallback: ดึงยอดแทงสดจริงจาก Supabase tickets (สำหรับ Vercel static hosting)
+    if (!success) {
+      try {
+        const snap = await getDocs(query(collection(db, 'tickets'), where('ticketType', '==', lotId)));
+        const aggregated: Record<string, LiveBetNumber> = {};
+        let totalIntake = 0;
+
+        snap.docs.forEach(d => {
+          const t = d.data();
+          if (t.status === 'cancelled' || t.status === 'rejected') return;
+          const bets = Array.isArray(t.bets) ? t.bets : [];
+          bets.forEach((b: any) => {
+            if (!b.number || !b.type) return;
+            const amt = Number(b.amount || b.price) || 0;
+            const key = `${b.type}_${b.number}`;
+            if (!aggregated[key]) {
+              const defLimit = (b.type.includes('3') ? 1000 : b.type.includes('2') ? 3000 : 5000);
+              aggregated[key] = {
+                number: String(b.number),
+                type: String(b.type),
+                intake: 0,
+                limit: defLimit,
+                percent: 0,
+                remaining: defLimit,
+                isFull: false,
+                isNear: false,
+              };
+            }
+            aggregated[key].intake += amt;
+            totalIntake += amt;
+          });
+        });
+
+        const items = Object.values(aggregated).map(item => {
+          const pct = Math.min(100, Math.round((item.intake / item.limit) * 100));
+          const remaining = Math.max(0, item.limit - item.intake);
+          return {
+            ...item,
+            percent: pct,
+            remaining,
+            isFull: pct >= 100,
+            isNear: pct >= 80 && pct < 100,
+          };
+        });
+
+        setLiveBets(items);
+        setSummaryData({
+          totalItems: items.length,
+          fullCount: items.filter(i => i.isFull).length,
+          nearCount: items.filter(i => i.isNear).length,
+          normalCount: items.filter(i => !i.isFull && !i.isNear).length,
+          totalIntakeAmount: totalIntake,
+        });
+      } catch (err: any) {
+        setLiveBets([]);
+        setSummaryData({ totalItems: 0, fullCount: 0, nearCount: 0, normalCount: 0, totalIntakeAmount: 0 });
+      }
+    }
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -194,39 +271,58 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
         nextStatus = 'normal';
       }
 
-      const res = await fetch('/api/v1/lottery/quick-number-action', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lotteryId: selectedLottery,
-          betType: bet.type,
-          action: apiAction,
-          targetNumber: bet.number,
-          discountRate: action === 'discount' ? Math.round(bet.limit * 0.7) : undefined,
-        }),
-      });
+      let apiSuccess = false;
+      try {
+        const res = await fetch('/api/v1/lottery/quick-number-action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            lotteryId: selectedLottery,
+            betType: bet.type,
+            action: apiAction,
+            targetNumber: bet.number,
+            discountRate: action === 'discount' ? Math.round(bet.limit * 0.7) : undefined,
+          }),
+        });
 
-      const resJson = await res.json();
-      if (resJson.status === 'success' || resJson.message) {
-        setLiveBets(prev => prev.map(item => {
-          if (item.number === bet.number && item.type === bet.type) {
-            const isFull = nextStatus === 'closed' || item.percent >= 100;
-            return {
-              ...item,
-              statusOverride: nextStatus,
-              isFull,
-              isNear: !isFull && item.percent >= 80,
-            };
+        if (res.ok) {
+          const resJson = await res.json();
+          if (resJson.status === 'success' || resJson.message) {
+            apiSuccess = true;
           }
-          return item;
-        }));
+        }
+      } catch {}
 
-        const actionText = action === 'close' ? 'ปิดรับแทง' : action === 'discount' ? 'ลดอัตราจ่าย' : 'ปลดล็อกคืนค่าปกติ';
-        setMessage({ text: `${actionText}เลข ${bet.number} (${bet.type}) สำเร็จ`, type: 'success' });
-        onLogActivity?.('มอนิเตอร์รับกิน', `${actionText}หมายเลข ${bet.number} (${bet.type})`, 'security');
-      } else {
-        throw new Error(resJson.message || 'ดำเนินการไม่สำเร็จ');
+      // Fallback บันทึกลง Supabase blocked_numbers โดยตรง (สำหรับ Vercel static)
+      if (!apiSuccess) {
+        if (action === 'close' || action === 'discount') {
+          await addDoc(collection(db, 'blocked_numbers'), {
+            lottery_type: selectedLottery,
+            bet_type: bet.type,
+            number: bet.number,
+            is_blocked: action === 'close',
+            custom_payout: action === 'discount' ? Math.round(bet.limit * 0.7) : 0,
+            created_at: new Date().toISOString(),
+          });
+        }
       }
+
+      setLiveBets(prev => prev.map(item => {
+        if (item.number === bet.number && item.type === bet.type) {
+          const isFull = nextStatus === 'closed' || item.percent >= 100;
+          return {
+            ...item,
+            statusOverride: nextStatus,
+            isFull,
+            isNear: !isFull && item.percent >= 80,
+          };
+        }
+        return item;
+      }));
+
+      const actionText = action === 'close' ? 'ปิดรับแทง' : action === 'discount' ? 'ลดอัตราจ่าย' : 'ปลดล็อกคืนค่าปกติ';
+      setMessage({ text: `${actionText}เลข ${bet.number} (${bet.type}) สำเร็จ`, type: 'success' });
+      onLogActivity?.('มอนิเตอร์รับกิน', `${actionText}หมายเลข ${bet.number} (${bet.type})`, 'security');
     } catch (e: any) {
       setMessage({ text: 'เกิดข้อผิดพลาด: ' + e.message, type: 'error' });
     } finally {

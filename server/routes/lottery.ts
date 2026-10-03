@@ -401,41 +401,6 @@ export function lotteryRoutes(db: any) {
         }
       }
 
-      const defaultSamples = [
-        { number: '789', type: '3 ตัวบน', intake: 850, limit: 1000 },
-        { number: '168', type: '3 ตัวบน', intake: 1000, limit: 1000 },
-        { number: '905', type: '3 ตัวบน', intake: 450, limit: 1000 },
-        { number: '012', type: '3 ตัวบน', intake: 150, limit: 1000 },
-        { number: '999', type: '3 ตัวบน', intake: 980, limit: 1000 },
-        { number: '556', type: '3 ตัวล่าง', intake: 650, limit: 1000 },
-        { number: '723', type: '3 ตัวล่าง', intake: 1000, limit: 1000 },
-        { number: '104', type: '3 ตัวล่าง', intake: 320, limit: 1000 },
-        { number: '123', type: '3 ตัวโต๊ด', intake: 1850, limit: 2000 },
-        { number: '456', type: '3 ตัวโต๊ด', intake: 2000, limit: 2000 },
-        { number: '890', type: '3 ตัวโต๊ด', intake: 900, limit: 2000 },
-        { number: '88', type: '2 ตัวบน', intake: 2550, limit: 3000 },
-        { number: '14', type: '2 ตัวบน', intake: 3000, limit: 3000 },
-        { number: '69', type: '2 ตัวบน', intake: 1400, limit: 3000 },
-        { number: '52', type: '2 ตัวบน', intake: 2900, limit: 3000 },
-        { number: '99', type: '2 ตัวบน', intake: 800, limit: 3000 },
-        { number: '95', type: '2 ตัวล่าง', intake: 3000, limit: 3000 },
-        { number: '27', type: '2 ตัวล่าง', intake: 2200, limit: 3000 },
-        { number: '03', type: '2 ตัวล่าง', intake: 950, limit: 3000 },
-        { number: '76', type: '2 ตัวล่าง', intake: 2750, limit: 3000 },
-        { number: '58', type: '2 ตัวโต๊ด', intake: 4800, limit: 5000 },
-        { number: '34', type: '2 ตัวโต๊ด', intake: 2100, limit: 5000 },
-        { number: '9', type: 'วิ่งบน', intake: 8900, limit: 10000 },
-        { number: '5', type: 'วิ่งบน', intake: 10000, limit: 10000 },
-        { number: '8', type: 'วิ่งบน', intake: 4500, limit: 10000 },
-        { number: '2', type: 'วิ่งล่าง', intake: 6500, limit: 10000 },
-        { number: '7', type: 'วิ่งล่าง', intake: 9500, limit: 10000 },
-        { number: '7', type: 'ปักหลักร้อย', intake: 4200, limit: 5000 },
-        { number: '4', type: 'ปักหลักสิบ', intake: 5000, limit: 5000 },
-        { number: '1', type: 'ปักหลักหน่วย', intake: 1900, limit: 5000 },
-        { number: '1234', type: '4 ตัวบน', intake: 450, limit: 500 },
-        { number: '9999', type: '4 ตัวบน', intake: 500, limit: 500 },
-      ];
-
       let items = Object.values(aggregated);
       if (items.length === 0) {
         items = [];
