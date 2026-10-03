@@ -1022,22 +1022,8 @@ export default function AdminDashboard() {
       console.warn('[login] staff lookup failed, falling back:', e);
     }
 
-    // 2) fallback: บัญชีผู้ดูแลหลัก (ระบบเดิม + บัญชี owner)
-    if (
-      (adminUser === '1234' && adminPass === '12345678') ||
-      (adminUser.toLowerCase() === 'owner' && (adminPass === '0614284727' || adminPass === '06142847')) ||
-      (adminUser.toLowerCase() === 'admin' && (adminPass === '1234' || adminPass === 'admin1234'))
-    ) {
-      const sess: StaffSession = {
-        uid: 'owner', username: adminUser || 'owner', displayName: 'ผู้ดูแลระบบสูงสุด (Admin)', role: 'owner',
-      };
-      saveSession(sess);
-      setSession(sess);
-      setIsAdminLoggedIn(true);
-      await logActivity('เข้าสู่ระบบ', 'เจ้าของระบบ (Owner/Admin)', 'security');
-    } else {
-      alert('Username หรือ รหัสผ่านไม่ถูกต้อง');
-    }
+    // 2) ★ ลบ hardcoded password ออกแล้ว — ต้องลงทะเบียนบัญชีพนักงานในระบบ staffUsers เท่านั้น
+    alert('ไม่พบบัญชีผู้ดูแลในระบบ กรุณาลงทะเบียนบัญชีพนักงานก่อนเข้าใช้งาน');
   };
 
   const handleLogout = () => {
@@ -1625,6 +1611,8 @@ export default function AdminDashboard() {
     setIsSettling(true);
     try {
       // 1. Save Result to History
+      // หมายเหตุ: Vercel เป็น static hosting (ไม่มี /api) — ห้ามเรียก /api/v1/results/settle ซ้ำ
+      // เพราะ loop ด้านล่างจ่ายเงินฝั่ง client อยู่แล้ว ถ้าเรียกทั้งคู่จะจ่ายซ้ำ 2 รอบ
       await addDoc(collection(db, 'lotteryResults'), {
         type: selectedLotteryType,
         result3Top,
@@ -6818,11 +6806,21 @@ export default function AdminDashboard() {
                       className="w-full bg-white border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)]"
                     />
                   </div>
+                  <div className="w-28 space-y-1">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase">ซื้อได้สูงสุด (บาท)</label>
+                    <input
+                      id="modal-blockMax"
+                      type="number"
+                      placeholder="เช่น 20"
+                      className="w-full bg-white border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)]"
+                    />
+                  </div>
                   <button 
                     onClick={async () => {
                       const selType = (document.getElementById('modal-blockBetType') as HTMLSelectElement).value;
                       const nums = (document.getElementById('modal-blockNumbers') as HTMLInputElement).value;
                       const rate = (document.getElementById('modal-blockRate') as HTMLInputElement).value;
+                      const maxAmt = (document.getElementById('modal-blockMax') as HTMLInputElement)?.value;
                       if(!nums) return;
                       const numbersArray = nums.split(',').map(n => n.trim()).filter(n => n.length > 0);
                       for (const num of numbersArray) {
@@ -6830,13 +6828,16 @@ export default function AdminDashboard() {
                           lotteryType: selectedPayoutLottery,
                           betType: selType,
                           number: num,
-                          restrictionType: rate ? 'reduced' : 'blocked',
+                          restrictionType: rate ? 'reduced' : (maxAmt ? 'limited' : 'blocked'),
                           payoutRate: rate ? Number(rate) : 0,
+                          customPayoutRate: rate ? Number(rate) : 0,
+                          maxAmount: maxAmt ? Number(maxAmt) : 0,
                           createdAt: new Date().toISOString()
                         });
                       }
                       (document.getElementById('modal-blockNumbers') as HTMLInputElement).value = '';
                       (document.getElementById('modal-blockRate') as HTMLInputElement).value = '';
+                      const mx = document.getElementById('modal-blockMax') as HTMLInputElement | null; if (mx) mx.value = '';
                     }}
                     className="bg-red-500 text-white font-black px-4 py-3 rounded-xl hover:bg-red-600 transition h-[46px]"
                   >
@@ -6863,11 +6864,14 @@ export default function AdminDashboard() {
                             <td className="p-3 font-bold text-[var(--navy-deep)]">{bn.betType}</td>
                             <td className="p-3 text-center font-black tracking-widest text-red-500">{bn.number}</td>
                             <td className="p-3 text-center">
-                              {bn.restrictionType === 'blocked' ? (
+                              {(bn.restrictionType === 'blocked' || !bn.restrictionType) ? (
                                 <span className="bg-red-100 text-red-600 px-2 py-1 rounded text-[10px] font-black">ปิดรับแทง</span>
-                              ) : (
-                                <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[10px] font-black">จ่าย {bn.payoutRate}</span>
-                              )}
+                                ) : bn.restrictionType === 'limited' ? null : (
+                                <span className="bg-orange-100 text-orange-600 px-2 py-1 rounded text-[10px] font-black">จ่าย {bn.customPayoutRate ?? bn.payoutRate}</span>
+                                )}
+                                {Number(bn.maxAmount) > 0 && (
+                                  <span className="ml-1 bg-blue-100 text-blue-600 px-2 py-1 rounded text-[10px] font-black">สูงสุด ฿{bn.maxAmount}</span>
+                                )}
                             </td>
                             <td className="p-3 text-right">
                               <button 

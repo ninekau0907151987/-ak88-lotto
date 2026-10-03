@@ -177,16 +177,16 @@ export function createV1Router(db: any) {
   // ================================================================
 
   // 4.1 เส้นแทงลง / โพย
-  api.use('/betting', bettingRoutes(db));
+
 
   // 4.2 เส้นยี่กี
-  api.use('/yeekee', createYeekeeRouter(db));
+
 
   // 4.3 เส้นหวย / รอบ / เลขอั้น
-  api.use('/lottery', lotteryRoutes(db));
-  api.use('/rounds', lotteryRoundRoutes(db));
-  api.use('/blocked', blockedNumberRoutes(db));
-  api.use('/results', resultRoutes(db));
+
+
+
+
 
   // 4.4 การเงิน & สมาชิกตรง
   api.post('/finance/slip/verify', asyncHandler(async (req, res) => {

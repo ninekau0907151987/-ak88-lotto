@@ -513,9 +513,9 @@ export default function LotteryBet() {
                   hasBlocked = true;
                   return;
                 } else if (blockInfo.restrictionType === 'reduced') {
-                  payoutRate = blockInfo.customPayoutRate;
+                  payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
                 } else if (blockInfo.restrictionType === 'special') {
-                  payoutRate = blockInfo.customPayoutRate;
+                  payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
                 }
               }
 
@@ -554,9 +554,9 @@ export default function LotteryBet() {
               hasBlocked = true;
               return;
             } else if (blockInfo.restrictionType === 'reduced') {
-              payoutRate = blockInfo.customPayoutRate;
+              payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
             } else if (blockInfo.restrictionType === 'special') {
-              payoutRate = blockInfo.customPayoutRate;
+              payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
             }
           }
 
@@ -660,9 +660,9 @@ export default function LotteryBet() {
           hasBlocked = true;
           return null;
         } else if (blockInfo.restrictionType === 'reduced') {
-          payoutRate = blockInfo.customPayoutRate;
+          payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
         } else if (blockInfo.restrictionType === 'special') {
-          payoutRate = blockInfo.customPayoutRate;
+          payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
         }
       }
 
@@ -782,10 +782,10 @@ export default function LotteryBet() {
             hasBlocked = true;
             return;
           } else if (blockInfo.restrictionType === 'reduced') {
-            payoutRate = blockInfo.customPayoutRate;
+            payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
             isReduced = true;
           } else if (blockInfo.restrictionType === 'special') {
-            payoutRate = blockInfo.customPayoutRate;
+            payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
             isSpecial = true;
           }
         }
@@ -885,9 +885,9 @@ export default function LotteryBet() {
             hasBlocked = true;
             return; // Skip blocked numbers
           } else if (blockInfo.restrictionType === 'reduced') {
-            payoutRate = blockInfo.customPayoutRate;
+            payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
           } else if (blockInfo.restrictionType === 'special') {
-            payoutRate = blockInfo.customPayoutRate;
+            payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
           }
         }
 
@@ -999,6 +999,62 @@ export default function LotteryBet() {
     setDuplicateKeys([]); // Clear highlights
   };
 
+  // ★ ตรวจสอบโพยรอบสุดท้ายก่อนบันทึก (กันกรณีแอดมินเปลี่ยนเลขอั้น/ราคาระหว่างที่ลูกค้ากำลังกรอก)
+  //   - เลขปิด (blocked)      → ตัดออก (ถามยืนยันก่อน)
+  //   - เลขลดราคา (reduced)   → ใช้อัตราจ่ายล่าสุด
+  //   - ซื้อได้สูงสุด (maxAmount) ต่อเลข → เกินแล้วไม่ให้ส่ง
+  //   - แทงขั้นต่ำ / สูงสุดต่อรายการ / สูงสุดต่อโพย(ไม้)
+  const validateAndNormalizeBets = (bets: BetItem[]): { ok: boolean; bets: BetItem[]; total: number } => {
+    const minBet = Number(lotteryConfig?.minBet ?? globalSettings?.minBet) || 0;
+    const maxPerBet = Number(lotteryConfig?.maxBet ?? globalSettings?.maxBet) || 0;
+    const maxPerTicket = Number(lotteryConfig?.maxPerTicket ?? globalSettings?.maxBetPerUser) || 0;
+    const errors: string[] = [];
+    const removed: string[] = [];
+    const out: BetItem[] = [];
+
+    for (const bet of bets) {
+      const info = blockedNumbers.find(b =>
+        b.number === bet.number && (b.betType === 'ทุกประเภท' || b.betType === bet.type)
+      );
+      if (info && (info.restrictionType === 'blocked' || !info.restrictionType)) {
+        removed.push(`${bet.type} ${bet.number}`);
+        continue;
+      }
+      let payoutRate = Number(bet.payoutRate) || Number(lotteryConfig?.rates?.[bet.type]) || DEFAULT_RATES[bet.type] || 0;
+      if (info && (info.restrictionType === 'reduced' || info.restrictionType === 'special')) {
+        const r = Number(info.customPayoutRate ?? info.payoutRate);
+        if (r > 0) payoutRate = r;
+      }
+      const maxAmt = Number(info?.maxAmount) || 0;
+      if (minBet && bet.amount < minBet) errors.push(`${bet.type} ${bet.number}: ขั้นต่ำ ${minBet} บาท`);
+      if (maxPerBet && bet.amount > maxPerBet) errors.push(`${bet.type} ${bet.number}: สูงสุด ${maxPerBet} บาท`);
+      if (maxAmt && bet.amount > maxAmt) errors.push(`${bet.type} ${bet.number}: เลขนี้ซื้อได้สูงสุด ${maxAmt} บาท`);
+      const median = Number(lotteryConfig?.medianRates?.[bet.type]) || 0;
+      out.push({
+        ...bet,
+        payoutRate,
+        isReduced: median ? payoutRate < median : bet.isReduced,
+        isSpecial: median ? payoutRate > median : bet.isSpecial,
+      });
+    }
+
+    const total = out.reduce((sum, b) => sum + b.amount, 0);
+    if (maxPerTicket && total > maxPerTicket) errors.push(`ยอดรวมต่อโพย ฿${total.toLocaleString()} เกินสูงสุด ฿${maxPerTicket.toLocaleString()}`);
+
+    if (errors.length > 0) {
+      alert('ไม่สามารถส่งโพยได้:\n- ' + errors.slice(0, 15).join('\n- ') + (errors.length > 15 ? `\n...และอีก ${errors.length - 15} รายการ` : ''));
+      return { ok: false, bets: out, total };
+    }
+    if (out.length === 0) {
+      alert('ทุกเลขในโพยนี้ปิดรับแทงแล้ว');
+      return { ok: false, bets: out, total };
+    }
+    if (removed.length > 0 && !window.confirm(`เลขต่อไปนี้ปิดรับแทง และจะถูกตัดออกจากโพย:\n${removed.join(', ')}\n\nยอดใหม่ ฿${total.toLocaleString()} — ต้องการส่งต่อหรือไม่?`)) {
+      return { ok: false, bets: out, total };
+    }
+    return { ok: true, bets: out, total };
+  };
+
   const submitTicket = async () => {
     if (selectedBets.length === 0) {
       alert('กรุณาเลือกรายการแทงอย่างน้อย 1 รายการ');
@@ -1045,6 +1101,10 @@ export default function LotteryBet() {
       return;
     }
 
+    const checked = validateAndNormalizeBets(betsToSubmit);
+    if (!checked.ok) return;
+    betsToSubmit = checked.bets;
+
     const total = betsToSubmit.reduce((sum, bet) => sum + bet.amount, 0);
 
     try {
@@ -1068,7 +1128,7 @@ export default function LotteryBet() {
       }
 
       // Save to Firestore
-      await addDoc(collection(db, 'tickets'), {
+                await addDoc(collection(db, 'tickets'), {
         ticketId,
         bets: betsToSubmit,
         totalAmount: total,
@@ -1093,8 +1153,11 @@ export default function LotteryBet() {
   };
 
   const executeSubmitTicket = async (directTicketInfo?: any) => {
-    const info = directTicketInfo || confirmTicketInfo;
+    let info = directTicketInfo || confirmTicketInfo;
     if(!info) return;
+    const checked = validateAndNormalizeBets(info.bets || []);
+    if (!checked.ok) return;
+    info = { ...info, bets: checked.bets, total: checked.total };
     if (globalSettings.systemOpen === false) {
       alert(globalSettings.maintenanceMessage || 'ขออภัย ระบบกำลังปิดปรับปรุงชั่วคราว');
       return;
@@ -1272,7 +1335,7 @@ export default function LotteryBet() {
             hasBlocked = true;
             return;
           } else {
-            payoutRate = blockInfo.customPayoutRate;
+            payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
             if (blockInfo.restrictionType === 'reduced') isReduced = true;
             else if (blockInfo.restrictionType === 'special') isSpecial = true;
           }
@@ -2572,10 +2635,10 @@ export default function LotteryBet() {
                             hasBlocked = true;
                             return; // Skip blocked numbers
                           } else if (blockInfo.restrictionType === 'reduced') {
-                            payoutRate = blockInfo.customPayoutRate;
+                            payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
                             isReduced = true;
                           } else if (blockInfo.restrictionType === 'special') {
-                            payoutRate = blockInfo.customPayoutRate;
+                            payoutRate = (blockInfo.customPayoutRate ?? blockInfo.payoutRate);
                             isSpecial = true;
                           }
                         }

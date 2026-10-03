@@ -438,7 +438,7 @@ export function lotteryRoutes(db: any) {
 
       let items = Object.values(aggregated);
       if (items.length === 0) {
-        items = defaultSamples;
+        items = [];
       }
 
       let overrideMap: Record<string, any> = {};
