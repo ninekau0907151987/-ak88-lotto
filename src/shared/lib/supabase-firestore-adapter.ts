@@ -125,6 +125,65 @@ function toSnake(data: any, table: string): any {
     return outUser;
   }
 
+  // ★ ตาราง tickets ใน Supabase
+  if (table === 'tickets') {
+    const outTkt: Record<string, any> = {};
+    const tktId = data.ticket_id || data.ticketId || data.id;
+    if (data.id) outTkt.id = String(data.id);
+    else if (tktId) outTkt.id = String(tktId);
+    if (tktId) outTkt.ticket_id = String(tktId);
+    if (data.user_id || data.userId) outTkt.user_id = String(data.user_id || data.userId);
+    outTkt.customer_name = data.customer_name || data.customerName || 'ลูกค้าทั่วไป';
+    outTkt.lottery_type = data.lottery_type || data.lotteryType || data.ticketType || 'thai';
+    outTkt.lottery_slug = data.lottery_slug || data.lotterySlug || null;
+    if (data.round_id || data.roundId) outTkt.round_id = String(data.round_id || data.roundId);
+    outTkt.total_amount = Number(data.total_amount ?? data.totalAmount ?? 0);
+    outTkt.status = data.status || 'pending';
+    outTkt.win_amount = Number(data.win_amount ?? data.winAmount ?? 0);
+    outTkt.gross_win_amount = Number(data.gross_win_amount ?? data.grossWinAmount ?? outTkt.win_amount);
+    outTkt.tax_amount = Number(data.tax_amount ?? data.taxAmount ?? 0);
+    outTkt.tax_rate = Number(data.tax_rate ?? data.taxRate ?? 0);
+    if (data.settled_at || data.settledAt) outTkt.settled_at = data.settled_at || data.settledAt;
+    if (data.created_at || data.createdAt) outTkt.created_at = data.created_at || data.createdAt;
+    if (data.expires_at || data.expiresAt) outTkt.expires_at = data.expires_at || data.expiresAt;
+    return outTkt;
+  }
+
+  // ★ ตาราง lottery_results ใน Supabase
+  if (table === 'lottery_results') {
+    const outRes: Record<string, any> = {};
+    if (data.id) outRes.id = String(data.id);
+    outRes.lottery_type = data.lottery_type || data.lotteryType || data.type || 'thai';
+    if (data.round_id || data.roundId) outRes.round_id = String(data.round_id || data.roundId);
+    outRes.result_3top = data.result_3top || data.result3Top || null;
+    outRes.result_2bottom = data.result_2bottom || data.result2Bottom || null;
+    outRes.result_3bottom = data.result_3bottom || data.result3Bottom || null;
+    outRes.result_3front = data.result_3front || data.result3Front || null;
+    outRes.summary = data.summary || {};
+    outRes.created_at = data.created_at || data.createdAt || new Date().toISOString();
+    return outRes;
+  }
+
+  // ★ ตาราง transactions ใน Supabase
+  if (table === 'transactions') {
+    const outTx: Record<string, any> = {};
+    if (data.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.id)) {
+      outTx.id = data.id;
+    }
+    if (data.user_id || data.userId) outTx.user_id = String(data.user_id || data.userId);
+    if (data.username) outTx.username = String(data.username);
+    outTx.type = data.type || 'bet';
+    outTx.amount = Number(data.amount || 0);
+    if (data.gross_amount ?? data.grossAmount) outTx.gross_amount = Number(data.gross_amount ?? data.grossAmount);
+    if (data.tax_amount ?? data.taxAmount) outTx.tax_amount = Number(data.tax_amount ?? data.taxAmount);
+    if (data.tax_rate ?? data.taxRate) outTx.tax_rate = Number(data.tax_rate ?? data.taxRate);
+    outTx.status = data.status || 'pending';
+    if (data.slip_url || data.slipUrl) outTx.slip_url = data.slip_url || data.slipUrl;
+    if (data.description) outTx.description = String(data.description);
+    outTx.created_at = data.created_at || data.createdAt || new Date().toISOString();
+    return outTx;
+  }
+
   for (const [k, v] of Object.entries(data)) {
     if (k === 'isOpen') out.is_open = v;
     else if (k === 'isHidden') out.is_hidden = v;
