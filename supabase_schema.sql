@@ -262,3 +262,37 @@ INSERT INTO system_settings (id, key, value)
 VALUES 
     ('global', 'global', '{"systemOpen": true, "bettingOpen": true, "minBet": 1, "maxBet": 5000, "maxBetPerUser": 50000, "taxRate": 1}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
+
+-- Seed ข้อมูลประเภทหวยยอดนิยมเริ่มต้น (Lottery Types)
+INSERT INTO lottery_types (id, name, category, icon, path, is_open, min_bet, max_bet, max_per_ticket, rates)
+VALUES 
+    ('หวยรัฐบาลไทย', 'หวยรัฐบาลไทย', 'thai', '🇹🇭', '/lottery/thai', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "3 ตัวล่าง": 450, "3 ตัวหน้า": 450, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยฮานอย', 'หวยฮานอย', 'foreign', '🇻🇳', '/lottery/hanoi', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('ฮานอยพิเศษ', 'ฮานอยพิเศษ', 'foreign', '🇻🇳', '/lottery/hanoi-special', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('ฮานอย(VIP)', 'ฮานอย(VIP)', 'foreign', '🇻🇳', '/lottery/hanoi-vip', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยลาวพัฒนา', 'หวยลาวพัฒนา', 'foreign', '🇱🇦', '/lottery/lao', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยมาเลย์ 4D', 'หวยมาเลย์ 4D', 'foreign', '🇲🇾', '/lottery/malay', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยยี่กี 88 รอบ', 'หวยยี่กี 88 รอบ', 'yeekee', '⏱️', '/lottery/yeekee', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยธกส.', 'หวยธกส.', 'thai', '🏦', '/lottery/baac', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยออมสิน', 'หวยออมสิน', 'thai', '🏦', '/lottery/gsb', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb)
+ON CONFLICT (id) DO UPDATE 
+SET is_open = true, rates = EXCLUDED.rates;
+
+-- Seed รอบหวยเริ่มต้นที่เปิดรับแทงทันที (Lottery Rounds)
+INSERT INTO lottery_rounds (id, lottery_type, round_number, open_time, close_time, result_time, status)
+VALUES 
+    ('round-thai-current', 'หวยรัฐบาลไทย', 'งวดประจำวัน', NOW() - INTERVAL '1 day', NOW() + INTERVAL '12 days', NOW() + INTERVAL '12 days 1 hour', 'open'),
+    ('round-hanoi-current', 'หวยฮานอย', 'งวดประจำวัน', NOW() - INTERVAL '2 hours', NOW() + INTERVAL '6 hours', NOW() + INTERVAL '7 hours', 'open'),
+    ('round-hanoispec-current', 'ฮานอยพิเศษ', 'งวดประจำวัน', NOW() - INTERVAL '2 hours', NOW() + INTERVAL '5 hours', NOW() + INTERVAL '6 hours', 'open'),
+    ('round-hanoivip-current', 'ฮานอย(VIP)', 'งวดประจำวัน', NOW() - INTERVAL '2 hours', NOW() + INTERVAL '7 hours', NOW() + INTERVAL '8 hours', 'open'),
+    ('round-lao-current', 'หวยลาวพัฒนา', 'งวดประจำวัน', NOW() - INTERVAL '2 hours', NOW() + INTERVAL '8 hours', NOW() + INTERVAL '9 hours', 'open'),
+    ('round-malay-current', 'หวยมาเลย์ 4D', 'งวดประจำสัปดาห์', NOW() - INTERVAL '2 hours', NOW() + INTERVAL '8 hours', NOW() + INTERVAL '9 hours', 'open')
+ON CONFLICT (id) DO UPDATE 
+SET status = 'open';
+
+-- Seed สมาชิกตัวอย่างสำหรับทดสอบแทง (Test Member with 10,000 THB Credit)
+INSERT INTO users (id, username, phone, role, balance, status)
+VALUES 
+    ('user_test_01', 'user_test', '0899999999', 'member', 10000.00, 'active')
+ON CONFLICT (username) DO UPDATE 
+SET balance = 10000.00, status = 'active';
