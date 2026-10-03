@@ -2,8 +2,23 @@
 -- AK88 LOTTO - COMPLETE SUPABASE POSTGRESQL SCHEMA (ตารางระบบหวยมาตรฐานครบวงจร)
 -- ==============================================================
 
+-- 0. ล้างตารางเก่าที่ว่างเปล่าเพื่อป้องกันคอลัมน์ไม่ตรง (Clean Slate Migration)
+DROP TABLE IF EXISTS ticket_items CASCADE;
+DROP TABLE IF EXISTS tickets CASCADE;
+DROP TABLE IF EXISTS lottery_results CASCADE;
+DROP TABLE IF EXISTS lottery_rounds CASCADE;
+DROP TABLE IF EXISTS yeekee_rounds CASCADE;
+DROP TABLE IF EXISTS blocked_numbers CASCADE;
+DROP TABLE IF EXISTS risk_intake_configs CASCADE;
+DROP TABLE IF EXISTS lottery_types CASCADE;
+DROP TABLE IF EXISTS staff CASCADE;
+DROP TABLE IF EXISTS system_settings CASCADE;
+DROP TABLE IF EXISTS permission_logs CASCADE;
+DROP TABLE IF EXISTS transactions CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
 -- 1. ตารางสมาชิกและผู้ใช้งาน (Users)
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
     phone TEXT,
@@ -16,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- 2. ตารางพนักงานและผู้ดูแลระบบ (Staff & Admins)
-CREATE TABLE IF NOT EXISTS staff (
+CREATE TABLE staff (
     id TEXT PRIMARY KEY,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL DEFAULT 'Password@123',
@@ -34,8 +49,8 @@ CREATE TABLE IF NOT EXISTS staff (
 );
 
 -- 3. ตารางประเภทหวย (Lottery Types)
-CREATE TABLE IF NOT EXISTS lottery_types (
-    id TEXT PRIMARY KEY, -- เช่น 'หวยรัฐบาล', 'หวยฮานอย', 'หวยลาว', 'thai'
+CREATE TABLE lottery_types (
+    id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT 'thai', -- thai, foreign, stock, yeekee, set
     icon TEXT,
@@ -55,7 +70,7 @@ CREATE TABLE IF NOT EXISTS lottery_types (
 );
 
 -- 4. ตารางรอบหวย (Lottery Rounds)
-CREATE TABLE IF NOT EXISTS lottery_rounds (
+CREATE TABLE lottery_rounds (
     id TEXT PRIMARY KEY,
     lottery_type TEXT NOT NULL,
     round_number TEXT,
@@ -68,8 +83,8 @@ CREATE TABLE IF NOT EXISTS lottery_rounds (
 );
 
 -- 5. ตารางผลรางวัลหวย (Lottery Results)
-CREATE TABLE IF NOT EXISTS lottery_results (
-    id TEXT PRIMARY KEY,
+CREATE TABLE lottery_results (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     lottery_type TEXT NOT NULL,
     round_id TEXT,
     result_3top TEXT,
@@ -81,7 +96,7 @@ CREATE TABLE IF NOT EXISTS lottery_results (
 );
 
 -- 6. ตารางโพยหวย (Tickets)
-CREATE TABLE IF NOT EXISTS tickets (
+CREATE TABLE tickets (
     id TEXT PRIMARY KEY,
     ticket_id TEXT UNIQUE NOT NULL,
     user_id TEXT NOT NULL,
@@ -101,7 +116,7 @@ CREATE TABLE IF NOT EXISTS tickets (
 );
 
 -- 7. ตารางรายการตัวเลขในโพย (Ticket Items / Bets)
-CREATE TABLE IF NOT EXISTS ticket_items (
+CREATE TABLE ticket_items (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ticket_id TEXT REFERENCES tickets(ticket_id) ON DELETE CASCADE,
     number TEXT NOT NULL,
@@ -112,11 +127,11 @@ CREATE TABLE IF NOT EXISTS ticket_items (
     status TEXT DEFAULT 'pending'
 );
 
-CREATE INDEX IF NOT EXISTS idx_ticket_items_number ON ticket_items(number);
-CREATE INDEX IF NOT EXISTS idx_ticket_items_ticket ON ticket_items(ticket_id);
+CREATE INDEX idx_ticket_items_number ON ticket_items(number);
+CREATE INDEX idx_ticket_items_ticket ON ticket_items(ticket_id);
 
 -- 8. ตารางหวยยี่กี 88 รอบ (Yeekee Rounds)
-CREATE TABLE IF NOT EXISTS yeekee_rounds (
+CREATE TABLE yeekee_rounds (
     id TEXT PRIMARY KEY,
     round_number INT NOT NULL,
     date TEXT NOT NULL,
@@ -130,8 +145,8 @@ CREATE TABLE IF NOT EXISTS yeekee_rounds (
 );
 
 -- 9. ตารางเลขอั้น / ลดราคาจ่าย / ปิดรับ (Blocked Numbers)
-CREATE TABLE IF NOT EXISTS blocked_numbers (
-    id TEXT PRIMARY KEY,
+CREATE TABLE blocked_numbers (
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     lottery_type TEXT NOT NULL,
     number TEXT NOT NULL,
     bet_type TEXT NOT NULL DEFAULT 'ทุกประเภท',
@@ -145,10 +160,10 @@ CREATE TABLE IF NOT EXISTS blocked_numbers (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_blocked_numbers_lottery ON blocked_numbers(lottery_type, number);
+CREATE INDEX idx_blocked_numbers_lottery ON blocked_numbers(lottery_type, number);
 
 -- 10. ตารางตั้งค่ารับกิน / สัดส่วน 100% (Risk Intake Configs / Bet Limits)
-CREATE TABLE IF NOT EXISTS risk_intake_configs (
+CREATE TABLE risk_intake_configs (
     id TEXT PRIMARY KEY,
     lottery_id TEXT,
     lottery_type TEXT,
@@ -163,7 +178,7 @@ CREATE TABLE IF NOT EXISTS risk_intake_configs (
 );
 
 -- 11. ตารางธุรกรรมการเงิน ฝาก-ถอน (Transactions)
-CREATE TABLE IF NOT EXISTS transactions (
+CREATE TABLE transactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id TEXT NOT NULL,
     username TEXT,
@@ -178,10 +193,10 @@ CREATE TABLE IF NOT EXISTS transactions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_transactions_user ON transactions(user_id);
+CREATE INDEX idx_transactions_user ON transactions(user_id);
 
 -- 12. ตารางการตั้งค่าระบบทั่วไป (System Settings)
-CREATE TABLE IF NOT EXISTS system_settings (
+CREATE TABLE system_settings (
     id TEXT PRIMARY KEY,
     key TEXT UNIQUE NOT NULL,
     value JSONB NOT NULL,
@@ -189,7 +204,7 @@ CREATE TABLE IF NOT EXISTS system_settings (
 );
 
 -- 13. ตารางบันทึกกิจกรรมแอดมินและการแก้สิทธิ์ (Permission Logs)
-CREATE TABLE IF NOT EXISTS permission_logs (
+CREATE TABLE permission_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     target_uid TEXT,
     target_name TEXT,
@@ -199,27 +214,6 @@ CREATE TABLE IF NOT EXISTS permission_logs (
     at TIMESTAMPTZ DEFAULT NOW(),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- อัปเดตคอลัมน์สำคัญกรณีตารางเดิมมีอยู่แล้วแต่ขาดบางฟิลด์ (Migration Safeguard)
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS icon TEXT;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS path TEXT;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS is_open BOOLEAN DEFAULT true;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS rates JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS median_rates JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS min_bet NUMERIC(10, 2) DEFAULT 1.00;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS max_bet NUMERIC(10, 2) DEFAULT 5000.00;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS max_per_ticket NUMERIC(12, 2) DEFAULT 50000.00;
-
-ALTER TABLE blocked_numbers ADD COLUMN IF NOT EXISTS restriction_type TEXT DEFAULT 'blocked';
-ALTER TABLE blocked_numbers ADD COLUMN IF NOT EXISTS custom_payout_rate NUMERIC(10, 2) DEFAULT 0.00;
-ALTER TABLE blocked_numbers ADD COLUMN IF NOT EXISTS max_amount NUMERIC(12, 2) DEFAULT 0.00;
-ALTER TABLE blocked_numbers ADD COLUMN IF NOT EXISTS current_amount NUMERIC(12, 2) DEFAULT 0.00;
-
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS gross_win_amount NUMERIC(12, 2) DEFAULT 0.00;
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS tax_amount NUMERIC(12, 2) DEFAULT 0.00;
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS tax_rate NUMERIC(5, 2) DEFAULT 0.00;
-ALTER TABLE tickets ADD COLUMN IF NOT EXISTS settled_at TIMESTAMPTZ;
 
 -- เปิด Row Level Security (RLS)
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
@@ -252,7 +246,7 @@ BEGIN
     END LOOP;
 END $$;
 
--- เปิด Realtime Publication (ตรวจสอบตารางที่มีอยู่แล้วก่อนเพิ่ม)
+-- เปิด Realtime Publication
 DO $$
 DECLARE
     tbl text;
@@ -284,30 +278,18 @@ VALUES
     ('global', 'global', '{"systemOpen": true, "bettingOpen": true, "minBet": 1, "maxBet": 5000, "maxBetPerUser": 50000, "taxRate": 1}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
--- อัปเดตคอลัมน์สำคัญของ lottery_types ให้พร้อมก่อน INSERT เสมอ
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'thai';
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS icon TEXT;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS path TEXT;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS is_open BOOLEAN DEFAULT true;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS rates JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS median_rates JSONB DEFAULT '{}'::jsonb;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS min_bet NUMERIC(10, 2) DEFAULT 1.00;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS max_bet NUMERIC(10, 2) DEFAULT 5000.00;
-ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS max_per_ticket NUMERIC(12, 2) DEFAULT 50000.00;
-
 -- Seed ข้อมูลประเภทหวยยอดนิยมเริ่มต้น (Lottery Types)
-INSERT INTO lottery_types (id, name, category, icon, path, is_open, rates)
+INSERT INTO lottery_types (id, name, category, icon, path, is_open, min_bet, max_bet, max_per_ticket, rates)
 VALUES 
-    ('หวยรัฐบาลไทย', 'หวยรัฐบาลไทย', 'thai', '🇹🇭', '/lottery/thai', true, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "3 ตัวล่าง": 450, "3 ตัวหน้า": 450, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยฮานอย', 'หวยฮานอย', 'foreign', '🇻🇳', '/lottery/hanoi', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('ฮานอยพิเศษ', 'ฮานอยพิเศษ', 'foreign', '🇻🇳', '/lottery/hanoi-special', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('ฮานอย(VIP)', 'ฮานอย(VIP)', 'foreign', '🇻🇳', '/lottery/hanoi-vip', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยลาวพัฒนา', 'หวยลาวพัฒนา', 'foreign', '🇱🇦', '/lottery/lao', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยมาเลย์ 4D', 'หวยมาเลย์ 4D', 'foreign', '🇲🇾', '/lottery/malay', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยยี่กี 88 รอบ', 'หวยยี่กี 88 รอบ', 'yeekee', '⏱️', '/lottery/yeekee', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยธกส.', 'หวยธกส.', 'thai', '🏦', '/lottery/baac', true, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยออมสิน', 'หวยออมสิน', 'thai', '🏦', '/lottery/gsb', true, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb)
+    ('หวยรัฐบาลไทย', 'หวยรัฐบาลไทย', 'thai', '🇹🇭', '/lottery/thai', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "3 ตัวล่าง": 450, "3 ตัวหน้า": 450, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยฮานอย', 'หวยฮานอย', 'foreign', '🇻🇳', '/lottery/hanoi', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('ฮานอยพิเศษ', 'ฮานอยพิเศษ', 'foreign', '🇻🇳', '/lottery/hanoi-special', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('ฮานอย(VIP)', 'ฮานอย(VIP)', 'foreign', '🇻🇳', '/lottery/hanoi-vip', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยลาวพัฒนา', 'หวยลาวพัฒนา', 'foreign', '🇱🇦', '/lottery/lao', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยมาเลย์ 4D', 'หวยมาเลย์ 4D', 'foreign', '🇲🇾', '/lottery/malay', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยยี่กี 88 รอบ', 'หวยยี่กี 88 รอบ', 'yeekee', '⏱️', '/lottery/yeekee', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยธกส.', 'หวยธกส.', 'thai', '🏦', '/lottery/baac', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยออมสิน', 'หวยออมสิน', 'thai', '🏦', '/lottery/gsb', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb)
 ON CONFLICT (id) DO UPDATE 
 SET is_open = true, rates = EXCLUDED.rates;
 
