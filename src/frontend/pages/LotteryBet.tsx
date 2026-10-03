@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { db } from '@/shared/lib/firebase';
@@ -9,6 +9,7 @@ import BetSummaryPanel from '@/shared/components/BetSummaryPanel';
 import BillDetailModal from '@/frontend/components/BillDetailModal';
 import ActionConfirmModal from '@/frontend/components/ActionConfirmModal';
 import CompactTicketList from '@/frontend/components/CompactTicketList';
+import * as YK from '@/shared/lib/yeekeeEngine';
 
 interface BetItem {
   id: string;
@@ -45,19 +46,22 @@ const getPermutations = (str: string): string[] => {
 };
 
 export const DEFAULT_RATES: Record<string, number> = {
-  '2 ตัวบน': 95.00,
-  '3 ตัวบน': 900.00,
-  '3 ตัวโต๊ด': 150.00,
-  '3 ตัวล่าง': 150.00,
-  '3 ตัวกลับ': 900.00,
+  '3 ตัวบน': 850.00,
+  '3 ตัวโต๊ด': 120.00,
+  '3 ตัวล่าง': 450.00,
+  '3 ตัวกลับ': 850.00,
+  '2 ตัวบน': 92.00,
+  '2 ตัวล่าง': 92.00,
+  '2 ตัวบนกลับ': 92.00,
+  '2 ตัวล่างกลับ': 92.00,
   '2 ตัวโต๊ด': 13.00,
   'วิ่งบน': 3.20,
   'วิ่งล่าง': 4.20,
-  '2 ตัวล่าง': 95.00,
-  '2 ตัวกลับ': 95.00,
-  '4-5 ตัว': 4000.00, // Or whatever the base is
-  '4 ตัวบน': 4000.00,
-  '4 ตัวโต๊ด': 25.00,
+  '4 ตัวบน': 5000.00,
+  '4 ตัวโต๊ด': 200.00,
+  '5 ตัวตรง': 30000.00,
+  '4-5 ตัว': 4000.00,
+  '2 ตัวกลับ': 92.00,
   '5 ตัวโต๊ด': 15.00,
   'ปักหลักหน่วย': 8.00,
   'ปักหลักสิบ': 8.00,
@@ -325,6 +329,94 @@ export default function LotteryBet() {
   const displayName = getLotteryDisplayName(type);
   const baseLotteryName = getBaseLotteryName(type);
   const isThaiLottery = displayName === 'หวยรัฐบาล' || type === 'thai' || displayName.includes('รัฐบาล');
+  const isYeekee = Boolean(type?.startsWith('yeekee') || displayName.includes('ยี่กี'));
+  const yeekeeRoundNum = useMemo(() => {
+    if (!type) return 1;
+    if (type.startsWith('yeekee-')) {
+      const n = parseInt(type.split('-')[1], 10);
+      return !isNaN(n) && n >= 1 && n <= YK.ROUNDS_PER_DAY ? n : 1;
+    }
+    return 1;
+  }, [type]);
+
+  const [ykConfig, setYkConfig] = useState<YK.YkConfig>(YK.DEFAULT_CONFIG);
+  const [ykRoundRow, setYkRoundRow] = useState<YK.RoundRow | null>(null);
+  const [ykShoots, setYkShoots] = useState<YK.Shoot[]>([]);
+  const [ykShootInput, setYkShootInput] = useState('');
+  const [ykShooting, setYkShooting] = useState(false);
+  const [showShooterModal, setShowShooterModal] = useState(false);
+
+  const ykGameDay = useMemo(() => YK.gameDayOf(currentTime), [currentTime]);
+  const ykOpenMs = useMemo(() => YK.openMsOf(ykGameDay, yeekeeRoundNum), [ykGameDay, yeekeeRoundNum]);
+  const ykCloseMs = useMemo(() => YK.closeMsOf(ykGameDay, yeekeeRoundNum), [ykGameDay, yeekeeRoundNum]);
+  const ykPhase = useMemo(() => YK.phaseOf(ykGameDay, yeekeeRoundNum, currentTime, ykRoundRow), [ykGameDay, yeekeeRoundNum, currentTime, ykRoundRow]);
+  const ykShootsSum = useMemo(() => ykShoots.reduce((a, b) => a + (Number(b.number) || 0), 0), [ykShoots]);
+  const ykShooter1 = ykShoots[0];
+  const ykShooter16 = ykShoots[15];
+  const ykResultWaitSec = useMemo(() => {
+    const resAt = YK.resultAtMs(ykGameDay, yeekeeRoundNum, ykConfig);
+    return Math.max(0, Math.floor((resAt - currentTime) / 1000));
+  }, [ykGameDay, yeekeeRoundNum, ykConfig, currentTime]);
+
+  const reloadYeekee = useCallback(async () => {
+    if (!isYeekee) return;
+    try {
+      const cfg = await YK.loadConfig();
+      setYkConfig(cfg);
+      const row = await YK.getRoundRow(ykGameDay, yeekeeRoundNum);
+      setYkRoundRow(row);
+      const shoots = await YK.loadShoots(ykGameDay, yeekeeRoundNum);
+      setYkShoots(shoots);
+
+      if (cfg.enabled && cfg.numberBot.enabled) {
+        await YK.runNumberBot(ykGameDay, yeekeeRoundNum, Date.now(), cfg);
+      }
+
+      const ph = YK.phaseOf(ykGameDay, yeekeeRoundNum, Date.now(), row);
+      if (ph === 'processing') {
+        await YK.sweep(Date.now(), cfg);
+      }
+    } catch (e) {
+      console.error('[YeekeeBet] reload error:', e);
+    }
+  }, [isYeekee, ykGameDay, yeekeeRoundNum]);
+
+  useEffect(() => {
+    if (!isYeekee) return;
+    reloadYeekee();
+    const interval = setInterval(reloadYeekee, 3000);
+    return () => clearInterval(interval);
+  }, [isYeekee, reloadYeekee]);
+
+  useEffect(() => {
+    if (isYeekee && activeBetTypes.length === 0) {
+      setActiveBetTypes(['3 ตัวบน']);
+    }
+  }, [isYeekee]);
+
+  const handleShootNumber = async () => {
+    if (!/^\d{5}$/.test(ykShootInput)) {
+      alert('กรุณากรอกตัวเลข 5 หลักให้ถูกต้อง (00000 - 99999)');
+      return;
+    }
+    const s = YK.getSession();
+    if (!s.loggedIn) {
+      alert('กรุณาเข้าสู่ระบบก่อนทำการยิงเลข');
+      navigate('/login');
+      return;
+    }
+    setYkShooting(true);
+    try {
+      await YK.submitShoot(ykGameDay, yeekeeRoundNum, ykShootInput, Date.now());
+      setYkShootInput('');
+      await reloadYeekee();
+      alert('ยิงเลขสำเร็จแล้ว!');
+    } catch (err: any) {
+      alert(err?.message || 'เกิดข้อผิดพลาดในการยิงเลข');
+    } finally {
+      setYkShooting(false);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'lotteryTypes', baseLotteryName), (doc) => {
@@ -367,9 +459,9 @@ export default function LotteryBet() {
 
   // Default to open if config not found (for demo purposes)
   const getRequiredLength = (type: string) => {
+    if (type.includes('5 ตัว') || type === '5 ตัวตรง') return 5;
     if (type.includes('3 ตัว') || type === 'ตอง') return 3;
     if (type.includes('4 ตัว') || type.includes('4-5 ตัว')) return 4;
-    if (type.includes('5 ตัว')) return 5;
     if (type.includes('วิ่ง') || type === 'เลขปัก' || type.startsWith('ปักหลัก') || type.startsWith('หลัก')) return 1;
     return 2;
   };
@@ -420,7 +512,9 @@ export default function LotteryBet() {
     });
   };
 
-  const isClosed = lotteryConfig ? (!lotteryConfig.isOpen || (lotteryConfig.closingTime && new Date(lotteryConfig.closingTime).getTime() <= currentTime)) : false;
+  const isClosed = isYeekee
+    ? (ykPhase !== 'open')
+    : (lotteryConfig ? (!lotteryConfig.isOpen || (lotteryConfig.closingTime && new Date(lotteryConfig.closingTime).getTime() <= currentTime)) : false);
 
   // Auto-add bet when number is complete
   useEffect(() => {
@@ -549,7 +643,7 @@ export default function LotteryBet() {
             b.number === num && (b.betType === 'ทุกประเภท' || b.betType === type)
           );
 
-          let payoutRate = lotteryConfig?.rates?.[type] || DEFAULT_RATES[type] || 0;
+          let payoutRate = (isYeekee ? (ykConfig?.rates?.[type] ?? YK.DEFAULT_RATES[type]) : null) ?? lotteryConfig?.rates?.[type] ?? DEFAULT_RATES[type] ?? 0;
           const medianRate = lotteryConfig?.medianRates?.[type] || 0;
           let isSpecial = false;
           let isReduced = false;
@@ -655,7 +749,7 @@ export default function LotteryBet() {
         b.number === num && (b.betType === 'ทุกประเภท' || b.betType === type)
       );
 
-      let payoutRate = lotteryConfig?.rates?.[type] || DEFAULT_RATES[type] || 0;
+      let payoutRate = (isYeekee ? (ykConfig?.rates?.[type] ?? YK.DEFAULT_RATES[type]) : null) ?? lotteryConfig?.rates?.[type] ?? DEFAULT_RATES[type] ?? 0;
       const medianRate = lotteryConfig?.medianRates?.[type] || 0;
       let isSpecial = false;
       let isReduced = false;
@@ -1043,7 +1137,7 @@ export default function LotteryBet() {
         removed.push(`${bet.type} ${bet.number}`);
         continue;
       }
-      let payoutRate = Number(bet.payoutRate) || Number(lotteryConfig?.rates?.[bet.type]) || DEFAULT_RATES[bet.type] || 0;
+      let payoutRate = Number(bet.payoutRate) || (isYeekee ? (ykConfig?.rates?.[bet.type] ?? YK.DEFAULT_RATES[bet.type]) : null) || Number(lotteryConfig?.rates?.[bet.type]) || DEFAULT_RATES[bet.type] || 0;
       if (info && (info.restrictionType === 'reduced' || info.restrictionType === 'special')) {
         const r = Number(info.customPayoutRate ?? info.payoutRate);
         if (r > 0) payoutRate = r;
@@ -1153,16 +1247,17 @@ export default function LotteryBet() {
       }
 
       // Save to Firestore
-                await addDoc(collection(db, 'tickets'), {
+      await addDoc(collection(db, 'tickets'), {
         ticketId,
         bets: betsToSubmit,
         totalAmount: total,
-        status: 'pending_cancellation',
+        status: isYeekee ? 'pending' : 'pending_cancellation',
         createdAt: new Date(now).toISOString(),
         expiresAt: new Date(expires).toISOString(),
         userId: currentUserId,
-        lotteryType: displayName,
-        lotterySlug: type || 'thai',
+        lotteryType: isYeekee ? 'ยี่กี 4D' : displayName,
+        lotterySlug: isYeekee ? 'yeekee' : (type || 'thai'),
+        roundId: isYeekee ? YK.ticketRoundId(YK.roundKey(ykGameDay, yeekeeRoundNum)) : undefined,
         customerName: customerName.trim() || 'ลูกค้าทั่วไป'
       });
 
@@ -1253,12 +1348,13 @@ export default function LotteryBet() {
         ticketId,
         bets: info.bets,
         totalAmount: total,
-        status: 'pending_cancellation',
+        status: isYeekee ? 'pending' : 'pending_cancellation',
         createdAt: new Date(now).toISOString(),
         expiresAt: new Date(expires).toISOString(),
         userId: currentUserId,
-        lotteryType: displayName,
-        lotterySlug: type || 'thai',
+        lotteryType: isYeekee ? 'ยี่กี 4D' : displayName,
+        lotterySlug: isYeekee ? 'yeekee' : (type || 'thai'),
+        roundId: isYeekee ? YK.ticketRoundId(YK.roundKey(ykGameDay, yeekeeRoundNum)) : undefined,
         customerName: info.customerName
       });
 
@@ -1451,7 +1547,35 @@ export default function LotteryBet() {
                   )}
                 </div>
               </div>
-              {isThaiLottery ? (
+              {isYeekee ? (
+                <div className="bg-slate-900 border border-amber-400/50 text-[11px] sm:text-[12px] md:text-[13px] px-2.5 py-1 md:py-1.5 text-amber-300 flex items-center gap-1.5 rounded-[4px] font-bold shrink-0">
+                  {ykPhase === 'open' && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                      <span className="text-[10px] text-emerald-300">เปิดรับ:</span>
+                      <span className="font-mono font-black text-amber-300">{YK.hhmmss(Math.max(0, ykCloseMs - currentTime))}</span>
+                    </div>
+                  )}
+                  {ykPhase === 'processing' && (
+                    <div className="flex items-center gap-1.5 text-amber-300 animate-pulse">
+                      <span className="material-symbols-outlined text-xs animate-spin">autorenew</span>
+                      <span className="text-[10px]">รอผล ({Math.max(1, ykResultWaitSec)}วิ)</span>
+                    </div>
+                  )}
+                  {ykPhase === 'settled' && (
+                    <div className="flex items-center gap-1 text-emerald-300">
+                      <span className="material-symbols-outlined text-xs">check_circle</span>
+                      <span className="text-[10px]">ออกผลแล้ว</span>
+                    </div>
+                  )}
+                  {ykPhase === 'cancelled' && (
+                    <div className="flex items-center gap-1 text-red-400">
+                      <span className="material-symbols-outlined text-xs">cancel</span>
+                      <span className="text-[10px]">ยกเลิก</span>
+                    </div>
+                  )}
+                </div>
+              ) : isThaiLottery ? (
                 <div className="bg-red-950/80 border border-red-500/50 text-[11px] sm:text-[12px] md:text-[13px] px-2 py-1 md:py-1.5 md:px-3 text-red-400 flex items-center gap-1.5 rounded-[4px] font-bold shrink-0">
                   {/* โลโก้เล็กหมุนด้านใน */}
                   <div className="w-3.5 h-3.5 rounded-full border border-dashed border-red-400 animate-spin flex items-center justify-center shrink-0">
@@ -1475,107 +1599,343 @@ export default function LotteryBet() {
               )}
             </div>
 
-            <div className="space-y-1.5 mt-1">
-          {/* Row 1 - 3 Digits (Red) */}
-          <div className="grid grid-cols-3 gap-1.5">
-            {['3 ตัวบน', '3 ตัวโต๊ด', '3 ตัวกลับ'].map(t => (
-              <button 
-                key={t}
-                onClick={() => toggleBetType(t)}
-                className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
-                  activeBetTypes.includes(t) 
-                    ? 'bg-[#cc0000] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
-                    : 'bg-[#cc0000] text-white border-transparent hover:bg-[#e60000] shadow-sm'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+            {/* ★ แถบข้อมูลรอบ + แถบยิงเลข (มุมขวาบน / รวมฟังก์ชัน ดับเบิ้ลคลิกเพื่อขยาย) ★ */}
+            {isYeekee && (
+              <div className="mb-2 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-xl p-3 border-2 border-amber-400 shadow-md">
+                {/* Round info + Link */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 pb-2 mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 text-xs font-black">
+                      ยี่กี รอบที่ {yeekeeRoundNum} / {YK.ROUNDS_PER_DAY}
+                    </span>
+                    <span className="text-xs text-amber-200">
+                      🕒 {YK.hhmm(ykOpenMs)} - {YK.hhmm(ykCloseMs)} น.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to="/lottery/yeekee"
+                      className="text-xs text-amber-300 hover:text-white underline font-bold"
+                    >
+                      📋 ดูตาราง 88 รอบ
+                    </Link>
+                  </div>
+                </div>
 
-          {/* Row 2 - 2 Digits (Purple) */}
-          <div className="grid grid-cols-3 gap-1.5">
-            {['2 ตัวบน', '2 ตัวล่าง', '2 ตัวกลับ'].map(t => (
-              <button 
-                key={t}
-                onClick={() => toggleBetType(t)}
-                className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
-                  activeBetTypes.includes(t) 
-                    ? 'bg-[#6200ea] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
-                    : 'bg-[#6200ea] text-white border-transparent hover:bg-[#7c4dff] shadow-sm'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
+                {/* Settle results banner */}
+                {ykPhase === 'settled' && ykRoundRow?.result && (
+                  <div className="bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 p-2.5 rounded-lg mb-2 shadow flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black">🎉 ผลรางวัลรอบ {yeekeeRoundNum}:</span>
+                      <span className="font-mono text-base sm:text-lg font-black tracking-widest bg-slate-950 text-amber-300 px-2.5 py-0.5 rounded shadow">
+                        {ykRoundRow.result.number}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 sm:gap-3 text-xs font-bold">
+                      <span>3 ตัวบน: <b className="text-red-700">{ykRoundRow.result.top3}</b></span>
+                      <span>2 ตัวบน: <b className="text-purple-700">{ykRoundRow.result.top2}</b></span>
+                      <span>2 ตัวล่าง: <b className="text-blue-700">{ykRoundRow.result.bottom2}</b></span>
+                    </div>
+                  </div>
+                )}
 
-          {/* Row 3 - Mixed */}
-          <div className="grid grid-cols-3 gap-1.5">
-            <button 
-              onClick={() => toggleBetType('2 ตัวโต๊ด')}
-              className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
-                activeBetTypes.includes('2 ตัวโต๊ด') 
-                  ? 'bg-[#6200ea] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
-                  : 'bg-[#6200ea] text-white border-transparent hover:bg-[#7c4dff] shadow-sm'
-              }`}
-            >
-              2 ตัวโต๊ด
-            </button>
-            <button 
-              disabled={!isThaiLottery}
-              onClick={() => toggleBetType('3 ตัวล่าง')}
-              className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
-                !isThaiLottery 
-                  ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed opacity-80'
-                  : activeBetTypes.includes('3 ตัวล่าง') 
-                    ? 'bg-[#cc0000] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
-                    : 'bg-[#cc0000] text-white border-transparent hover:bg-[#e60000] shadow-sm'
-              }`}
-            >
-              3 ตัวล่าง
-            </button>
-            <button 
-               onClick={() => {
-                 const tong = ['000', '111', '222', '333', '444', '555', '666', '777', '888', '999'];
-                 addSpecialBets(tong, ['3 ตัวบน']);
-               }}
-               className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center bg-[#007bff] text-white border-transparent hover:bg-[#0069d9] shadow-sm active:scale-95`}
-            >
-               ตอง
-            </button>
-          </div>
+                {/* Cancelled notice banner */}
+                {ykPhase === 'cancelled' && (
+                  <div className="bg-red-500/20 border border-red-500 text-red-200 p-2 rounded-lg mb-2 text-xs font-bold flex items-center justify-between">
+                    <span>⚠️ รอบนี้ถูกยกเลิก — ระบบได้คืนเงินให้สมาชิกทุกโพยเรียบร้อยแล้ว 100%</span>
+                    {yeekeeRoundNum < YK.ROUNDS_PER_DAY && (
+                      <Link
+                        to={`/lottery/yeekee-${yeekeeRoundNum + 1}`}
+                        className="bg-red-600 hover:bg-red-700 text-white px-2.5 py-1 rounded text-xs font-black shadow"
+                      >
+                        ไปรอบที่ {yeekeeRoundNum + 1} ➡️
+                      </Link>
+                    )}
+                  </div>
+                )}
 
-          {/* Row 4 - Blue + 4-5 Digit Red */}
-          <div className="grid grid-cols-4 gap-1.5">
-            {['วิ่งบน', 'วิ่งล่าง', 'เลขปัก'].map(t => (
-              <button 
-                key={t}
-                onClick={() => toggleBetType(t)}
-                className={`text-[14px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
-                  activeBetTypes.includes(t) 
-                    ? 'bg-[#007bff] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
-                    : 'bg-[#007bff] text-white border-transparent hover:bg-[#0069d9] shadow-sm'
-                }`}
-              >
-                {t}
-              </button>
-            ))}
-            <button 
-              disabled={!isThaiLottery}
-              onClick={() => toggleBetType('4-5 ตัว')}
-              className={`text-[14px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
-                !isThaiLottery
-                  ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed opacity-80'
-                  : activeBetTypes.some(t => t.includes('4') || t.includes('5')) 
-                    ? 'bg-[#cc0000] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
-                    : 'bg-[#cc0000] text-white border-transparent hover:bg-[#e60000] shadow-sm'
-              }`}
-            >
-              4-5 ตัว
-            </button>
-          </div>
-        </div>
+                {/* Shooter Bar Widget (Double-click to expand modal) */}
+                <div
+                  onDoubleClick={() => setShowShooterModal(true)}
+                  className="bg-slate-950/80 border border-amber-400/40 rounded-lg p-2.5 flex flex-col md:flex-row items-center justify-between gap-3 cursor-pointer hover:border-amber-400 transition"
+                  title="ดับเบิ้ลคลิกเพื่อเปิดดูประวัติและผลการยิงทั้งหมด"
+                >
+                  {/* Shoot Input Field */}
+                  <div className="flex items-center gap-1.5 w-full md:w-auto" onClick={e => e.stopPropagation()}>
+                    <span className="text-xs text-amber-300 font-bold whitespace-nowrap">🎯 ยิงเลข:</span>
+                    <input
+                      type="text"
+                      maxLength={5}
+                      value={ykShootInput}
+                      onChange={e => setYkShootInput(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={e => { if (e.key === 'Enter') handleShootNumber(); }}
+                      placeholder="กรอก 5 หลัก"
+                      disabled={ykPhase !== 'open' || ykShooting}
+                      className="w-28 bg-slate-900 border border-amber-400/60 rounded px-2 py-1 text-center font-mono font-bold text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-50"
+                    />
+                    <button
+                      onClick={handleShootNumber}
+                      disabled={ykPhase !== 'open' || ykShooting || ykShootInput.length !== 5}
+                      className="bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-105 disabled:opacity-40 text-slate-950 text-xs font-black px-3 py-1.5 rounded transition shadow shrink-0 active:scale-95"
+                    >
+                      {ykShooting ? 'ยิง...' : 'ยิงเลข 🎯'}
+                    </button>
+                  </div>
+
+                  {/* Ribbon Stats */}
+                  <div className="flex flex-wrap items-center gap-2 text-xs w-full md:w-auto justify-end">
+                    <span className="text-slate-300">
+                      ยิงแล้ว: <b className="text-amber-400 font-mono text-sm">{ykShoots.length}</b> ครั้ง
+                    </span>
+                    <span className="text-slate-500">|</span>
+                    <span className="text-slate-300">
+                      ผลรวม: <b className="text-amber-300 font-mono">{ykShootsSum.toLocaleString()}</b>
+                    </span>
+                    <span className="text-slate-500">|</span>
+                    <span className="text-amber-300 font-bold" title="อันดับ 1 รับ ฿200">
+                      🥇 #1: <b className="text-white">{ykShooter1?.username || '-'}</b>
+                    </span>
+                    <span className="text-emerald-300 font-bold" title="อันดับ 16 รับ ฿400">
+                      🎯 #16: <b className="text-white">{ykShooter16?.username || '-'}</b>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowShooterModal(true)}
+                      className="ml-1 bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/40 rounded px-2 py-0.5 text-[11px] font-bold"
+                    >
+                      🔍 ดูผลยิง
+                    </button>
+                  </div>
+                </div>
+                <div className="text-[10px] text-slate-400 text-right mt-1">
+                  💡 ดับเบิ้ลคลิกแถบยิงเลขเพื่อดูรายชื่อและประวัติการยิงทั้งหมด (อันดับ 1 รับ ฿200 / อันดับ 16 รับ ฿400)
+                </div>
+              </div>
+            )}
+
+            {/* Waiting for result banner when processing */}
+            {isYeekee && ykPhase === 'processing' && (
+              <div className="my-2 p-3 bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 border-2 border-amber-400 rounded-xl text-center shadow-lg text-white">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <span className="material-symbols-outlined text-2xl text-amber-400 animate-spin">
+                    progress_activity
+                  </span>
+                  <span className="text-sm font-black text-amber-300">
+                    กำลังประมวลผล / รอผล (1-2 นาที)...
+                  </span>
+                </div>
+                <p className="text-xs text-slate-300">
+                  รอบที่ {yeekeeRoundNum} ปิดรับแทงแล้ว ระบบกำลังรวบรวมตัวเลขยิงและออกผลรางวัลอัตโนมัติ
+                </p>
+                <div className="mt-1 text-xs font-mono text-amber-400 font-bold">
+                  คาดว่าจะออกผลในอีกประมาณ {Math.max(1, ykResultWaitSec)} วินาที
+                </div>
+              </div>
+            )}
+
+            {isYeekee ? (
+              <div className="space-y-1.5 mt-1">
+                {/* Row 1: 3 Digits (Red) */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { key: '3 ตัวบน', rate: ykConfig.rates?.['3 ตัวบน'] || 850 },
+                    { key: '3 ตัวโต๊ด', rate: ykConfig.rates?.['3 ตัวโต๊ด'] || 120 },
+                    { key: '3 ตัวล่าง', rate: ykConfig.rates?.['3 ตัวล่าง'] || 450 },
+                  ].map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => toggleBetType(t.key)}
+                      className={`py-2 px-1 rounded-[6px] font-black transition-all duration-150 border-2 flex flex-col items-center justify-center leading-tight ${
+                        activeBetTypes.includes(t.key)
+                          ? 'bg-[#cc0000] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#cc0000] text-white border-transparent hover:bg-[#e60000] shadow-sm'
+                      }`}
+                    >
+                      <span className="text-[14px]">{t.key}</span>
+                      <span className="text-[10px] text-amber-200 font-normal">จ่าย {t.rate}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Row 2: 2 Digits (Purple) */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { key: '2 ตัวบน', rate: ykConfig.rates?.['2 ตัวบน'] || 92 },
+                    { key: '2 ตัวล่าง', rate: ykConfig.rates?.['2 ตัวล่าง'] || 92 },
+                    { key: '2 ตัวบนกลับ', rate: ykConfig.rates?.['2 ตัวบนกลับ'] || 92 },
+                    { key: '2 ตัวล่างกลับ', rate: ykConfig.rates?.['2 ตัวล่างกลับ'] || 92 },
+                  ].map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => toggleBetType(t.key)}
+                      className={`py-2 px-1 rounded-[6px] font-black transition-all duration-150 border-2 flex flex-col items-center justify-center leading-tight ${
+                        activeBetTypes.includes(t.key)
+                          ? 'bg-[#6200ea] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#6200ea] text-white border-transparent hover:bg-[#7c4dff] shadow-sm'
+                      }`}
+                    >
+                      <span className="text-[12px] sm:text-[13px]">{t.key}</span>
+                      <span className="text-[9px] text-purple-200 font-normal">จ่าย {t.rate}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Row 3: Running & Tong (Blue / Gold) */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { key: 'วิ่งบน', rate: ykConfig.rates?.['วิ่งบน'] || 3.2 },
+                    { key: 'วิ่งล่าง', rate: ykConfig.rates?.['วิ่งล่าง'] || 4.2 },
+                  ].map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => toggleBetType(t.key)}
+                      className={`py-2 px-1 rounded-[6px] font-black transition-all duration-150 border-2 flex flex-col items-center justify-center leading-tight ${
+                        activeBetTypes.includes(t.key)
+                          ? 'bg-[#007bff] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#007bff] text-white border-transparent hover:bg-[#0069d9] shadow-sm'
+                      }`}
+                    >
+                      <span className="text-[14px]">{t.key}</span>
+                      <span className="text-[10px] text-sky-200 font-normal">จ่าย {t.rate}</span>
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const tong = ['000', '111', '222', '333', '444', '555', '666', '777', '888', '999'];
+                      addSpecialBets(tong, ['3 ตัวบน']);
+                    }}
+                    className="py-2 px-1 rounded-[6px] font-black transition-all duration-150 border-2 flex flex-col items-center justify-center leading-tight bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 border-transparent hover:brightness-105 shadow-sm active:scale-95"
+                  >
+                    <span className="text-[13px]">ตอง (000-999)</span>
+                    <span className="text-[10px] text-slate-800 font-normal">10 ตัวเลข</span>
+                  </button>
+                </div>
+
+                {/* Row 4: 4 & 5 Digits (Orange/Gold) */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { key: '4 ตัวบน', rate: ykConfig.rates?.['4 ตัวบน'] || 5000 },
+                    { key: '4 ตัวโต๊ด', rate: ykConfig.rates?.['4 ตัวโต๊ด'] || 200 },
+                    { key: '5 ตัวตรง', rate: ykConfig.rates?.['5 ตัวตรง'] || 30000 },
+                  ].map(t => (
+                    <button
+                      key={t.key}
+                      onClick={() => toggleBetType(t.key)}
+                      className={`py-2 px-1 rounded-[6px] font-black transition-all duration-150 border-2 flex flex-col items-center justify-center leading-tight ${
+                        activeBetTypes.includes(t.key)
+                          ? 'bg-[#e65100] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#e65100] text-white border-transparent hover:bg-[#f57c00] shadow-sm'
+                      }`}
+                    >
+                      <span className="text-[13px]">{t.key}</span>
+                      <span className="text-[9px] text-amber-200 font-normal">จ่าย {t.rate.toLocaleString()}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5 mt-1">
+                {/* Row 1 - 3 Digits (Red) */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {['3 ตัวบน', '3 ตัวโต๊ด', '3 ตัวกลับ'].map(t => (
+                    <button 
+                      key={t}
+                      onClick={() => toggleBetType(t)}
+                      className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
+                        activeBetTypes.includes(t) 
+                          ? 'bg-[#cc0000] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#cc0000] text-white border-transparent hover:bg-[#e60000] shadow-sm'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Row 2 - 2 Digits (Purple) */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {['2 ตัวบน', '2 ตัวล่าง', '2 ตัวกลับ'].map(t => (
+                    <button 
+                      key={t}
+                      onClick={() => toggleBetType(t)}
+                      className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
+                        activeBetTypes.includes(t) 
+                          ? 'bg-[#6200ea] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#6200ea] text-white border-transparent hover:bg-[#7c4dff] shadow-sm'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Row 3 - Mixed */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button 
+                    onClick={() => toggleBetType('2 ตัวโต๊ด')}
+                    className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
+                      activeBetTypes.includes('2 ตัวโต๊ด') 
+                        ? 'bg-[#6200ea] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                        : 'bg-[#6200ea] text-white border-transparent hover:bg-[#7c4dff] shadow-sm'
+                    }`}
+                  >
+                    2 ตัวโต๊ด
+                  </button>
+                  <button 
+                    disabled={!isThaiLottery}
+                    onClick={() => toggleBetType('3 ตัวล่าง')}
+                    className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
+                      !isThaiLottery 
+                        ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed opacity-80'
+                        : activeBetTypes.includes('3 ตัวล่าง') 
+                          ? 'bg-[#cc0000] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#cc0000] text-white border-transparent hover:bg-[#e60000] shadow-sm'
+                    }`}
+                  >
+                    3 ตัวล่าง
+                  </button>
+                  <button 
+                     onClick={() => {
+                       const tong = ['000', '111', '222', '333', '444', '555', '666', '777', '888', '999'];
+                       addSpecialBets(tong, ['3 ตัวบน']);
+                     }}
+                     className={`text-[15px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center bg-[#007bff] text-white border-transparent hover:bg-[#0069d9] shadow-sm active:scale-95`}
+                  >
+                     ตอง
+                  </button>
+                </div>
+
+                {/* Row 4 - Blue + 4-5 Digit Red */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {['วิ่งบน', 'วิ่งล่าง', 'เลขปัก'].map(t => (
+                    <button 
+                      key={t}
+                      onClick={() => toggleBetType(t)}
+                      className={`text-[14px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
+                        activeBetTypes.includes(t) 
+                          ? 'bg-[#007bff] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#007bff] text-white border-transparent hover:bg-[#0069d9] shadow-sm'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                  <button 
+                    disabled={!isThaiLottery}
+                    onClick={() => toggleBetType('4-5 ตัว')}
+                    className={`text-[14px] py-3 rounded-[6px] font-black transition-all duration-150 border-2 flex items-center justify-center ${
+                      !isThaiLottery
+                        ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed opacity-80'
+                        : activeBetTypes.some(t => t.includes('4') || t.includes('5')) 
+                          ? 'bg-[#cc0000] text-white border-black border-dashed shadow-inner scale-[0.98] z-10'
+                          : 'bg-[#cc0000] text-white border-transparent hover:bg-[#e60000] shadow-sm'
+                    }`}
+                  >
+                    4-5 ตัว
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ★ 👑 แถบฟังก์ชันช่วย VIP (VIP Helper Ribbon) ★ */}
             <div className="mt-2 bg-gradient-to-r from-amber-500/20 via-yellow-500/30 to-amber-500/20 p-2.5 rounded-xl border border-amber-400/50 shadow-sm">
@@ -2319,12 +2679,14 @@ export default function LotteryBet() {
                    { type: 'ปักหลักร้อย', rate: 8.00 },
                  ];
 
-                 const typesToShow = isThaiLottery 
-                   ? defaultRates 
-                   : defaultRates.filter(r => r.type !== '3 ตัวล่าง' && !r.type.startsWith('4 ตัว') && !r.type.startsWith('5 ตัว'));
+                  const typesToShow = isYeekee
+                    ? YK.BET_TYPES.map(t => ({ type: t.key, rate: ykConfig?.rates?.[t.key] || t.rate }))
+                    : isThaiLottery 
+                    ? defaultRates 
+                    : defaultRates.filter(r => r.type !== '3 ตัวล่าง' && !r.type.startsWith('4 ตัว') && !r.type.startsWith('5 ตัว'));
 
                  return typesToShow.map((item, index) => {
-                   const rate = lotteryConfig?.rates?.[item.type] || item.rate;
+                   const rate = (isYeekee ? (ykConfig?.rates?.[item.type] ?? item.rate) : null) || lotteryConfig?.rates?.[item.type] || item.rate;
                    return (
                      <div key={item.type} className={`grid grid-cols-12 border-b border-gray-300 py-1.5 px-1 ${index % 2 === 1 ? 'bg-gray-200' : 'bg-white'}`}>
                        <div className="col-span-2 text-center font-bold text-gray-600 text-[11px] flex items-center justify-center">{index + 1}.</div>
@@ -2901,6 +3263,141 @@ export default function LotteryBet() {
            </div>
         </div>
       )}
+
+      {/* ★ โมดอลประวัติการยิงเลข & จัดอันดับโบนัส ★ */}
+      {showShooterModal && (
+        <div className="fixed inset-0 bg-black/75 backdrop-blur-sm z-[250] flex items-center justify-center p-3">
+          <div className="bg-slate-900 border-2 border-amber-400 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden shadow-2xl text-white animate-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 p-4 border-b border-amber-400/40 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="text-2xl">🎯</span>
+                <div>
+                  <h3 className="font-black text-amber-300 text-lg">
+                    ประวัติการยิงเลข — รอบที่ {yeekeeRoundNum}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    วันที่ {YK.dayLabel(ykGameDay)} (รอบ {YK.hhmm(ykOpenMs)} - {YK.hhmm(ykCloseMs)} น.)
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowShooterModal(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-white/10"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Top Stat Ribbon */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-950/70 border-b border-white/10 text-center">
+              <div className="bg-slate-800/60 p-2 rounded-lg border border-white/5">
+                <div className="text-[11px] text-slate-400">ยิงทั้งหมด</div>
+                <div className="text-lg font-black text-amber-300 font-mono">{ykShoots.length} ครั้ง</div>
+              </div>
+              <div className="bg-slate-800/60 p-2 rounded-lg border border-white/5">
+                <div className="text-[11px] text-slate-400">ผลรวมตัวเลข</div>
+                <div className="text-lg font-black text-white font-mono">{ykShootsSum.toLocaleString()}</div>
+              </div>
+              <div className="bg-amber-500/10 p-2 rounded-lg border border-amber-400/40">
+                <div className="text-[11px] text-amber-300 font-bold">🥇 ลำดับ 1 (฿200)</div>
+                <div className="text-sm font-black text-white truncate">{ykShooter1?.username || '-'}</div>
+                <div className="text-[11px] font-mono text-amber-300">{ykShooter1?.number || ''}</div>
+              </div>
+              <div className="bg-emerald-500/10 p-2 rounded-lg border border-emerald-400/40">
+                <div className="text-[11px] text-emerald-300 font-bold">🎯 ลำดับ 16 (฿400)</div>
+                <div className="text-sm font-black text-white truncate">{ykShooter16?.username || '-'}</div>
+                <div className="text-[11px] font-mono text-emerald-300">{ykShooter16?.number || ''}</div>
+              </div>
+            </div>
+
+            {/* Shoots Table */}
+            <div className="flex-1 overflow-y-auto p-3">
+              {ykShoots.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 text-sm">
+                  ยังไม่มีใครยิงเลขในรอบนี้ คุณสามารถเป็นคนแรกได้!
+                </div>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-950 text-slate-400 sticky top-0 border-b border-white/10">
+                    <tr>
+                      <th className="py-2 px-2 text-center w-14">ลำดับ</th>
+                      <th className="py-2 px-2 text-left">เวลา</th>
+                      <th className="py-2 px-2 text-left">ผู้ยิง</th>
+                      <th className="py-2 px-2 text-center font-mono">ตัวเลข</th>
+                      <th className="py-2 px-2 text-center">รางวัลพิเศษ</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {ykShoots.map((s, idx) => {
+                      const rank = idx + 1;
+                      const isFirst = rank === 1;
+                      const isSixteenth = rank === 16;
+                      return (
+                        <tr
+                          key={s.id || idx}
+                          className={`hover:bg-white/5 ${
+                            isFirst
+                              ? 'bg-amber-500/15 font-bold text-amber-200'
+                              : isSixteenth
+                              ? 'bg-emerald-500/15 font-bold text-emerald-200'
+                              : ''
+                          }`}
+                        >
+                          <td className="py-2 px-2 text-center">
+                            <span className={`inline-block w-6 h-6 rounded-full text-[11px] font-mono leading-6 ${
+                              isFirst ? 'bg-amber-400 text-slate-950 font-black' : isSixteenth ? 'bg-emerald-400 text-slate-950 font-black' : 'text-slate-400'
+                            }`}>
+                              {rank}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2 text-slate-400">
+                            {new Date(s.ts).toLocaleTimeString('th-TH')}
+                          </td>
+                          <td className="py-2 px-2">
+                            <span className="font-bold">{s.username}</span>
+                            {s.isBot && <span className="ml-1 text-[10px] text-slate-500">(บอท)</span>}
+                          </td>
+                          <td className="py-2 px-2 text-center font-mono font-black text-amber-300 tracking-wider">
+                            {s.number}
+                          </td>
+                          <td className="py-2 px-2 text-center">
+                            {isFirst && (
+                              <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow">
+                                🏆 โบนัส ฿200
+                              </span>
+                            )}
+                            {isSixteenth && (
+                              <span className="bg-emerald-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow">
+                                🎖️ โบนัส ฿400
+                              </span>
+                            )}
+                            {!isFirst && !isSixteenth && <span className="text-slate-600">-</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-950 p-3 border-t border-white/10 flex items-center justify-between text-xs">
+              <span className="text-slate-400">
+                * โบนัสลำดับที่ 1 (฿200) และ 16 (฿400) จะได้รับทันทีเมื่อรอบออกผล (เฉพาะผู้มียอดแทงรวม ≥ ฿100)
+              </span>
+              <button
+                onClick={() => setShowShooterModal(false)}
+                className="bg-amber-400 hover:bg-amber-500 text-slate-950 font-black px-4 py-1.5 rounded-lg"
+              >
+                ปิดหน้าต่าง
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </>
   );
 }
