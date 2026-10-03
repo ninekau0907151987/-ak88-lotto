@@ -1959,32 +1959,28 @@ export default function LotteryBet() {
               </div>
             )}
 
-            <div className="text-center mt-3 mb-2 font-bold flex flex-col items-center justify-center gap-1">
-              <div className="flex flex-wrap justify-center items-center gap-1.5">
-                {activeBetTypes.length === 0 ? (
-                  <span className="text-red-500 text-[14px] font-black tracking-wide bg-gray-300 px-6 py-2 rounded-full shadow-inner border border-gray-400">กรุณาเลือกหวยแทง</span>
-                ) : (
-                  <>
-                    <span className="text-gray-700 text-[13px] font-black">รายการที่เลือก : </span>
-                    {activeBetTypes.map(t => (
-                      <span key={t} className="bg-green-600 text-white text-[12px] px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-sm border border-green-700">
-                        {t}
-                      </span>
-                    ))}
-                    {activeBetTypes.includes('เลขปัก') && pinNumbers.map(pin => (
-                      <span key={pin} className="bg-[#f5c518] text-[#0a192f] text-[12px] px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-sm border border-[#d4af37] font-black animate-pulse">
-                        {pin}
-                      </span>
-                    ))}
-                    {specialModes.map(m => (
-                      <span key={m} className="bg-green-600 text-white text-[12px] px-2.5 py-1 rounded-sm shadow-sm border border-green-700">
-                        {m}
-                      </span>
-                    ))}
-                  </>
-                )}
+            {activeBetTypes.length > 0 && (
+              <div className="text-center mt-3 mb-2 font-bold flex flex-col items-center justify-center gap-1">
+                <div className="flex flex-wrap justify-center items-center gap-1.5">
+                  <span className="text-gray-700 text-[13px] font-black">รายการที่เลือก : </span>
+                  {activeBetTypes.map(t => (
+                    <span key={t} className="bg-green-600 text-white text-[12px] px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-sm border border-green-700">
+                      {t}
+                    </span>
+                  ))}
+                  {activeBetTypes.includes('เลขปัก') && pinNumbers.map(pin => (
+                    <span key={pin} className="bg-[#f5c518] text-[#0a192f] text-[12px] px-2.5 py-1 rounded-sm flex items-center gap-1.5 shadow-sm border border-[#d4af37] font-black animate-pulse">
+                      {pin}
+                    </span>
+                  ))}
+                  {specialModes.map(m => (
+                    <span key={m} className="bg-green-600 text-white text-[12px] px-2.5 py-1 rounded-sm shadow-sm border border-green-700">
+                      {m}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="mt-4">
               <div className="text-center font-bold text-lg text-black mb-3">ระบุตัวเลข</div>
@@ -2242,19 +2238,19 @@ export default function LotteryBet() {
         {/* 4. เครดิต / ยอดรวม / ส่งโพย */}
         <div className="p-2 pt-4 text-sm flex flex-col gap-2 relative border-t-2 border-[#1a1a1a]">
           <div className="grid grid-cols-2 gap-2 mt-1">
-            <div className="bg-black text-white text-center pt-3.5 pb-2.5 px-1.5 border border-gray-600 rounded-sm relative shadow-inner overflow-hidden flex flex-col justify-center items-center">
-              <div className="bg-white text-black text-[10px] font-bold px-2 py-[1px] absolute -top-2 left-1/2 -translate-x-1/2 rounded whitespace-nowrap shadow-sm border border-gray-300 z-10">ยอดเครดิตคงเหลือ</div>
+            <div className="bg-[#1e1e1e] text-white text-center py-2.5 px-2 border border-gray-700 rounded-md shadow flex flex-col justify-center items-center">
+              <span className="text-gray-300 text-[11px] font-bold mb-1 tracking-tight">ยอดเครดิตคงเหลือ</span>
               <div 
-                className="font-black text-xs sm:text-sm md:text-base text-[#ffffff] leading-tight max-w-full truncate px-1" 
+                className="font-black text-xs sm:text-sm md:text-base text-amber-400 leading-tight max-w-full truncate px-1" 
                 title={`฿ ${(userData?.balance ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
               >
                 ฿ {(userData?.balance ?? 0).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
               </div>
             </div>
-            <div className="bg-black text-white text-center pt-3.5 pb-2.5 px-1.5 border border-gray-600 rounded-sm relative shadow-inner overflow-hidden flex flex-col justify-center items-center">
-              <div className="bg-white text-black text-[10px] font-bold px-2 py-[1px] absolute -top-2 left-1/2 -translate-x-1/2 rounded whitespace-nowrap shadow-sm border border-gray-300 z-10">รวมยอดแทง</div>
+            <div className="bg-[#1e1e1e] text-white text-center py-2.5 px-2 border border-gray-700 rounded-md shadow flex flex-col justify-center items-center">
+              <span className="text-gray-300 text-[11px] font-bold mb-1 tracking-tight">รวมยอดแทง</span>
               <div 
-                className="font-black text-xs sm:text-sm md:text-base text-[#ffffff] leading-tight max-w-full truncate px-1"
+                className="font-black text-xs sm:text-sm md:text-base text-emerald-400 leading-tight max-w-full truncate px-1"
                 title={`฿ ${totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
               >
                 ฿ {totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}
