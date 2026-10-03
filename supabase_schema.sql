@@ -284,18 +284,30 @@ VALUES
     ('global', 'global', '{"systemOpen": true, "bettingOpen": true, "minBet": 1, "maxBet": 5000, "maxBetPerUser": 50000, "taxRate": 1}'::jsonb)
 ON CONFLICT (key) DO NOTHING;
 
+-- อัปเดตคอลัมน์สำคัญของ lottery_types ให้พร้อมก่อน INSERT เสมอ
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'thai';
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS icon TEXT;
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS path TEXT;
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS is_open BOOLEAN DEFAULT true;
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false;
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS rates JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS median_rates JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS min_bet NUMERIC(10, 2) DEFAULT 1.00;
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS max_bet NUMERIC(10, 2) DEFAULT 5000.00;
+ALTER TABLE lottery_types ADD COLUMN IF NOT EXISTS max_per_ticket NUMERIC(12, 2) DEFAULT 50000.00;
+
 -- Seed ข้อมูลประเภทหวยยอดนิยมเริ่มต้น (Lottery Types)
-INSERT INTO lottery_types (id, name, category, icon, path, is_open, min_bet, max_bet, max_per_ticket, rates)
+INSERT INTO lottery_types (id, name, category, icon, path, is_open, rates)
 VALUES 
-    ('หวยรัฐบาลไทย', 'หวยรัฐบาลไทย', 'thai', '🇹🇭', '/lottery/thai', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "3 ตัวล่าง": 450, "3 ตัวหน้า": 450, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยฮานอย', 'หวยฮานอย', 'foreign', '🇻🇳', '/lottery/hanoi', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('ฮานอยพิเศษ', 'ฮานอยพิเศษ', 'foreign', '🇻🇳', '/lottery/hanoi-special', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('ฮานอย(VIP)', 'ฮานอย(VIP)', 'foreign', '🇻🇳', '/lottery/hanoi-vip', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยลาวพัฒนา', 'หวยลาวพัฒนา', 'foreign', '🇱🇦', '/lottery/lao', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยมาเลย์ 4D', 'หวยมาเลย์ 4D', 'foreign', '🇲🇾', '/lottery/malay', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยยี่กี 88 รอบ', 'หวยยี่กี 88 รอบ', 'yeekee', '⏱️', '/lottery/yeekee', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยธกส.', 'หวยธกส.', 'thai', '🏦', '/lottery/baac', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
-    ('หวยออมสิน', 'หวยออมสิน', 'thai', '🏦', '/lottery/gsb', true, 1.00, 5000.00, 50000.00, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb)
+    ('หวยรัฐบาลไทย', 'หวยรัฐบาลไทย', 'thai', '🇹🇭', '/lottery/thai', true, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "3 ตัวล่าง": 450, "3 ตัวหน้า": 450, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยฮานอย', 'หวยฮานอย', 'foreign', '🇻🇳', '/lottery/hanoi', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('ฮานอยพิเศษ', 'ฮานอยพิเศษ', 'foreign', '🇻🇳', '/lottery/hanoi-special', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('ฮานอย(VIP)', 'ฮานอย(VIP)', 'foreign', '🇻🇳', '/lottery/hanoi-vip', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยลาวพัฒนา', 'หวยลาวพัฒนา', 'foreign', '🇱🇦', '/lottery/lao', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยมาเลย์ 4D', 'หวยมาเลย์ 4D', 'foreign', '🇲🇾', '/lottery/malay', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยยี่กี 88 รอบ', 'หวยยี่กี 88 รอบ', 'yeekee', '⏱️', '/lottery/yeekee', true, '{"3 ตัวบน": 850, "3 ตัวโต๊ด": 120, "2 ตัวบน": 92, "2 ตัวล่าง": 92, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยธกส.', 'หวยธกส.', 'thai', '🏦', '/lottery/baac', true, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb),
+    ('หวยออมสิน', 'หวยออมสิน', 'thai', '🏦', '/lottery/gsb', true, '{"3 ตัวบน": 900, "3 ตัวโต๊ด": 150, "2 ตัวบน": 90, "2 ตัวล่าง": 90, "วิ่งบน": 3.2, "วิ่งล่าง": 4.2}'::jsonb)
 ON CONFLICT (id) DO UPDATE 
 SET is_open = true, rates = EXCLUDED.rates;
 
