@@ -135,6 +135,8 @@ function toSnake(data: any, table: string): any {
     else if (k === 'userId') out.user_id = v;
     else if (k === 'customerName') out.customer_name = v;
     else if (k === 'lotteryType') out.lottery_type = v;
+    else if (k === 'lotterySlug') out.lottery_slug = v;
+    else if (k === 'phoneNumber') out.phone = v;
     else if (k === 'roundId') out.round_id = v;
     else if (k === 'totalAmount') out.total_amount = v;
     else if (k === 'expiresAt') out.expires_at = v ? new Date(v as string).toISOString() : null;
@@ -205,6 +207,7 @@ function fromSnake(row: any, table: string): any {
   if ('user_id' in row) out.userId = row.user_id;
   if ('customer_name' in row) out.customerName = row.customer_name;
   if ('lottery_type' in row) out.lotteryType = row.lottery_type;
+  if ('lottery_slug' in row) out.lotterySlug = row.lottery_slug;
   if ('round_id' in row) out.roundId = row.round_id;
   if ('total_amount' in row) out.totalAmount = Number(row.total_amount);
   if ('expires_at' in row) out.expiresAt = row.expires_at;
@@ -506,7 +509,14 @@ export async function setDoc(
   }
 
   const snakeData = toSnake(data, table);
-  snakeData.id = docRef.id;
+  if (!snakeData.id) snakeData.id = docRef.id;
+
+  const uuidTables = ['transactions', 'ticket_items', 'blocked_numbers', 'permission_logs'];
+  if (uuidTables.includes(table)) {
+    if (snakeData.id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snakeData.id)) {
+      delete snakeData.id;
+    }
+  }
 
   // แยก bets ออกหากเป็นตาราง tickets
   const bets = data.bets;
@@ -515,10 +525,11 @@ export async function setDoc(
   await supabaseClient.from(table).upsert(snakeData);
 
   if (table === 'tickets' && Array.isArray(bets) && bets.length > 0) {
+    const parentTicketId = snakeData.ticket_id || docRef.id;
     const items = bets.map(b => ({
-      ticket_id: docRef.id,
+      ticket_id: parentTicketId,
       number: String(b.number),
-      bet_type: b.type,
+      bet_type: b.type || b.betType || '2top',
       amount: Number(b.amount || 0),
       payout_rate: Number(b.payoutRate || b.rate || 0),
       win_amount: Number(b.winAmount || 0),
@@ -571,26 +582,56 @@ export async function addDoc(
   }
 
   const snakeData = toSnake(data, table);
-  if (!snakeData.id) snakeData.id = genId;
+
+  // ตารางที่ใช้ UUID เป็น Primary Key ห้ามใส่ string ID เช่น 'doc_...'
+  const uuidTables = ['transactions', 'ticket_items', 'blocked_numbers', 'permission_logs'];
+  if (uuidTables.includes(table)) {
+    if (snakeData.id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(snakeData.id)) {
+      delete snakeData.id;
+    }
+  } else {
+    if (!snakeData.id) snakeData.id = genId;
+  }
+
+  // พิเศษ: สำหรับ tickets
+  if (table === 'tickets') {
+    if (!snakeData.id && snakeData.ticket_id) {
+      snakeData.id = snakeData.ticket_id;
+    }
+    if (!snakeData.ticket_id && snakeData.id) {
+      snakeData.ticket_id = snakeData.id;
+    }
+  }
+
   const bets = data.bets;
   delete snakeData.bets;
 
-  await supabaseClient.from(table).insert(snakeData);
+  const { data: inserted, error: insertErr } = await supabaseClient.from(table).insert(snakeData).select();
+  if (insertErr) {
+    console.error(`[adapter] addDoc error on ${table}:`, insertErr);
+    throw insertErr;
+  }
+
+  const realId = inserted?.[0]?.id || snakeData.id || genId;
 
   if (table === 'tickets' && Array.isArray(bets) && bets.length > 0) {
+    const parentTicketId = snakeData.ticket_id || realId;
     const items = bets.map(b => ({
-      ticket_id: snakeData.ticket_id || snakeData.id,
+      ticket_id: parentTicketId,
       number: String(b.number),
-      bet_type: b.type,
+      bet_type: b.type || b.betType || '2top',
       amount: Number(b.amount || 0),
       payout_rate: Number(b.payoutRate || b.rate || 0),
       win_amount: Number(b.winAmount || 0),
       status: b.status || 'pending',
     }));
-    await supabaseClient.from('ticket_items').insert(items);
+    const { error: itemsErr } = await supabaseClient.from('ticket_items').insert(items);
+    if (itemsErr) {
+      console.error('[adapter] addDoc ticket_items error:', itemsErr);
+    }
   }
 
-  return new DocumentReference(colRef.name, snakeData.id);
+  return new DocumentReference(colRef.name, realId);
 }
 
 export async function deleteDoc(docRef: DocumentReference): Promise<void> {
