@@ -6,6 +6,9 @@ import { collection, addDoc, onSnapshot, doc, getDoc, updateDoc, query, where, g
 import { useBreakpoint } from '@/shared/hooks/useBreakpoint';
 import { countBets, fmtMoney, fmtInt } from '@/shared/lib/betCount';
 import BetSummaryPanel from '@/shared/components/BetSummaryPanel';
+import BillDetailModal from '@/frontend/components/BillDetailModal';
+import ActionConfirmModal from '@/frontend/components/ActionConfirmModal';
+import CompactTicketList from '@/frontend/components/CompactTicketList';
 
 interface BetItem {
   id: string;
@@ -24,6 +27,8 @@ interface ActiveTicket {
   createdAt: number;
   expiresAt: number;
   status?: string;
+  customerName?: string;
+  lotteryType?: string;
 }
 
 const getPermutations = (str: string): string[] => {
@@ -1004,6 +1009,24 @@ export default function LotteryBet() {
   //   - เลขลดราคา (reduced)   → ใช้อัตราจ่ายล่าสุด
   //   - ซื้อได้สูงสุด (maxAmount) ต่อเลข → เกินแล้วไม่ให้ส่ง
   //   - แทงขั้นต่ำ / สูงสุดต่อรายการ / สูงสุดต่อโพย(ไม้)
+  // อัปเดตชื่อลูกค้า / ชื่อบิล
+  const handleUpdateCustomerName = async (ticketId: string, newName: string) => {
+    try {
+      await updateDoc(doc(db, 'tickets', ticketId), {
+        customerName: newName,
+      });
+      setActiveTickets(prev =>
+        prev.map(t => (t.id === ticketId ? { ...t, customerName: newName } : t))
+      );
+      if (selectedTicketForBill && selectedTicketForBill.id === ticketId) {
+        setSelectedTicketForBill({ ...selectedTicketForBill, customerName: newName });
+      }
+    } catch (e) {
+      console.error('Failed to update customer name:', e);
+      throw e;
+    }
+  };
+
   const validateAndNormalizeBets = (bets: BetItem[]): { ok: boolean; bets: BetItem[]; total: number } => {
     const minBet = Number(lotteryConfig?.minBet ?? globalSettings?.minBet) || 0;
     const maxPerBet = Number(lotteryConfig?.maxBet ?? globalSettings?.maxBet) || 0;
@@ -1118,6 +1141,8 @@ export default function LotteryBet() {
         totalAmount: total,
         createdAt: now,
         expiresAt: expires,
+        customerName: customerName.trim() || 'ลูกค้าทั่วไป',
+        lotteryType: displayName,
       };
 
       const currentUserId = localStorage.getItem('userId');
@@ -1219,6 +1244,8 @@ export default function LotteryBet() {
         totalAmount: total,
         createdAt: now,
         expiresAt: expires,
+        customerName: info.customerName,
+        lotteryType: displayName,
       };
 
       // 3. Save to Firestore
@@ -2251,161 +2278,15 @@ export default function LotteryBet() {
           </div>
         </div>
 
-        {/* Active Tickets Section */}
-        {activeTickets.length > 0 && (
-          <div className="space-y-3 mt-4">
-            <div className="flex items-center justify-between border-l-4 border-gray-600 pl-2">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[var(--navy-deep)]">history_edu</span>
-                <h3 className="font-bold text-[var(--navy-deep)] text-sm">โพยที่ส่งแล้ว</h3>
-              </div>
-              <div className="flex bg-gray-200 p-0.5 rounded gap-0.5">
-                {(['all', 'active', 'cancelled'] as const).map(f => (
-                  <button 
-                    key={f}
-                    onClick={() => setTicketFilter(f)}
-                    className={`text-[9px] font-black px-2 py-1 rounded transition-all uppercase ${ticketFilter === f ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
-                  >
-                    {f === 'all' ? 'ทั้งหมด' : f === 'active' ? 'รอลุ้น' : 'ยกเลิก'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              {activeTickets
-                .filter(t => {
-                  if (ticketFilter === 'all') return true;
-                  if (ticketFilter === 'active') return t.status !== 'cancelled';
-                  if (ticketFilter === 'cancelled') return t.status === 'cancelled';
-                  return true;
-                })
-                .map(ticket => {
-                const isExpired = currentTime >= ticket.expiresAt;
-                const isCancelled = ticket.status === 'cancelled';
-                
-                return (
-                  <div key={ticket.id} className="relative group animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    {/* Ticket Body */}
-                    <div className={`bg-white rounded shadow-sm border border-gray-300 overflow-hidden flex flex-col transition-all ${isCancelled ? 'opacity-80 grayscale-[0.5]' : ''}`}>
-                      {/* Cancelled Overlay */}
-                      {isCancelled && (
-                        <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
-                          <div className="border-4 border-red-600 px-6 py-2 rounded-lg rotate-[-15deg] bg-white/40 backdrop-blur-sm shadow-xl">
-                            <span className="text-4xl font-black text-red-600 uppercase tracking-widest drop-shadow-sm">ยกเลิก</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Header */}
-                      <div className={`p-2 flex justify-between items-start border-b border-gray-200 ${isCancelled ? 'bg-gray-200' : 'bg-gray-100'}`}>
-                        <div className="flex items-start gap-2">
-                          <div className={`w-8 h-8 shrink-0 rounded text-white flex items-center justify-center shadow-sm ${isCancelled ? 'bg-gray-400' : 'bg-gray-800'}`}>
-                            <span className="material-symbols-outlined text-sm">receipt_long</span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="font-black text-gray-800 text-[11px] leading-tight truncate">โพยหวย #{ticket.id.substring(0, 8)}</div>
-                            <div className="flex items-center gap-1.5 mt-0.5">
-                              {isCancelled ? (
-                                <span className="bg-red-100 text-red-700 text-[9px] font-black px-1.5 py-0.5 rounded border border-red-200 uppercase tracking-tighter">ยกเลิกแล้ว</span>
-                              ) : (
-                                <span className="bg-green-100 text-green-700 text-[9px] font-black px-1.5 py-0.5 rounded border border-green-200 uppercase tracking-tighter">รอลุ้นผล</span>
-                              )}
-                              {!isExpired && !isCancelled && (
-                                <div className="text-[9px] font-bold text-red-500 flex items-center gap-0.5">
-                                  <span className="material-symbols-outlined text-[10px] animate-pulse">timer</span> {formatRemainingTime(ticket.expiresAt)}
-                                </div>
-                              )}
-                            </div>
-                            {isCancelled && (
-                              <div className="text-[9px] font-bold text-red-600 flex items-center gap-0.5 mt-0.5">
-                                <span className="material-symbols-outlined text-[10px]">payments</span> คืนเครดิตเข้าบัญชีแล้ว
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="text-[9px] font-black text-gray-500 uppercase leading-none mb-0.5">ยอดรวม</div>
-                          <div className={`text-sm font-black leading-none ${isCancelled ? 'text-gray-400 line-through' : 'text-blue-600'}`}>฿{ticket.totalAmount.toLocaleString()}</div>
-                        </div>
-                      </div>
-
-                      {/* Content */}
-                      <div className="p-2 pt-2 relative">
-                        {/* Grouped Bets display */}
-                        <div className="space-y-1.5 mb-2 mt-1">
-                          {Object.entries(
-                            ((ticket.bets as any[]) || []).reduce((acc: any, bet: any) => {
-                              if (!acc[bet.type]) acc[bet.type] = [];
-                              acc[bet.type].push(bet);
-                              return acc;
-                            }, {} as Record<string, any[]>)
-                          ).map(([type, typeBets]) => {
-                            const typeTotal = (typeBets as any[]).reduce((sum, b) => sum + b.amount, 0);
-                            return (
-                              <div key={type} className={`text-[11px] p-1.5 rounded border ${isCancelled ? 'bg-gray-100/50 border-gray-200 text-gray-500' : 'bg-[#fcfbf7] border-[#eeddcc] text-gray-800'}`}>
-                                <div className="flex justify-between items-center mb-1 font-bold border-b border-dashed border-gray-200 pb-0.5">
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${isCancelled ? 'bg-gray-200 text-gray-600' : 'bg-[var(--gold-vibrant)] text-[var(--navy-deep)]'}`}>{type}</span>
-                                  <span className="text-[10px] text-gray-500 font-bold">รวม ฿{typeTotal}</span>
-                                </div>
-                                <div className="flex flex-wrap gap-x-2 gap-y-0.5">
-                                  {(typeBets as any[]).map((b, bIdx) => (
-                                    <span key={bIdx} className="font-mono font-bold">
-                                      {b.number}<span className="text-red-500 font-black">={b.amount}</span>
-                                      {bIdx < (typeBets as any[]).length - 1 && <span className="text-gray-300 ml-1.5">|</span>}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        
-                        {/* Interactive Bill Buttons */}
-                        <div className="grid grid-cols-2 gap-1 mt-2.5">
-                          <button 
-                            onClick={() => setSelectedTicketForBill(ticket)}
-                            className="py-1 bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 rounded text-[10px] font-black flex items-center justify-center gap-1 transition-all"
-                          >
-                            <span className="material-symbols-outlined text-xs">receipt_long</span> แสดงบิลแยก
-                          </button>
-                          <button 
-                            onClick={() => copyTicketAsBillText(ticket)}
-                            className="py-1 bg-green-50 border border-green-200 text-green-700 hover:bg-green-100 rounded text-[10px] font-black flex items-center justify-center gap-1 transition-all"
-                          >
-                            <span className="material-symbols-outlined text-xs">content_copy</span> คัดลอกบิลส่งไลน์
-                          </button>
-                        </div>
-
-                        <div className="mt-1.5">
-                          {!isCancelled && (
-                            !isExpired ? (
-                              <button 
-                                onClick={() => cancelTicket(ticket.id, ticket.totalAmount)}
-                                className="w-full py-1.5 bg-[#cc0000] text-white rounded text-[11px] font-bold hover:bg-red-700 transition flex items-center justify-center gap-1 shadow-sm"
-                              >
-                                <span className="material-symbols-outlined text-xs">cancel</span> ยกเลิกโพย
-                              </button>
-                            ) : (
-                              <div className="w-full py-1 bg-green-50 text-green-700 border border-green-200 rounded text-[10px] font-bold flex items-center justify-center gap-1">
-                                <span className="material-symbols-outlined text-xs">check_circle</span> ผ่านช่วงเวลายกเลิกแล้ว
-                              </div>
-                            )
-                          )}
-                          {isCancelled && (
-                            <div className="w-full py-1 bg-gray-100 text-gray-500 border border-gray-200 rounded text-[10px] font-black flex items-center justify-center gap-1 italic uppercase tracking-widest">
-                              <span className="material-symbols-outlined text-xs">block</span> CANCELLED
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        {/* Active Tickets Section (Compact, Searchable, Filterable) */}
+        <CompactTicketList
+          tickets={activeTickets as any[]}
+          currentTime={currentTime}
+          onSelectTicketForBill={(t) => setSelectedTicketForBill(t as any)}
+          onCopyTicketText={copyTicketAsBillText}
+          onCancelTicket={cancelTicket}
+          formatRemainingTime={formatRemainingTime}
+        />
 
         <div className="border-[4px] border-[#8a0303] bg-[#111] mt-4 flex flex-col shadow-xl h-fit">
           <div className="bg-white p-2 flex items-center justify-between text-black border-b-2 border-red-800 rounded-sm">
@@ -2812,81 +2693,54 @@ export default function LotteryBet() {
         )}
       </AnimatePresence>
 
-      {/* Clear All Confirmation Modal */}
-      {showClearConfirm && (
-        <div className="fixed inset-0 bg-black/70 z-[250] flex items-center justify-center p-4 backdrop-blur-sm">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-[320px] overflow-hidden border-t-8 border-[#cc0000]"
-          >
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-red-100">
-                <span className="material-symbols-outlined text-4xl text-[#cc0000]">delete_sweep</span>
-              </div>
-              <h3 className="text-xl font-black text-gray-800 mb-2">ยกเลิกรายการทั้งหมด?</h3>
-              <p className="text-sm text-gray-500 font-bold leading-relaxed">
-                คุณต้องการ <span className="text-[#cc0000] text-lg px-1">ล้างรายการแทงทั้งหมด</span> ในตะกร้าใช่หรือไม่?
-                <br />
-                <span className="text-xs text-gray-400 font-medium">*การดำเนินการนี้ไม่สามารถเรียกคืนได้</span>
-              </p>
-            </div>
-            
-            <div className="flex border-t border-gray-100">
-              <button 
-                onClick={() => setShowClearConfirm(false)}
-                className="flex-1 py-4 text-gray-500 font-bold text-sm bg-gray-50 hover:bg-gray-100 transition-colors border-r border-gray-100 outline-none"
-              >
-                ไม่ยกเลิก
-              </button>
-              <button 
-                onClick={executeClearAllBets}
-                className="flex-[1.5] py-4 bg-[#cc0000] text-white font-black text-sm hover:bg-red-700 transition-all active:scale-[0.98] outline-none shadow-inner"
-              >
-                ยืนยันยกเลิกทั้งหมด
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      
 
       {/* Duplicate Confirmation Modal */}
-      {showDupConfirm !== null && (
-        <div className="fixed inset-0 bg-black/70 z-[250] flex items-center justify-center p-4 backdrop-blur-sm">
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-[320px] overflow-hidden border-t-8 border-[#cc0000]"
-          >
-            <div className="p-6 text-center">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-red-100">
-                <span className="material-symbols-outlined text-4xl text-[#cc0000] animate-pulse">content_copy</span>
-              </div>
-              <h3 className="text-xl font-black text-gray-800 mb-2">พบรายการซ้ำ!</h3>
-              <p className="text-sm text-gray-500 font-bold leading-relaxed">
-                ระบบตรวจพบรายการแทงซ้ำกัน <span className="text-[#cc0000] text-lg px-1">{showDupConfirm}</span> รายการ
-                <br />
-                ต้องการรวมยอดเงินและตัดรายการส่วนเกินออกหรือไม่?
-              </p>
-            </div>
-            
-            <div className="flex border-t border-gray-100">
-              <button 
-                onClick={() => setShowDupConfirm(null)}
-                className="flex-1 py-4 text-gray-500 font-bold text-sm bg-gray-50 hover:bg-gray-100 transition-colors border-r border-gray-100 outline-none"
-              >
-                ยกเลิก
-              </button>
-              <button 
-                onClick={executeRemoveDuplicates}
-                className="flex-[1.5] py-4 bg-[#cc0000] text-white font-black text-sm hover:bg-red-700 transition-all active:scale-[0.98] outline-none shadow-inner"
-              >
-                ยืนยันตัดเลขซ้ำ
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
+      <ActionConfirmModal
+        isOpen={showDupConfirm !== null}
+        title="พบรายการแทงซ้ำ!"
+        description={
+          <>
+            ระบบตรวจพบรายการแทงซ้ำกัน <span className="text-[#cc0000] text-lg px-1 font-black">{showDupConfirm}</span> รายการ
+            <br />
+            ต้องการรวมยอดเงินและตัดรายการส่วนเกินออกหรือไม่?
+          </>
+        }
+        icon="content_copy"
+        confirmLabel="ยืนยันตัดเลขซ้ำ"
+        cancelLabel="ยกเลิก"
+        confirmTone="red"
+        onConfirm={executeRemoveDuplicates}
+        onCancel={() => setShowDupConfirm(null)}
+      />
+
+      {/* Clear All Confirmation Modal */}
+      <ActionConfirmModal
+        isOpen={showClearConfirm}
+        title="ยกเลิกรายการทั้งหมด?"
+        description={
+          <>
+            คุณต้องการ <span className="text-[#cc0000] text-lg px-1 font-black">ล้างรายการแทงทั้งหมด</span> ในตะกร้าใช่หรือไม่?
+            <br />
+            <span className="text-xs text-gray-400 font-medium">*การดำเนินการนี้ไม่สามารถเรียกคืนได้</span>
+          </>
+        }
+        icon="delete_sweep"
+        confirmLabel="ยืนยันยกเลิกทั้งหมด"
+        cancelLabel="ไม่ยกเลิก"
+        confirmTone="red"
+        onConfirm={executeClearAllBets}
+        onCancel={() => setShowClearConfirm(false)}
+      />
+
+      {/* Bill Detail Modal */}
+      <BillDetailModal
+        ticket={selectedTicketForBill as any}
+        onClose={() => setSelectedTicketForBill(null)}
+        onUpdateCustomerName={handleUpdateCustomerName}
+        onCancelTicket={cancelTicket}
+        taxRate={globalSettings.taxRate || 1}
+      />
 
       {/* Confirmation Modal */}
       {confirmTicketInfo && (

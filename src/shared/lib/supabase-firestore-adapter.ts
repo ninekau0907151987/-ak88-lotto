@@ -74,9 +74,19 @@ export function mapCollectionToTable(name: string): string {
       return 'transactions';
     case 'settings':
     case 'system_settings':
-    case 'lotteryResults':
-    case 'adminLogs':
     case 'apiTenants':
+    case 'staff':
+      return 'staff';
+    case 'lotteryResults':
+    case 'lottery_results':
+      return 'lottery_results';
+    case 'lottery_bet_limits':
+      return 'risk_intake_configs';
+    case 'permissionLogs':
+    case 'permission_logs':
+    case 'adminLogs':
+    case 'admin_logs':
+      return 'permission_logs';
     case 'settingsHistory':
     default:
       return 'system_settings';
@@ -114,6 +124,25 @@ function toSnake(data: any, table: string): any {
     else if (k === 'resultTime') out.result_time = v;
     else if (k === 'createdAt') out.created_at = v ? (typeof v === 'string' ? v : new Date().toISOString()) : new Date().toISOString();
     else if (k === 'updatedAt') out.updated_at = v ? (typeof v === 'string' ? v : new Date().toISOString()) : new Date().toISOString();
+    else if (k === 'displayName') out.display_name = v;
+    else if (k === 'grantedExtra') out.granted_extra = v;
+    else if (k === 'lastLogin') out.last_login = v;
+    else if (k === 'scopeProjectIds') out.scope_project_ids = v;
+    else if (k === 'result3Top') out.result_3top = v;
+    else if (k === 'result2Bottom') out.result_2bottom = v;
+    else if (k === 'result3Bottom') out.result_3bottom = v;
+    else if (k === 'result3Front') out.result_3front = v;
+    else if (k === 'customPayoutRate') out.custom_payout_rate = v;
+    else if (k === 'payoutRate') out.payout_rate = v;
+    else if (k === 'maxAmount') out.max_amount = v;
+    else if (k === 'subItems') out.sub_items = v;
+    else if (k === 'totalRiskBudget') out.total_risk_budget = v;
+    else if (k === 'maxUserLimit') out.max_user_limit = v;
+    else if (k === 'winAmount') out.win_amount = v;
+    else if (k === 'grossWinAmount') out.gross_win_amount = v;
+    else if (k === 'taxAmount') out.tax_amount = v;
+    else if (k === 'taxRate') out.tax_rate = v;
+    else if (k === 'settledAt') out.settled_at = v;
     else out[k] = v;
   }
 
@@ -146,6 +175,25 @@ function fromSnake(row: any, table: string): any {
   if ('round_number' in row) out.roundNumber = row.round_number;
   if ('created_at' in row) out.createdAt = row.created_at;
   if ('updated_at' in row) out.updatedAt = row.updated_at;
+  if ('display_name' in row) out.displayName = row.display_name;
+  if ('granted_extra' in row) out.grantedExtra = row.granted_extra;
+  if ('last_login' in row) out.lastLogin = row.last_login;
+  if ('scope_project_ids' in row) out.scopeProjectIds = row.scope_project_ids;
+  if ('result_3top' in row) out.result3Top = row.result_3top;
+  if ('result_2bottom' in row) out.result2Bottom = row.result_2bottom;
+  if ('result_3bottom' in row) out.result3Bottom = row.result_3bottom;
+  if ('result_3front' in row) out.result3Front = row.result_3front;
+  if ('custom_payout_rate' in row) out.customPayoutRate = Number(row.custom_payout_rate);
+  if ('payout_rate' in row) out.payoutRate = Number(row.payout_rate);
+  if ('max_amount' in row) out.maxAmount = Number(row.max_amount);
+  if ('sub_items' in row) out.subItems = row.sub_items;
+  if ('total_risk_budget' in row) out.totalRiskBudget = Number(row.total_risk_budget);
+  if ('max_user_limit' in row) out.maxUserLimit = Number(row.max_user_limit);
+  if ('win_amount' in row) out.winAmount = Number(row.win_amount);
+  if ('gross_win_amount' in row) out.grossWinAmount = Number(row.gross_win_amount);
+  if ('tax_amount' in row) out.taxAmount = Number(row.tax_amount);
+  if ('tax_rate' in row) out.taxRate = Number(row.tax_rate);
+  if ('settled_at' in row) out.settledAt = row.settled_at;
 
   return out;
 }
@@ -361,8 +409,12 @@ export async function getDocs(queryOrCol: CollectionReference | Query): Promise<
       let fieldName = c.field;
       if (fieldName === 'isOpen') fieldName = 'is_open';
       if (fieldName === 'userId') fieldName = 'user_id';
+      if (fieldName === 'ticketId') fieldName = 'ticket_id';
       if (fieldName === 'lotteryType' || fieldName === 'ticketType') fieldName = 'lottery_type';
       if (fieldName === 'roundId') fieldName = 'round_id';
+      if (fieldName === 'betType') fieldName = 'bet_type';
+      if (fieldName === 'username') fieldName = 'username';
+      if (fieldName === 'status') fieldName = 'status';
 
       if (c.op === '==') req = req.eq(fieldName, c.value);
       else if (c.op === '!=') req = req.neq(fieldName, c.value);
@@ -374,6 +426,8 @@ export async function getDocs(queryOrCol: CollectionReference | Query): Promise<
     } else if (c.type === 'orderBy' && c.field) {
       let fieldName = c.field;
       if (fieldName === 'createdAt') fieldName = 'created_at';
+      if (fieldName === 'updatedAt') fieldName = 'updated_at';
+      if (fieldName === 'at') fieldName = 'at';
       req = req.order(fieldName, { ascending: c.direction === 'asc' });
     } else if (c.type === 'limit' && c.value) {
       req = req.limit(c.value);

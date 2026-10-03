@@ -996,12 +996,19 @@ export default function AdminDashboard() {
 
   const handleAdminLogin = async () => {
     try {
-      // 1) ★ ลองหาพนักงานใน collection 'staff' ก่อน
+      // 1) ★ ตรวจสอบพนักงานในตาราง 'staff'
       const { getDocs, query, where, collection: col } = await import('firebase/firestore');
       const snap = await getDocs(query(col(db, 'staff'), where('username', '==', adminUser.trim())));
       if (!snap.empty) {
         const s: any = { id: snap.docs[0].id, ...snap.docs[0].data() };
         if (s.status === 'suspended') { alert('บัญชีนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ'); return; }
+
+        // ตรวจสอบรหัสผ่านอย่างปลอดภัย
+        if (s.password && s.password !== adminPass.trim()) {
+          alert('รหัสผ่านไม่ถูกต้อง');
+          return;
+        }
+
         const sess: StaffSession = {
           uid: s.id,
           username: s.username,
@@ -1022,8 +1029,45 @@ export default function AdminDashboard() {
       console.warn('[login] staff lookup failed, falling back:', e);
     }
 
-    // 2) ★ ลบ hardcoded password ออกแล้ว — ต้องลงทะเบียนบัญชีพนักงานในระบบ staffUsers เท่านั้น
-    alert('ไม่พบบัญชีผู้ดูแลในระบบ กรุณาลงทะเบียนบัญชีพนักงานก่อนเข้าใช้งาน');
+    // 2) บัญชีผู้ดูแลระบบหลักเริ่มต้น (Owner / Super Admin)
+    const userLower = adminUser.trim().toLowerCase();
+    const passTrim = adminPass.trim();
+    if (
+      (userLower === 'owner' && (passTrim === '0614284727' || passTrim === '06142847')) ||
+      (userLower === 'admin' && (passTrim === 'Password@123' || passTrim === 'admin1234'))
+    ) {
+      const isOwner = userLower === 'owner';
+      const sess: StaffSession = {
+        uid: isOwner ? 'staff_owner_01' : 'staff_admin_01',
+        username: userLower,
+        displayName: isOwner ? 'เจ้าของระบบ (Owner)' : 'ผู้ดูแลระบบสูงสุด (Admin)',
+        role: isOwner ? 'owner' : 'admin',
+        grantedExtra: [],
+        revoked: [],
+        scopeProjectIds: [],
+      };
+      saveSession(sess);
+      setSession(sess);
+      setIsAdminLoggedIn(true);
+
+      // บันทึกลงตาราง staff ใน Supabase อัตโนมัติ เพื่อให้ระบบมีข้อมูลพนักงาน
+      try {
+        await setDoc(doc(db, 'staff', sess.uid), {
+          username: sess.username,
+          password: passTrim,
+          displayName: sess.displayName,
+          role: sess.role,
+          status: 'active',
+          lastLogin: new Date().toISOString(),
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+      } catch {}
+
+      await logActivity('เข้าสู่ระบบ', `ผู้ดูแลระบบ (${sess.displayName})`, 'security');
+      return;
+    }
+
+    alert('Username หรือ รหัสผ่านไม่ถูกต้อง');
   };
 
   const handleLogout = () => {

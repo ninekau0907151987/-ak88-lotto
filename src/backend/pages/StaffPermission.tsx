@@ -35,6 +35,7 @@ interface StaffRow {
   status?: string;
   scopeProjectIds?: string[];
   note?: string;
+  password?: string;
   createdAt?: string;
   lastLogin?: string;
 }
@@ -278,6 +279,11 @@ export default function StaffPermission() {
         note: form.note || '',
         status: (form as any).status || 'active',
       };
+      if (form.password) {
+        payload.password = form.password;
+      } else if (isNew) {
+        payload.password = '123456';
+      }
       if (isNew) {
         payload.createdAt = new Date().toISOString();
         payload.grantedExtra = [];
@@ -664,6 +670,7 @@ export default function StaffPermission() {
             <div className="space-y-3">
               {[
                 { k: 'username', label: 'ชื่อผู้ใช้ (สำหรับล็อกอิน) *', ph: 'เช่น somchai' },
+                { k: 'password', label: 'รหัสผ่าน (Password) *', ph: 'อย่างน้อย 6 ตัวอักษร เช่น 123456' },
                 { k: 'displayName', label: 'ชื่อที่แสดง', ph: 'เช่น สมชาย ใจดี' },
                 { k: 'phone', label: 'เบอร์โทร', ph: '08x-xxx-xxxx' },
                 { k: 'note', label: 'หมายเหตุ', ph: 'เช่น พนักงานกะเช้า' },

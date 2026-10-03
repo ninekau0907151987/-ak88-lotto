@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import LotteryCategorySelector from './LotteryCategorySelector';
 import { useRoundCountdown } from '@/shared/lib/roundTimer';
+import { db } from '@/shared/lib/firebase';
+import { doc, getDoc, setDoc, getDocs, collection, query, where, limit } from 'firebase/firestore';
 
 interface IntakeItem {
   id: number;
@@ -113,13 +115,29 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
   const fetchRounds = async (lotId: string) => {
     setLoadingRounds(true);
     try {
-      const res = await fetch(`/api/v1/rounds?type=${encodeURIComponent(lotId)}`);
-      const json = await res.json();
-      if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
-        setRounds(json.data);
-        setSelectedRoundId(json.data[0].id);
+      let foundRounds: any[] = [];
+      try {
+        const res = await fetch(`/api/v1/rounds?type=${encodeURIComponent(lotId)}`);
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.data) && json.data.length > 0) {
+          foundRounds = json.data;
+        }
+      } catch {}
+
+      // Fallback: ดึงจาก Supabase โดยตรง (สำหรับ Vercel static)
+      if (foundRounds.length === 0) {
+        try {
+          const snap = await getDocs(query(collection(db, 'lottery_rounds'), where('lottery_type', '==', lotId), limit(10)));
+          if (!snap.empty) {
+            foundRounds = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          }
+        } catch {}
+      }
+
+      if (foundRounds.length > 0) {
+        setRounds(foundRounds);
+        setSelectedRoundId(foundRounds[0].id);
       } else {
-        // Fallback sample round
         const sampleRound: RoundOption = {
           id: `round-${lotId}-curr`,
           roundNumber: 'งวดปัจจุบัน (รอบเปิดรับแทง)',
@@ -143,16 +161,33 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
     setLoading(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/v1/lottery/limits/${encodeURIComponent(lotId)}`);
-      const json = await res.json();
-      if (json.status === 'success' && json.data) {
-        const subs = json.data.subItems || [];
+      let savedData: any = null;
+      try {
+        const res = await fetch(`/api/v1/lottery/limits/${encodeURIComponent(lotId)}`);
+        const json = await res.json();
+        if (json.status === 'success' && json.data) {
+          savedData = json.data;
+        }
+      } catch {}
+
+      // Fallback: ดึงจาก Supabase โดยตรง (สำหรับ Vercel static)
+      if (!savedData) {
+        try {
+          const snap = await getDoc(doc(db, 'risk_intake_configs', lotId));
+          if (snap.exists()) {
+            savedData = snap.data();
+          }
+        } catch {}
+      }
+
+      if (savedData) {
+        const subs = savedData.subItems || [];
         const isThaiLotto = lotId.includes('ไทย') || lotId.includes('รัฐบาล');
         const defaultMap = isThaiLotto ? DEFAULT_THAI_ALLOCATIONS : DEFAULT_OTHER_ALLOCATIONS;
 
-        const gBudget = Number(json.data.totalRiskBudget) || 200000;
+        const gBudget = Number(savedData.totalRiskBudget) || 200000;
         setGlobalRiskBudget(gBudget);
-        setMaxUserLimit(Number(json.data.maxUserLimit) || 50000);
+        setMaxUserLimit(Number(savedData.maxUserLimit) || 50000);
 
         setIntakeItems(subs.map((s: any) => {
           const allocPct = s.allocationPercent != null 
@@ -285,30 +320,46 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/v1/lottery/limits/${encodeURIComponent(selectedLottery)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lotteryId: selectedLottery,
-          roundId: selectedRoundId || undefined,
-          isThai,
-          minBet: 1,
-          maxBet: 5000,
-          maxUserLimit,
-          totalRiskBudget: globalRiskBudget,
-          subItems: intakeItems,
-        }),
+      const payload = {
+        lotteryId: selectedLottery,
+        lotteryType: selectedLottery,
+        roundId: selectedRoundId || undefined,
+        isThai,
+        minBet: 1,
+        maxBet: 5000,
+        maxUserLimit,
+        totalRiskBudget: globalRiskBudget,
+        subItems: intakeItems,
+        updatedAt: new Date().toISOString(),
+      };
+
+      // 1. ลองส่งไปที่ Server API (หากมี)
+      try {
+        await fetch(`/api/v1/lottery/limits/${encodeURIComponent(selectedLottery)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } catch {}
+
+      // 2. บันทึกลง Supabase โดยตรง (ใช้งานได้ 100% บน Vercel)
+      await setDoc(doc(db, 'risk_intake_configs', selectedLottery), payload, { merge: true });
+
+      // 3. ซิงค์อัตราจ่ายเข้า lotteryTypes เพื่อให้หน้าแทงใช้งานได้ทันที
+      const flatRates: Record<string, number> = {};
+      intakeItems.forEach(item => {
+        flatRates[item.name] = Number(item.baseRate) || 0;
       });
-      const data = await res.json();
-      if (data.status === 'success') {
-        const actionLabel = tabName === 'rates' ? 'บันทึกอัตราจ่าย' : 'บันทึกเพดานรับกินและตัวเงิน';
-        setMessage({ text: `${actionLabel} สำหรับ ${selectedLottery} (รอบ: ${currentRound?.roundNumber || 'ปัจจุบัน'}) สำเร็จแล้ว`, type: 'success' });
-        onLogActivity?.(actionLabel, `บันทึกข้อมูลของ ${selectedLottery} รอบ ${currentRound?.roundNumber || 'ทั่วไป'}`, 'settings');
-      } else {
-        throw new Error(data.message || 'บันทึกไม่สำเร็จ');
-      }
+      await setDoc(doc(db, 'lotteryTypes', selectedLottery), {
+        rates: flatRates,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      const actionLabel = tabName === 'rates' ? 'บันทึกอัตราจ่าย' : 'บันทึกเพดานรับกินและตัวเงิน';
+      setMessage({ text: `${actionLabel} สำหรับ ${selectedLottery} สำเร็จแล้ว (บันทึกลงระบบ)`, type: 'success' });
+      onLogActivity?.(actionLabel, `บันทึกข้อมูลของ ${selectedLottery}`, 'settings');
     } catch (err: any) {
-      setMessage({ text: 'เกิดข้อผิดพลาด: ' + err.message, type: 'error' });
+      setMessage({ text: 'เกิดข้อผิดพลาดในการบันทึก: ' + err.message, type: 'error' });
     } finally {
       setSaving(false);
     }
