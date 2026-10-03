@@ -118,8 +118,10 @@ export default function Register() {
       const { db } = await import('@/shared/lib/firebase');
 
       // 2) ตรวจสอบความซ้ำซ้อนในฐานข้อมูล (Unique check)
-      const qPhone = query(collection(db, 'users'), where('phoneNumber', '==', cleanPhone));
-      const snapPhone = await getDocs(qPhone);
+      let snapPhone = await getDocs(query(collection(db, 'users'), where('phone', '==', cleanPhone)));
+      if (snapPhone.empty) {
+        snapPhone = await getDocs(query(collection(db, 'users'), where('phoneNumber', '==', cleanPhone)));
+      }
       if (!snapPhone.empty) {
         setError('เบอร์โทรศัพท์นี้ถูกลงทะเบียนไว้ในระบบแล้ว');
         setLoading(false);
@@ -134,18 +136,22 @@ export default function Register() {
         return;
       }
 
-      // 3) บันทึกบัญชีสมาชิกใหม่ลง Firestore
+      // 3) บันทึกบัญชีสมาชิกใหม่ลงฐานข้อมูล Supabase
+      const newUserId = `user_${cleanUsername}_${Date.now()}`;
       const newUser = {
+        id: newUserId,
+        phone: cleanPhone,
         phoneNumber: cleanPhone,
         username: cleanUsername,
         password: formData.password,
+        passwordHash: formData.password,
         bankName: formData.bankName,
         bankAccount: cleanAccount,
         firstName: formData.firstName.trim(),
         lastName: formData.lastName.trim(),
         name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
         referralSource: formData.referralSource.trim() || 'Direct',
-        role: 'user',
+        role: 'member',
         status: 'active',
         balance: 0,
         totalBet: 0,

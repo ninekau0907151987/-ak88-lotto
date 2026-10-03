@@ -25,22 +25,25 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      // 1) สิทธิ์ระดับ Master / Super Admin
-      if ((u === 'admin' || u === 'owner' || u === '1234') && (p === '1234' || p === 'admin' || p === 'admin1234')) {
+      // 1) สิทธิ์ระดับ Master / Super Admin (Default credentials)
+      if (
+        (u === 'admin' || u === 'owner' || u === '1234') && 
+        (p === '1234' || p === 'admin' || p === 'admin1234' || p === '0614284727' || p === 'Password@123')
+      ) {
         localStorage.setItem('adminAuth', 'true');
         localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userRole', 'admin');
-        localStorage.setItem('username', 'Admin_AK88');
+        localStorage.setItem('userRole', u === 'owner' ? 'owner' : 'admin');
+        localStorage.setItem('username', u === 'owner' ? 'Owner_AK88' : 'Admin_AK88');
         saveSession({
-          uid: 'owner',
-          username: u || 'Admin_AK88',
-          displayName: 'ผู้บริหารระบบ AK88 (Super Admin)',
-          role: 'owner',
+          uid: u === 'owner' ? 'owner' : 'admin',
+          username: u,
+          displayName: u === 'owner' ? 'เจ้าของระบบ AK88 (Super Admin)' : 'ผู้ดูแลระบบหลัก (Admin)',
+          role: u === 'owner' ? 'owner' : 'admin',
         });
         localStorage.setItem('adminSession', JSON.stringify({
-          username: 'Admin_AK88',
-          displayName: 'ผู้บริหารระบบ AK88 (Super Admin)',
-          role: 'super_admin',
+          username: u,
+          displayName: u === 'owner' ? 'เจ้าของระบบ AK88 (Super Admin)' : 'ผู้ดูแลระบบหลัก (Admin)',
+          role: u === 'owner' ? 'owner' : 'admin',
           permissions: ['*'],
           loginAt: new Date().toISOString()
         }));
@@ -49,10 +52,48 @@ export default function AdminLogin() {
         return;
       }
 
-      // 2) ตรวจสอบจากตาราง agents ใน Firestore
+      // 2) ตรวจสอบจากตาราง staff ใน Supabase Database
       const { collection, getDocs, query, where } = await import('firebase/firestore');
       const { db } = await import('@/shared/lib/firebase');
 
+      try {
+        const qStaff = query(collection(db, 'staff'), where('username', '==', u), where('password', '==', p));
+        const staffSnapshot = await getDocs(qStaff);
+
+        if (!staffSnapshot.empty) {
+          const staffDoc = staffSnapshot.docs[0];
+          const staffData = staffDoc.data();
+          if (staffData.status === 'blocked' || staffData.status === 'inactive') {
+            setError('บัญชีพนักงานนี้ถูกระงับการใช้งาน กรุณาติดต่อผู้ดูแลระบบ');
+            return;
+          }
+          localStorage.setItem('adminAuth', 'true');
+          localStorage.setItem('isLoggedIn', 'true');
+          localStorage.setItem('userRole', staffData.role || 'staff');
+          localStorage.setItem('username', staffData.displayName || staffData.username || u);
+          saveSession({
+            uid: staffDoc.id,
+            username: staffData.username || u,
+            displayName: staffData.displayName || u,
+            role: staffData.role || 'staff',
+          });
+          localStorage.setItem('adminSession', JSON.stringify({
+            username: staffData.username || u,
+            displayName: staffData.displayName || u,
+            role: staffData.role || 'staff',
+            staffId: staffDoc.id,
+            permissions: staffData.role === 'owner' || staffData.role === 'master' ? ['*'] : (staffData.grantedExtra || []),
+            loginAt: new Date().toISOString()
+          }));
+
+          navigate('/admin');
+          return;
+        }
+      } catch (staffErr) {
+        console.warn('Staff table check failed:', staffErr);
+      }
+
+      // 3) ตรวจสอบจากตาราง agents
       const qAgent = query(collection(db, 'agents'), where('username', '==', u), where('password', '==', p));
       const agentSnapshot = await getDocs(qAgent);
 

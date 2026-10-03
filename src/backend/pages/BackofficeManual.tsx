@@ -252,13 +252,16 @@ export default function BackofficeManual() {
                               </div>
                             </td>
                             <td>
-                              <code style={{
-                                fontSize: 11.5, fontFamily: 'ui-monospace, monospace',
-                                background: 'var(--admin-subtle)', borderRadius: 5,
-                                padding: '3px 7px',
-                              }}>
-                                {a.path}
-                              </code>
+                              <a href={a.path} style={{ textDecoration: 'none' }}>
+                                <code style={{
+                                  fontSize: 11.5, fontFamily: 'ui-monospace, monospace',
+                                  background: 'var(--admin-subtle)', borderRadius: 5,
+                                  padding: '3px 7px', color: 'var(--admin-accent-dark)',
+                                  fontWeight: 700, cursor: 'pointer',
+                                }}>
+                                  {a.path} ↗
+                                </code>
+                              </a>
                             </td>
                             <td>
                               <code style={{
@@ -314,12 +317,19 @@ export default function BackofficeManual() {
                           <tr key={p.path}>
                             <td style={{ fontWeight: 700, fontSize: 12.5 }}>{p.name}</td>
                             <td>
-                              <code style={{
-                                fontSize: 11.5, fontFamily: 'ui-monospace, monospace',
-                                color: 'var(--admin-accent-dark)', fontWeight: 700,
-                              }}>
-                                {p.path}
-                              </code>
+                              <a 
+                                href={p.path.includes(':') ? '/lottery' : p.path} 
+                                style={{ textDecoration: 'none' }}
+                              >
+                                <code style={{
+                                  fontSize: 11.5, fontFamily: 'ui-monospace, monospace',
+                                  color: 'var(--admin-accent-dark)', fontWeight: 700,
+                                  background: 'var(--admin-subtle)', padding: '3px 7px',
+                                  borderRadius: 5, cursor: 'pointer',
+                                }}>
+                                  {p.path} ↗
+                                </code>
+                              </a>
                             </td>
                             <td>
                               <Badge tone={p.auth.includes('owner') ? 'danger' : p.auth.includes('ทุก') ? 'success' : 'info'}>
@@ -567,39 +577,39 @@ VITE_ADMIN_STAFF_PASS=รหัสใหม่ของพนักงาน`}
               <div style={{ display: 'grid', gap: 12 }}>
                 <Card>
                   <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 4 }}>
-                    🚀 ตั้งค่าครั้งแรก — 5 ขั้น
+                    🚀 ตั้งค่าครั้งแรก & เริ่มต้นระบบ — 5 ขั้นตอน (Vercel + Supabase)
                   </div>
                   <div style={{ fontSize: 12, opacity: .72, marginBottom: 14 }}>
-                    ทำครั้งเดียวตอนติดตั้งระบบ
+                    สถาปัตยกรรมคลาวด์มาตรฐาน: Vercel Frontend + Supabase PostgreSQL
                   </div>
 
                   {[
                     {
-                      n: 1, title: 'ติดตั้ง dependencies',
-                      cmd: 'npm install',
-                      note: 'ติดตั้งไลบรารีทั้งหมดที่ระบบต้องใช้',
+                      n: 1, title: 'เชื่อมต่อฐานข้อมูล Supabase',
+                      cmd: `# .env.local หรือ Vercel Environment Variables\nVITE_SUPABASE_URL=https://aogylynelbkjjdiclfeq.supabase.co\nVITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`,
+                      note: 'ตั้งค่า Environment Variables ในโปรเจกต์ Vercel เพื่อเชื่อมต่อฐานข้อมูล Supabase โดยตรง',
                     },
                     {
-                      n: 2, title: 'ตั้งค่า Firebase',
-                      cmd: '# .env.local\nVITE_FIREBASE_PROJECT_ID=your-project-id\nVITE_FIREBASE_API_KEY=your-api-key\nVITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com',
-                      note: 'คัดลอกจาก Firebase Console → Project Settings',
-                    },
-                    {
-                      n: 3, title: '★ deploy กฎความปลอดภัย',
-                      cmd: 'npx firebase deploy --only firestore:rules',
-                      note: '★ ขั้นนี้สำคัญมาก — ถ้าข้าม การบันทึกข้อมูลจะล้มเหลว PERMISSION_DENIED',
+                      n: 2, title: '★ รัน SQL Schema ใน Supabase SQL Editor',
+                      cmd: `# 1. เปิด Supabase Dashboard → โปรเจกต์ aogylynelbkjjdiclfeq\n# 2. ไปที่เมนู SQL Editor ด้านซ้าย\n# 3. นำโค้ดจากไฟล์ supabase_schema.sql ทั้งหมดมาวาง แล้วกดปุ่ม "Run"`,
+                      note: '★ ขั้นตอนนี้สำคัญที่สุด — จะสร้างตารางครบ 10 ตาราง (users, staff, lottery_types, lottery_rounds, tickets, ticket_items, lottery_results, blocked_numbers, risk_intake_configs, transactions) พร้อมสร้างบัญชีเริ่มต้นและ RLS',
                       critical: true,
                     },
                     {
-                      n: 4, title: '★ ลงข้อมูลตั้งต้น',
-                      cmd: 'npx tsx scripts/seed-game20.mjs',
-                      note: '★ สร้าง: ค่าตั้งต้นหวย, พนักงาน 6 ตำแหน่ง, รหัสตัวอย่าง, รอบตัวอย่าง + ตรวจสุขภาพฐานข้อมูล',
+                      n: 3, title: '★ ตรวจสอบรอบหวย (Lottery Rounds)',
+                      cmd: `# ตรวจสอบในตาราง lottery_rounds บน Supabase หรือหน้า /admin เมนูรอบหวย\n# หวยงวดปัจจุบันต้องมีสถานะ status = 'open'`,
+                      note: '★ หน้าแทงหวย /lottery/:type/bet จะอนุญาตให้สมาชิกใส่ราคาและส่งโพยได้ก็ต่อเมื่อรอบหวยเปิดอยู่ (status = open) เท่านั้น',
                       critical: true,
                     },
                     {
-                      n: 5, title: 'เปิดเซิร์ฟเวอร์',
-                      cmd: 'npx tsx server.ts\n\n# แล้วเข้า http://localhost:3000/admin',
-                      note: 'ถ้า port 3000 ถูกยึด ให้ปิดโปรเซส node เก่าก่อน',
+                      n: 4, title: 'เข้าสู่ระบบหลังบ้าน (Admin Login)',
+                      cmd: `# URL ทางเข้า: https://ak88-lotto.vercel.app/admin/login หรือ /admin\n# เข้าสู่ระบบด้วย:\n# - เจ้าของระบบ: Username: owner | Password: 0614284727\n# - ผู้ดูแลระบบ: Username: admin | Password: Password@123`,
+                      note: 'เข้าสู่ระบบเพื่อจัดการเพดานรับกิน (Risk Limit), กำหนดเลขอั้น, ตรวจสอบสมาชิก และอนุมัติการฝาก-ถอน',
+                    },
+                    {
+                      n: 5, title: 'ทดสอบส่งโพยหน้าบ้านจริง (Live Test)',
+                      cmd: `# 1. เข้าสู่ระบบที่ https://ak88-lotto.vercel.app/login\n# 2. ล็อกอินด้วยสมาชิกทดสอบ: Username: user_test | Password: User1234!\n# 3. ไปที่หน้าแทงหวย https://ak88-lotto.vercel.app/lottery/thai/bet\n# 4. เลือกตัวเลข ใส่ราคา และกดยืนยันส่งโพย`,
+                      note: 'สมาชิกทดสอบมีเครดิตเริ่มต้น ฿10,000.00 — เมื่อส่งโพยสำเร็จ ยอดเครดิตจะลดลง และโพยจะไปแสดงในหน้า /tickets ทันที',
                     },
                   ].map(st => (
                     <div key={st.n} style={{
@@ -639,18 +649,18 @@ VITE_ADMIN_STAFF_PASS=รหัสใหม่ของพนักงาน`}
 
                 <Card>
                   <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 9 }}>
-                    ตรวจสอบว่าตั้งสำเร็จ
+                    ✅ ตรวจสอบความพร้อมของระบบ
                   </div>
                   <div style={{ fontSize: 12.5, lineHeight: 1.8 }}>
-                    หลังตั้งค่าเสร็จ ตรวจ 4 ข้อนี้:
+                    หลังติดตั้งเสร็จ ตรวจสอบ 4 ข้อนี้:
                     <br />
-                    • เปิด <code>http://localhost:3000/api/v1/game20/health</code> → ต้องเห็น JSON กติกา
+                    • เข้าหน้าแรก <code>https://ak88-lotto.vercel.app/</code> → หน้าเว็บโหลดรวดเร็ว แสดงรายการหวยครบถ้วน
                     <br />
-                    • เข้า <code>/admin/game20</code> → ต้องเห็นแท็บทั้ง 6 และไม่มีป้ายเตือน API
+                    • เข้า <code>/admin</code> หรือ <code>/admin/login</code> → เข้าสู่ระบบด้วย <code>owner</code> หรือ <code>admin</code> ได้สำเร็จ
                     <br />
-                    • รัน seed อีกครั้ง → ควรรายงาน "✅ ฐานข้อมูลพร้อมใช้งาน"
+                    • เข้า <code>/login</code> ด้วย <code>user_test</code> (รหัส <code>User1234!</code>) → ยอดเครดิตแสดง ฿10,000.00 และเลือกแทงหวยได้
                     <br />
-                    • ลองสร้างรหัสในแท็บรหัส → ถ้าสำเร็จ = เขียนฐานข้อมูลได้
+                    • ลองส่งโพยทดสอบ 1 ใบ → ยอดเครดิตลดลง และมีรายการโพยขึ้นที่หน้า <code>/tickets</code> ทันที
                   </div>
                 </Card>
               </div>

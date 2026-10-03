@@ -104,6 +104,27 @@ function toSnake(data: any, table: string): any {
     return data;
   }
 
+  // ★ ตาราง users ใน Supabase มี 9 คอลัมน์มาตรฐาน — คัดแยกฟิลด์ที่ตรงกับ schema
+  if (table === 'users') {
+    const outUser: Record<string, any> = {};
+    if (data.id) outUser.id = String(data.id);
+    if (data.username) outUser.username = String(data.username).trim().toLowerCase();
+    const phoneVal = data.phone || data.phoneNumber;
+    if (phoneVal) outUser.phone = String(phoneVal).trim();
+    const passVal = data.passwordHash || data.password || data.password_hash;
+    if (passVal) outUser.password_hash = String(passVal);
+    outUser.role = data.role || 'member';
+    outUser.balance = Number(data.balance) || 0;
+    outUser.status = data.status || 'active';
+    if (data.createdAt || data.created_at) {
+      outUser.created_at = data.createdAt ? (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()) : data.created_at;
+    }
+    if (data.updatedAt || data.updated_at) {
+      outUser.updated_at = data.updatedAt ? (typeof data.updatedAt === 'string' ? data.updatedAt : new Date().toISOString()) : data.updated_at;
+    }
+    return outUser;
+  }
+
   for (const [k, v] of Object.entries(data)) {
     if (k === 'isOpen') out.is_open = v;
     else if (k === 'isHidden') out.is_hidden = v;
@@ -154,6 +175,24 @@ function fromSnake(row: any, table: string): any {
   if (table === 'system_settings') {
     const val = row.value || {};
     return { id: row.id || row.key, ...val };
+  }
+
+  // ★ ตาราง users: ส่งกลับฟิลด์ครบถ้วนทั้ง camelCase และ snake_case
+  if (table === 'users') {
+    return {
+      id: row.id,
+      username: row.username,
+      phoneNumber: row.phone,
+      phone: row.phone,
+      password: row.password_hash,
+      passwordHash: row.password_hash,
+      role: row.role || 'user',
+      balance: Number(row.balance) || 0,
+      status: row.status || 'active',
+      name: row.username,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
   }
 
   const out = { ...row };
