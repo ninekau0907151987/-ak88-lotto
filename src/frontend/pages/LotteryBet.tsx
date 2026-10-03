@@ -419,9 +419,24 @@ export default function LotteryBet() {
   };
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(doc(db, 'lotteryTypes', baseLotteryName), (doc) => {
-      if (doc.exists()) {
-        setLotteryConfig(doc.data());
+    const unsubscribe = onSnapshot(collection(db, 'lotteryTypes'), (snapshot) => {
+      const allTypes = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      const found = allTypes.find((item: any) => {
+        if (type && (item.path === `/lottery/${type}` || item.path === `/lottery/${type.toLowerCase()}`)) return true;
+        if (item.id === baseLotteryName || item.name === baseLotteryName) return true;
+        if (type && (item.id === type || item.name === type)) return true;
+        const idStr = String(item.id || '');
+        const nameStr = String(item.name || '');
+        if (type === 'thai' && (idStr.includes('รัฐบาล') || nameStr.includes('รัฐบาล'))) return true;
+        if (type === 'lao' && (idStr.includes('ลาว') || nameStr.includes('ลาว'))) return true;
+        if (type === 'malay' && (idStr.includes('มาเลย์') || nameStr.includes('มาเลย์'))) return true;
+        if (type === 'baac' && (idStr.includes('ธกส') || nameStr.includes('ธกส'))) return true;
+        if (type === 'gsb' && (idStr.includes('ออมสิน') || nameStr.includes('ออมสิน'))) return true;
+        if (baseLotteryName && (idStr.includes(baseLotteryName) || baseLotteryName.includes(idStr))) return true;
+        return false;
+      });
+      if (found) {
+        setLotteryConfig(found);
       }
     });
     
@@ -512,9 +527,54 @@ export default function LotteryBet() {
     });
   };
 
-  const isClosed = isYeekee
-    ? (ykPhase !== 'open')
-    : (lotteryConfig ? (!lotteryConfig.isOpen || (lotteryConfig.closingTime && new Date(lotteryConfig.closingTime).getTime() <= currentTime)) : false);
+  const formatClosingDisplay = (closingTimeStr?: string) => {
+    if (!closingTimeStr) return 'เปิดรับแทง';
+    try {
+      const d = new Date(closingTimeStr);
+      if (isNaN(d.getTime())) return closingTimeStr;
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      const timeStr = d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+      if (isToday) return `ปิดรับวันนี้ ${timeStr}`;
+      return `${d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} ${timeStr}`;
+    } catch {
+      return closingTimeStr;
+    }
+  };
+
+  const isClosed = useMemo(() => {
+    if (isYeekee) {
+      return ykPhase !== 'open';
+    }
+    // 1. Global kill-switch from settings/global
+    if (globalSettings?.systemOpen === false || globalSettings?.bettingOpen === false) {
+      return true;
+    }
+    // 2. Admin open/close status
+    if (lotteryConfig) {
+      if (lotteryConfig.isOpen === false || lotteryConfig.is_open === false) return true;
+      if (lotteryConfig.status === 'closed') return true;
+      if (lotteryConfig.isPaused === true || lotteryConfig.is_paused === true) return true;
+
+      // 3. Closing time check
+      const closeTimeVal = lotteryConfig.closingTime || lotteryConfig.close_time;
+      if (closeTimeVal) {
+        const closeMs = new Date(closeTimeVal).getTime();
+        if (!isNaN(closeMs) && closeMs <= currentTime) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [isYeekee, ykPhase, globalSettings, lotteryConfig, currentTime]);
+
+  const remainingCloseSec = useMemo(() => {
+    const closeTimeVal = lotteryConfig?.closingTime || lotteryConfig?.close_time;
+    if (!closeTimeVal) return null;
+    const closeMs = new Date(closeTimeVal).getTime();
+    if (isNaN(closeMs)) return null;
+    return Math.max(0, Math.floor((closeMs - currentTime) / 1000));
+  }, [lotteryConfig, currentTime]);
 
   // Auto-add bet when number is complete
   useEffect(() => {
@@ -1575,26 +1635,21 @@ export default function LotteryBet() {
                     </div>
                   )}
                 </div>
-              ) : isThaiLottery ? (
-                <div className="bg-red-950/80 border border-red-500/50 text-[11px] sm:text-[12px] md:text-[13px] px-2 py-1 md:py-1.5 md:px-3 text-red-400 flex items-center gap-1.5 rounded-[4px] font-bold shrink-0">
-                  {/* โลโก้เล็กหมุนด้านใน */}
-                  <div className="w-3.5 h-3.5 rounded-full border border-dashed border-red-400 animate-spin flex items-center justify-center shrink-0">
-                    <span className="material-symbols-outlined text-[9px] text-red-400">autorenew</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-red-500 font-black animate-pulse">
-                    <span className="text-[10px] text-red-400">กำลังนับถอยหลัง:</span>
-                    <span className="font-mono">{isClosed ? 'ปิดรับแล้ว' : '15:20 น.'}</span>
-                  </div>
-                </div>
               ) : (
-                <div className="bg-[#333] text-[11px] sm:text-[12px] md:text-[13px] px-2 py-1 md:py-1.5 md:px-3 text-white flex items-center rounded-[4px] font-bold shrink-0">
-                  {lotteryConfig?.closingTime ? (
-                    <span className={isClosed ? 'text-red-500' : ''}>
-                      {isClosed ? 'ปิดรับแล้ว' : '16-Apr-2026 15:20'}
-                    </span>
-                  ) : (
-                    '16-Apr-2026 15:20'
-                  )}
+                <div className={`px-2.5 py-1 md:py-1.5 md:px-3 text-xs flex items-center gap-1.5 rounded-[4px] font-bold shrink-0 border ${
+                  isClosed
+                    ? 'bg-red-950/80 border-red-500/60 text-red-300'
+                    : 'bg-slate-900 border-slate-700 text-emerald-400'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${isClosed ? 'bg-red-500' : 'bg-emerald-400 animate-ping'}`} />
+                  <span className="text-[10px] text-slate-400">สถานะ:</span>
+                  <span className="font-black">
+                    {isClosed
+                      ? 'ปิดรับแทงแล้ว'
+                      : remainingCloseSec !== null && remainingCloseSec > 0
+                      ? `เหลือ ${formatTime(remainingCloseSec)} (${formatClosingDisplay(lotteryConfig?.closingTime || lotteryConfig?.close_time)})`
+                      : formatClosingDisplay(lotteryConfig?.closingTime || lotteryConfig?.close_time) || 'เปิดรับแทง'}
+                  </span>
                 </div>
               )}
             </div>
@@ -2621,9 +2676,15 @@ export default function LotteryBet() {
           <div className="grid grid-cols-2 gap-2 mt-1">
             <button 
               onClick={submitTicket}
-              className="bg-[#107c10] text-white font-black flex items-center justify-center gap-1.5 hover:bg-green-700 rounded-lg border-b-4 border-green-800 shadow-lg active:translate-y-[2px] active:border-b-2 h-11 transition-all text-[13px] uppercase tracking-wide"
+              disabled={isClosed}
+              className={`flex items-center justify-center gap-1.5 rounded-lg border-b-4 shadow-lg h-11 transition-all text-[13px] uppercase tracking-wide font-black ${
+                isClosed
+                  ? 'bg-gray-400 text-gray-700 border-gray-600 cursor-not-allowed opacity-75'
+                  : 'bg-[#107c10] text-white hover:bg-green-700 border-green-800 active:translate-y-[2px] active:border-b-2 cursor-pointer'
+              }`}
             >
-              <span className="material-symbols-outlined text-[20px]">touch_app</span> ส่งโพย
+              <span className="material-symbols-outlined text-[20px]">{isClosed ? 'lock' : 'touch_app'}</span>
+              <span>{isClosed ? 'ปิดรับแทงแล้ว' : 'ส่งโพย'}</span>
             </button>
             <button 
               onClick={clearAllBets}

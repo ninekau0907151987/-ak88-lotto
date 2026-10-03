@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '@/shared/lib/firebase';
-import { doc, onSnapshot, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, limit, addDoc, updateDoc } from 'firebase/firestore';
 
 const PRESET_AMOUNTS = [300, 500, 1000, 2000, 5000];
+
+const POPULAR_BANKS = [
+  'ธนาคารกสิกรไทย (KBANK)',
+  'ธนาคารไทยพาณิชย์ (SCB)',
+  'ธนาคารกรุงเทพ (BBL)',
+  'ธนาคารกรุงไทย (KTB)',
+  'ธนาคารกรุงศรีอยุธยา (BAY)',
+  'ธนาคารทหารไทยธนชาต (TTB)',
+  'ธนาคารออมสิน (GSB)',
+  'พร้อมเพย์ (PromptPay)',
+];
 
 export default function Withdraw() {
   const navigate = useNavigate();
@@ -16,8 +27,16 @@ export default function Withdraw() {
   const [isWithdrawClosed, setIsWithdrawClosed] = useState(false);
   const [closedReason, setClosedReason] = useState('');
 
+  // Bank edit modal state
+  const [showBankModal, setShowBankModal] = useState(false);
+  const [editBankName, setEditBankName] = useState('ธนาคารกสิกรไทย (KBANK)');
+  const [editBankAccount, setEditBankAccount] = useState('');
+  const [editAccountName, setEditAccountName] = useState('');
+  const [isSavingBank, setIsSavingBank] = useState(false);
+
   const currentUserId = localStorage.getItem('userId');
   const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true';
+  const username = localStorage.getItem('username') || userData?.username || 'สมาชิก';
 
   useEffect(() => {
     try {
@@ -51,31 +70,54 @@ export default function Withdraw() {
     // 1) Subscribe to user data
     const unsubscribe = onSnapshot(doc(db, 'users', currentUserId), (snap) => {
       if (snap.exists()) {
-        setUserData(snap.data());
+        const data = snap.data();
+        setUserData(data);
+        if (data.bankName) setEditBankName(data.bankName);
+        if (data.bankAccount && data.bankAccount !== 'xxx-x-xxxxx') setEditBankAccount(data.bankAccount);
+        if (data.fullName || data.name) setEditAccountName(data.fullName || data.name);
       }
     });
 
-    // 2) Fetch recent withdrawals
-    const fetchHistory = async () => {
-      try {
-        const q = query(
-          collection(db, 'transactions'),
-          where('userId', '==', currentUserId),
-          where('type', '==', 'withdraw'),
-          limit(10)
-        );
-        const s = await getDocs(q);
+    // 2) Real-time listen to withdrawals
+    let unsubHistory = () => {};
+    try {
+      const q = query(
+        collection(db, 'transactions'),
+        where('userId', '==', currentUserId),
+        where('type', '==', 'withdraw'),
+        limit(20)
+      );
+      unsubHistory = onSnapshot(q, (s) => {
         const list = s.docs.map(d => ({ id: d.id, ...d.data() }));
         list.sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         setWithdrawHistory(list);
-      } catch (e) {
-        console.warn('Withdrawal history fetch warning:', e);
-      }
-    };
+      });
+    } catch (e) {
+      console.warn('Withdraw stream error, using fallback fetch:', e);
+      const fetchHistory = async () => {
+        try {
+          const q = query(
+            collection(db, 'transactions'),
+            where('userId', '==', currentUserId),
+            where('type', '==', 'withdraw'),
+            limit(15)
+          );
+          const s = await getDocs(q);
+          const list = s.docs.map(d => ({ id: d.id, ...d.data() }));
+          list.sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+          setWithdrawHistory(list);
+        } catch (err) {
+          console.warn('History fetch error:', err);
+        }
+      };
+      fetchHistory();
+    }
 
-    fetchHistory();
-    return () => unsubscribe();
-  }, [currentUserId]);
+    return () => {
+      unsubscribe();
+      unsubHistory();
+    };
+  }, [currentUserId, isLoggedIn, navigate]);
 
   const balance = userData?.balance ?? 0;
 
@@ -96,6 +138,28 @@ export default function Withdraw() {
     setCustomAmount(String(all));
   };
 
+  const handleSaveBank = async () => {
+    if (!editBankAccount.trim()) {
+      alert('กรุณากรอกเลขที่บัญชีธนาคาร');
+      return;
+    }
+    setIsSavingBank(true);
+    try {
+      await updateDoc(doc(db, 'users', currentUserId!), {
+        bankName: editBankName,
+        bankAccount: editBankAccount.trim(),
+        fullName: editAccountName.trim() || userData?.fullName || username,
+      });
+      setShowBankModal(false);
+      alert('บันทึกข้อมูลบัญชีธนาคารเรียบร้อยแล้ว');
+    } catch (err: any) {
+      console.error('Save bank error:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึกบัญชี: ' + (err?.message || 'กรุณาลองใหม่'));
+    } finally {
+      setIsSavingBank(false);
+    }
+  };
+
   const handleWithdraw = async () => {
     if (isWithdrawClosed) {
       alert(closedReason || 'ระบบถอนเงินปิดปรับปรุงชั่วคราว');
@@ -111,37 +175,80 @@ export default function Withdraw() {
       return;
     }
 
+    const currentBankAcc = userData?.bankAccount;
+    if (!currentBankAcc || currentBankAcc === 'xxx-x-xxxxx') {
+      alert('กรุณาผูกบัญชีธนาคารของคุณก่อนทำการถอนเงิน');
+      setShowBankModal(true);
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      const res = await fetch('/api/v1/finance/withdraw', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUserId,
-          amount: amount,
-          bankName: userData?.bankName || 'ธนาคารกสิกรไทย',
-          bankAccount: userData?.bankAccount || 'xxx-x-xxxxx',
-          note: `แจ้งถอนเงินเข้าบัญชี ${userData?.bankAccount || ''}`,
-        }),
-      });
+      let isHandled = false;
+      // พยายามเรียก API ก่อน ถ้ามี backend server
+      try {
+        const res = await fetch('/api/v1/finance/withdraw', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUserId,
+            amount: amount,
+            bankName: userData?.bankName || 'ธนาคารกสิกรไทย',
+            bankAccount: userData?.bankAccount || '',
+            note: `แจ้งถอนเงินเข้าบัญชี ${userData?.bankAccount || ''}`,
+          }),
+        });
 
-      const json = await res.json();
-      if (res.ok && json.status === 'success') {
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const json = await res.json();
+            if (json.status === 'success') {
+              setSuccessNotice({
+                amount: amount,
+                bankName: userData?.bankName || 'บัญชีธนาคารของท่าน',
+                bankAccount: userData?.bankAccount || '',
+                id: json.data?.id || `WD-${Date.now().toString().slice(-6)}`,
+                time: new Date().toLocaleTimeString('th-TH'),
+              });
+              setAmount(0);
+              setCustomAmount('');
+              isHandled = true;
+            }
+          }
+        }
+      } catch (apiErr) {
+        // Fallback to direct DB
+      }
+
+      // ถ้าไม่มี API Server (โหมด Vercel Static) -> ตัดเครดิตและสร้าง transaction pending ใน Supabase
+      if (!isHandled) {
+        const newBal = (userData?.balance || 0) - amount;
+        await updateDoc(doc(db, 'users', currentUserId!), { balance: newBal });
+        
+        const refDoc = await addDoc(collection(db, 'transactions'), {
+          userId: currentUserId,
+          username: username,
+          type: 'withdraw',
+          amount: amount,
+          status: 'pending',
+          description: `แจ้งถอนเงินเข้าบัญชี ${userData?.bankName || 'ธนาคาร'} ${userData?.bankAccount || ''} (${userData?.fullName || username})`,
+          createdAt: new Date().toISOString(),
+        });
+
         setSuccessNotice({
           amount: amount,
           bankName: userData?.bankName || 'บัญชีธนาคารของท่าน',
           bankAccount: userData?.bankAccount || '',
-          id: json.data?.id || `WD-${Date.now().toString().slice(-6)}`,
+          id: refDoc.id || `WD-${Date.now().toString().slice(-6)}`,
           time: new Date().toLocaleTimeString('th-TH'),
         });
         setAmount(0);
         setCustomAmount('');
-      } else {
-        alert(json.error?.message || 'เกิดข้อผิดพลาดในการแจ้งถอนเงิน');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Withdraw error:', e);
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+      alert('เกิดข้อผิดพลาดในการแจ้งถอนเงิน: ' + (e?.message || 'กรุณาลองใหม่อีกครั้ง'));
     } finally {
       setIsProcessing(false);
     }
@@ -196,9 +303,14 @@ export default function Withdraw() {
         <div className="bg-gradient-to-b from-[#0a192f] to-[#051121] rounded-2xl p-5 text-white shadow-xl border border-[#f5c518]/30 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-[#f5c518] font-bold uppercase tracking-wider">บัญชีรับเงินโอนของคุณ</span>
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
-              ยืนยันแล้ว
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowBankModal(true)}
+              className="text-[11px] bg-amber-500/20 text-[#f5c518] hover:bg-amber-500/30 border border-[#f5c518]/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 transition cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[13px]">edit</span>
+              <span>{userData?.bankAccount && userData?.bankAccount !== 'xxx-x-xxxxx' ? 'เปลี่ยนบัญชี' : '+ ผูกบัญชีธนาคาร'}</span>
+            </button>
           </div>
 
           <div className="flex items-center gap-3 pt-1">
@@ -206,9 +318,9 @@ export default function Withdraw() {
               <span className="material-symbols-outlined text-2xl">credit_card</span>
             </div>
             <div>
-              <div className="font-black text-base text-white">{userData?.bankName || 'ธนาคารกสิกรไทย (KBANK)'}</div>
-              <div className="font-mono text-[#f5c518] text-sm tracking-wider">{userData?.bankAccount || 'xxx-x-xxxxx'}</div>
-              <div className="text-xs text-gray-400 mt-0.5">ชื่อบัญชี: {userData?.firstName ? `${userData.firstName} ${userData.lastName || ''}` : userData?.username || 'สมาชิก AK88'}</div>
+              <div className="font-black text-base text-white">{userData?.bankName || 'ยังไม่ได้ระบุธนาคาร'}</div>
+              <div className="font-mono text-[#f5c518] text-sm tracking-wider">{userData?.bankAccount || 'คลิกปุ่มเพื่อผูกบัญชีธนาคาร'}</div>
+              <div className="text-xs text-gray-400 mt-0.5">ชื่อบัญชี: {userData?.fullName || userData?.name || userData?.firstName || userData?.username || 'สมาชิก AK88'}</div>
             </div>
           </div>
 
@@ -217,6 +329,78 @@ export default function Withdraw() {
             <span>ระบบจะโอนเงินเข้าบัญชีที่ลงทะเบียนไว้เท่านั้น เพื่อความปลอดภัยสูงสุด</span>
           </div>
         </div>
+
+        {/* Modal แก้ไข/ผูกบัญชีธนาคาร */}
+        {showBankModal && (
+          <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl border border-gray-200">
+              <div className="flex items-center justify-between border-b pb-3">
+                <h3 className="font-black text-gray-900 text-base flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-amber-500">account_balance</span>
+                  ผูกบัญชีธนาคารรับเงิน
+                </h3>
+                <button onClick={() => setShowBankModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">เลือกธนาคาร</label>
+                  <select
+                    value={editBankName}
+                    onChange={(e) => setEditBankName(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-xs font-bold text-gray-800"
+                  >
+                    {POPULAR_BANKS.map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">เลขที่บัญชีธนาคาร</label>
+                  <input
+                    type="text"
+                    value={editBankAccount}
+                    onChange={(e) => setEditBankAccount(e.target.value.replace(/[^0-9-]/g, ''))}
+                    placeholder="เช่น 123-4-56789-0"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-xs font-mono font-bold text-gray-900"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-gray-700 block mb-1">ชื่อ-นามสกุล เจ้าของบัญชี</label>
+                  <input
+                    type="text"
+                    value={editAccountName}
+                    onChange={(e) => setEditAccountName(e.target.value)}
+                    placeholder="ตรงกับชื่อในสมุดบัญชี"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 px-3 text-xs font-bold text-gray-900"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBankModal(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-bold text-xs hover:bg-gray-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveBank}
+                  disabled={isSavingBank}
+                  className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-black text-xs shadow disabled:opacity-50"
+                >
+                  {isSavingBank ? 'กำลังบันทึก...' : 'บันทึกบัญชี'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Withdrawal Form */}
         <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 space-y-4">

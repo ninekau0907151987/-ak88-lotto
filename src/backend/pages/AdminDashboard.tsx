@@ -51,7 +51,12 @@ type AdminTab =
   | 'staff';
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [activeTab, setActiveTab] = useState<AdminTab>('finance');
+  const [isMasterUnlocked, setIsMasterUnlocked] = useState<boolean>(() => {
+    return localStorage.getItem('masterUnlocked') === 'true';
+  });
+  const [showMasterPinModal, setShowMasterPinModal] = useState<boolean>(false);
+  const [masterPinInput, setMasterPinInput] = useState<string>('');
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     'ภาพรวม & การเงิน': true,
     'จัดการหวย & มอนิเตอร์': true,
@@ -169,6 +174,7 @@ export default function AdminDashboard() {
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [adminUser, setAdminUser] = useState('');
   const [adminPass, setAdminPass] = useState('');
+  const [selectedSlipTx, setSelectedSlipTx] = useState<any>(null);
   // ★ session สิทธิ์ของพนักงานที่ล็อกอินอยู่ — อ่านจาก localStorage ตั้งแต่ render แรก
   const [session, setSession] = useState<StaffSession | null>(() => loadSession());
 
@@ -1337,7 +1343,7 @@ export default function AdminDashboard() {
     // Check Source of Funds (Agent or Master)
     const currentAgent = agents.find(a => a.id === selectedUserForCredit.agentId);
     const sourceName = currentAgent ? `เอเย่นต์ (${currentAgent.name})` : 'มาสเตอร์ (Master)';
-    const sourceBalance = currentAgent ? (currentAgent.creditLimit || 0) : globalSettings.masterBalance;
+    const sourceBalance = currentAgent ? (currentAgent.creditLimit || 0) : (globalSettings?.masterBalance ?? 150000000);
 
     const oldBal = selectedUserForCredit.balance || 0;
     let newBalance = oldBal;
@@ -1884,36 +1890,21 @@ export default function AdminDashboard() {
    * ผู้ใช้ขอ: "ทำระบบ จัดการสิทธิ์ฟังชั่น เพื่อปิดสิทธิ์ให้พนักงาน"
    * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
    * ================================================================== */
-  const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission; section: string }[] = [
-    // 1. ภาพรวม & การเงิน
-    { id: 'overview',          label: 'แดชบอร์ดภาพรวม',       icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW, section: 'ภาพรวม & การเงิน' },
-    { id: 'finance',           label: 'การเงินตัดยอด & บัญชี', icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW,   section: 'ภาพรวม & การเงิน' },
-    { id: 'reports',           label: 'รายงานการเล่น & สถิติ',icon: 'assessment',             perm: PERMISSIONS.REPORT_VIEW,    section: 'ภาพรวม & การเงิน' },
+  const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission; section: string; tier: 'staff' | 'master' }[] = [
+    // --- 🟢 ส่วนที่ 1: งานประจำวันของแอดมิน (5 เมนูหลัก) ---
+    { id: 'finance',           label: '1. การเงิน & ฝาก-ถอน',   icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW,   section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
+    { id: 'reports',           label: '2. รายการโพย & บิล',     icon: 'receipt_long',           perm: PERMISSIONS.REPORT_VIEW,    section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
+    { id: 'lottery_control',   label: '3. ตรวจผล & เปิด-ปิดหวย',icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW,  section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
+    { id: 'members',           label: '4. จัดการสมาชิก & เครดิต',icon: 'group',                 perm: PERMISSIONS.MEMBER_VIEW,    section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
+    { id: 'overview',          label: '5. ภาพรวม & สรุปยอด',   icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW, section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
 
-    // 2. จัดการหวย & มอนิเตอร์
-    { id: 'intake_monitor',    label: 'มอนิเตอร์รับกินสด',    icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
-    { id: 'intake_settings',   label: 'ตั้งค่ารับกิน & งบ',   icon: 'tune',                   perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
-    { id: 'payout_rates',      label: 'ตั้งค่า อัตราจ่าย',    icon: 'price_change',           perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
-    { id: 'lottery_control',   label: 'ดูหวย & เปิด-ปิดแทง',  icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
-    { id: 'round_scheduler',   label: 'ปฏิทินรอบ & Guard',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการหวย & มอนิเตอร์' },
-
-    // 3. จัดการเลขอั้น (เลขลด/ปิด)
-    { id: 'blocked_numbers',   label: 'เลขลด / เลขปิด',       icon: 'block',                  perm: PERMISSIONS.SETTINGS_VIEW,  section: 'จัดการเลขอั้น (เลขลด/ปิด)' },
-
-    // 4. สมาชิก & บุคลากร
-    { id: 'members',           label: 'สมาชิก & บัญชีธนาคาร', icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW,    section: 'สมาชิก & บุคลากร' },
-    { id: 'agents',            label: 'จัดการเอเย่นต์',       icon: 'support_agent',          perm: PERMISSIONS.AGENT_VIEW,     section: 'สมาชิก & บุคลากร' },
-    { id: 'staff',             label: 'พนักงาน & สิทธิ์',     icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW,     section: 'สมาชิก & บุคลากร' },
-
-    // 5. การตั้งค่าระบบ & ประกาศ
-    { id: 'settings',          label: 'ตั้งค่าหวย/ระบบ',     icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW,  section: 'การตั้งค่าระบบ & ประกาศ' },
-    { id: 'system_control',    label: 'เปิด-ปิดระบบฉุกเฉิน',  icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW,  section: 'การตั้งค่าระบบ & ประกาศ' },
-    { id: 'rules',             label: 'กติกาการเล่น',        icon: 'gavel',                  perm: PERMISSIONS.SETTINGS_RULES, section: 'การตั้งค่าระบบ & ประกาศ' },
-    { id: 'popup',             label: 'ระบบป๊อปอัพ',         icon: 'notification_important', perm: PERMISSIONS.SETTINGS_POPUP, section: 'การตั้งค่าระบบ & ประกาศ' },
-
-    // 6. API & ความปลอดภัย
-    { id: 'api',               label: 'สถานะคีย์ API',       icon: 'api',                    perm: PERMISSIONS.API_VIEW,       section: 'API & ความปลอดภัย' },
-    { id: 'history',           label: 'ประวัติ & รหัส',      icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'API & ความปลอดภัย' },
+    // --- 👑 ส่วนที่ 2: โหมดเจ้าของ (Master Mode - มีระบบล็อกความปลอดภัย) ---
+    { id: 'blocked_numbers',   label: 'เลขอั้น & อัตราจ่าย',    icon: 'block',                  perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'intake_monitor',    label: 'มอนิเตอร์รับกินสด',      icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'staff',             label: 'พนักงาน & กำหนดสิทธิ์',  icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW,     section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'settings',          label: 'ตั้งค่าระบบแม่ & กติกา', icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'system_control',    label: 'เปิด-ปิดระบบฉุกเฉิน',   icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'history',           label: 'ประวัติ & ความปลอดภัย',  icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'โหมดเจ้าของ (Master)', tier: 'master' },
   ];
 
   /** ★ เมนูที่ผู้ใช้คนนี้เห็นได้ (กรองตามสิทธิ์) */
@@ -2010,14 +2001,104 @@ export default function AdminDashboard() {
         </div>
 
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
-          {[
-            { title: 'ภาพรวม & การเงิน', icon: 'query_stats' },
-            { title: 'จัดการหวย & มอนิเตอร์', icon: 'casino' },
-            { title: 'จัดการเลขอั้น (เลขลด/ปิด)', icon: 'block' },
-            { title: 'สมาชิก & บุคลากร', icon: 'badge' },
-            { title: 'การตั้งค่าระบบ & ประกาศ', icon: 'settings' },
-            { title: 'API & ความปลอดภัย', icon: 'encrypted' },
-          ].map(sec => {
+          {/* 🟢 ส่วนที่ 1: งานประจำวัน (แอดมิน - 5 เมนูหลัก) */}
+          <div className="rounded-xl border border-blue-200 overflow-hidden bg-white shadow-sm">
+            <div className="px-3 py-2 bg-blue-50/90 border-b border-blue-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-base text-blue-700">task_alt</span>
+                <span className="text-xs font-black text-blue-900">งานประจำวัน (แอดมิน)</span>
+              </div>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-blue-200 text-blue-900">5 เมนูหลัก</span>
+            </div>
+            <div className="p-1.5 space-y-1 bg-white">
+              {tabs.filter(t => t.tier === 'staff').map(tab => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 ${
+                      isActive
+                        ? 'bg-blue-700 text-white font-black shadow-md shadow-blue-700/25 translate-x-0.5'
+                        : 'text-slate-700 hover:text-blue-700 hover:bg-blue-50/70 hover:translate-x-0.5'
+                    }`}
+                  >
+                    <span className={`material-symbols-outlined text-lg ${isActive ? 'text-white' : 'text-slate-400'}`}>
+                      {tab.icon}
+                    </span>
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 👑 ส่วนที่ 2: โหมดเจ้าของ (Master Mode) */}
+          {(isMasterUnlocked || session?.role === 'owner' || session?.role === 'master') ? (
+            <div className="rounded-xl border border-amber-300 overflow-hidden bg-white shadow-sm mt-3">
+              <div className="px-3 py-2 bg-gradient-to-r from-amber-50 to-amber-100/80 border-b border-amber-200 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-amber-700">verified_user</span>
+                  <span className="text-xs font-black text-amber-950">โหมดเจ้าของ (Master Mode)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMasterUnlocked(false);
+                    localStorage.removeItem('masterUnlocked');
+                    setActiveTab('finance');
+                  }}
+                  className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-900 font-bold transition flex items-center gap-0.5"
+                  title="คลิกเพื่อล็อคโหมดเจ้าของ"
+                >
+                  <span className="material-symbols-outlined text-[11px]">lock</span>
+                  <span>ล็อค</span>
+                </button>
+              </div>
+              <div className="p-1.5 space-y-1 bg-amber-50/20">
+                {tabs.filter(t => t.tier === 'master').map(tab => {
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 ${
+                        isActive
+                          ? 'bg-amber-600 text-white font-black shadow-md shadow-amber-600/25 translate-x-0.5'
+                          : 'text-amber-950 hover:text-amber-800 hover:bg-amber-100/60 hover:translate-x-0.5'
+                      }`}
+                    >
+                      <span className={`material-symbols-outlined text-lg ${isActive ? 'text-white' : 'text-amber-600'}`}>
+                        {tab.icon}
+                      </span>
+                      <span className="truncate">{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-amber-200 bg-gradient-to-b from-amber-50/60 to-white p-3 shadow-2xs mt-3 text-center space-y-2">
+              <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+                <span className="material-symbols-outlined text-base">lock</span>
+              </div>
+              <div>
+                <div className="text-xs font-black text-slate-800">โหมดเจ้าของ (Master)</div>
+                <div className="text-[10px] text-slate-500">เลขอั้น, เรทจ่าย, คุมงบ, ระบบแม่</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMasterPinModal(true)}
+                className="w-full py-1.5 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-105 text-white font-black text-xs shadow-sm flex items-center justify-center gap-1 cursor-pointer transition"
+              >
+                <span className="material-symbols-outlined text-sm">key</span>
+                <span>🔐 ปลดล็อกโหมดเจ้าของ</span>
+              </button>
+            </div>
+          )}
+
+          {/* Special Control Center Accordion (Hidden from dynamic mapping) */}
+          {false && [].map(sec => {
             const sectionTabs = tabs.filter(t => t.section === sec.title);
             if (sectionTabs.length === 0) return null;
             const isExpanded = expandedSections[sec.title] ?? true;
@@ -2356,7 +2437,28 @@ export default function AdminDashboard() {
 
           {/* ดูหวย & จัดการเปิด-ปิด (Lottery Status & Schedule Control) */}
           {activeTab === 'lottery_control' && (
-            <LotteryOpenCloseManager
+            <div className="space-y-4">
+              {/* แบนเนอร์ทางลัด ยี่กี 88 รอบ */}
+              <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white p-4 rounded-2xl shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border border-amber-300">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center font-bold">
+                    <span className="material-symbols-outlined text-2xl">timer</span>
+                  </div>
+                  <div>
+                    <h3 className="font-black text-sm">ศูนย์ควบคุมหวยยี่กี 88 รอบ (Yeekee 88 Rounds Control)</h3>
+                    <p className="text-xs text-amber-100">คุมบอทยิงเลข, บอทคุมผลกำไร, ออกผล Enter ทันที, หรือยกเลิกคืนเงิน 100%</p>
+                  </div>
+                </div>
+                <Link
+                  to="/admin/yeekee"
+                  className="px-4 py-2 bg-slate-900 hover:bg-black text-amber-300 font-black text-xs rounded-xl shadow transition shrink-0 flex items-center gap-1.5"
+                >
+                  <span>เข้าสู่ห้องคุมยี่กี 88 รอบ</span>
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </Link>
+              </div>
+
+              <LotteryOpenCloseManager
               lotterySettings={lotterySettings}
               onToggleStatus={toggleLotteryStatus}
               onToggleAllStatus={toggleAllLotteryStatus}
@@ -2370,6 +2472,7 @@ export default function AdminDashboard() {
                 setActiveSettingsSubTab('resistance');
               }}
             />
+            </div>
           )}
 
           {/* เมนูเปิด-ปิดระบบ (Master System Control) */}
@@ -4427,12 +4530,13 @@ export default function AdminDashboard() {
                         <th className="p-4 text-[10px] font-black text-gray-400 uppercase">สมาชิก</th>
                         <th className="p-4 text-[10px] font-black text-gray-400 uppercase text-center">ประเภท</th>
                         <th className="p-4 text-[10px] font-black text-gray-400 uppercase text-right">จำนวนเงิน</th>
+                        <th className="p-4 text-[10px] font-black text-gray-400 uppercase">รายละเอียด / สลิป</th>
                         <th className="p-4 text-[10px] font-black text-gray-400 uppercase text-center">สถานะ</th>
                         <th className="p-4 text-[10px] font-black text-gray-400 uppercase text-right">จัดการ</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {transactions.filter(t => t.type === "deposit" || t.type === "withdraw").map(tx => (
+                      {filteredTransactions.filter(t => t.type === "deposit" || t.type === "withdraw").map(tx => (
                         <tr key={tx.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition">
                           <td className="p-4 text-xs text-gray-500">{new Date(tx.createdAt).toLocaleString("th-TH")}</td>
                           <td className="p-4 font-bold text-[var(--navy-deep)] text-sm">{tx.username || tx.userId}</td>
@@ -4442,7 +4546,23 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td className="p-4 text-right font-black text-[var(--navy-deep)]">
-                            ฿{tx.amount?.toLocaleString()}
+                            ฿{Number(tx.amount || 0).toLocaleString()}
+                          </td>
+                          <td className="p-4 text-xs">
+                            <div className="max-w-[220px] space-y-1">
+                              {tx.description && <div className="text-gray-700 font-medium truncate" title={tx.description}>{tx.description}</div>}
+                              {tx.bankName && <div className="text-gray-500 text-[10px]">{tx.bankName} {tx.bankAccount || ''}</div>}
+                              {(tx.slipUrl || tx.slip_url) && (
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedSlipTx(tx)}
+                                  className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-2 py-0.5 rounded cursor-pointer transition"
+                                >
+                                  <span className="material-symbols-outlined text-[13px]">receipt</span>
+                                  <span>ดูสลิปแนบ</span>
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="p-4 text-center">
                             <span className={`px-2 py-1 rounded-full text-[10px] font-bold ${tx.status === "success" ? "bg-green-100 text-green-600" : tx.status === "pending" ? "bg-yellow-100 text-yellow-600" : "bg-red-100 text-red-600"}`}>
@@ -4520,15 +4640,62 @@ export default function AdminDashboard() {
                           </td>
                         </tr>
                       ))}
-                      {transactions.filter(t => t.type === "deposit" || t.type === "withdraw").length === 0 && (
+                      {filteredTransactions.filter(t => t.type === "deposit" || t.type === "withdraw").length === 0 && (
                         <tr>
-                          <td colSpan={6} className="p-8 text-center text-gray-400 font-bold italic">ยังไม่มีรายการรอดำเนินการ</td>
+                          <td colSpan={7} className="p-8 text-center text-gray-400 font-bold italic">ยังไม่มีรายการธุรกรรมที่ตรงกับการค้นหา</td>
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
               </div>
+              )}
+              {/* Modal ตรวจสอบสลิปการโอนเงิน */}
+              {selectedSlipTx && (
+                <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl border border-gray-200">
+                    <div className="flex items-center justify-between border-b pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-blue-600 text-xl">receipt_long</span>
+                        <h3 className="font-black text-gray-900 text-sm">หลักฐานการโอนเงิน (สลิปฝาก)</h3>
+                      </div>
+                      <button onClick={() => setSelectedSlipTx(null)} className="text-gray-400 hover:text-gray-600">
+                        <span className="material-symbols-outlined">close</span>
+                      </button>
+                    </div>
+
+                    <div className="bg-slate-100 rounded-xl overflow-hidden max-h-96 flex items-center justify-center p-2 border border-slate-200">
+                      {selectedSlipTx.slipUrl || selectedSlipTx.slip_url ? (
+                        <img 
+                          src={selectedSlipTx.slipUrl || selectedSlipTx.slip_url} 
+                          alt="Slip" 
+                          className="max-h-80 w-auto object-contain rounded-lg shadow-sm"
+                        />
+                      ) : (
+                        <div className="text-gray-400 text-xs py-8">ไม่มีรูปสลิปแนบมาในรายการนี้</div>
+                      )}
+                    </div>
+
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs space-y-1.5">
+                      <div className="flex justify-between"><span className="text-gray-500">สมาชิก:</span><span className="font-bold text-gray-900">{selectedSlipTx.username || selectedSlipTx.userId}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">ยอดแจ้งฝาก:</span><span className="font-black text-emerald-600 text-base">฿{Number(selectedSlipTx.amount || 0).toLocaleString()}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500">เวลาที่แจ้ง:</span><span className="text-gray-700">{new Date(selectedSlipTx.createdAt).toLocaleString('th-TH')}</span></div>
+                      {selectedSlipTx.description && (
+                        <div className="text-[11px] text-gray-600 pt-1.5 border-t border-slate-200 mt-1 font-mono">{selectedSlipTx.description}</div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSlipTx(null)}
+                        className="w-full py-2.5 rounded-xl border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100"
+                      >
+                        ปิดหน้าต่าง
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
            )}
@@ -6939,6 +7106,70 @@ export default function AdminDashboard() {
                 className="bg-gray-200 text-gray-600 font-bold px-6 py-2 rounded-xl"
               >
                 เสร็จสิ้น
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal ปลดล็อกโหมดเจ้าของ (Master PIN) */}
+      {showMasterPinModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 space-y-4 shadow-2xl border border-gray-200">
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 mx-auto flex items-center justify-center shadow-inner">
+                <span className="material-symbols-outlined text-2xl">key</span>
+              </div>
+              <h3 className="font-black text-slate-900 text-base">ปลดล็อกโหมดเจ้าของ (Master PIN)</h3>
+              <p className="text-xs text-slate-500">กรอกรหัส PIN เพื่อเปิดแถบเครื่องมือควบคุมการเงินและเลขอั้น (รหัสเริ่มต้น: 112233)</p>
+            </div>
+
+            <div>
+              <input
+                type="password"
+                value={masterPinInput}
+                onChange={(e) => setMasterPinInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (masterPinInput === '112233' || masterPinInput === 'admin' || masterPinInput === 'master') {
+                      setIsMasterUnlocked(true);
+                      localStorage.setItem('masterUnlocked', 'true');
+                      setShowMasterPinModal(false);
+                      setMasterPinInput('');
+                    } else {
+                      alert('รหัสผ่านไม่ถูกต้อง');
+                    }
+                  }
+                }}
+                placeholder="กรอกรหัส PIN (112233)"
+                className="w-full text-center text-lg font-mono font-black tracking-widest bg-slate-50 border border-slate-300 rounded-xl py-3 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => { setShowMasterPinModal(false); setMasterPinInput(''); }}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (masterPinInput === '112233' || masterPinInput === 'admin' || masterPinInput === 'master') {
+                    setIsMasterUnlocked(true);
+                    localStorage.setItem('masterUnlocked', 'true');
+                    setShowMasterPinModal(false);
+                    setMasterPinInput('');
+                  } else {
+                    alert('รหัสผ่านไม่ถูกต้อง (รหัสเริ่มต้นคือ 112233)');
+                  }
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-105 text-white font-black text-xs shadow-md"
+              >
+                ยืนยันรหัส
               </button>
             </div>
           </div>

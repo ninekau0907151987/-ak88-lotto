@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { db } from '@/shared/lib/firebase';
-import { doc, onSnapshot, collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, orderBy, limit, addDoc } from 'firebase/firestore';
 
 const PRESET_AMOUNTS = [100, 300, 500, 1000, 2000, 5000, 10000];
 
@@ -60,27 +60,46 @@ export default function Deposit() {
       }
     });
 
-    // Fetch recent deposits
-    const fetchHistory = async () => {
-      try {
-        const q = query(
-          collection(db, 'transactions'),
-          where('userId', '==', currentUserId),
-          where('type', '==', 'deposit'),
-          limit(10)
-        );
-        const s = await getDocs(q);
+    // Real-time listen to recent deposits
+    let unsubHistory = () => {};
+    try {
+      const q = query(
+        collection(db, 'transactions'),
+        where('userId', '==', currentUserId),
+        where('type', '==', 'deposit'),
+        limit(20)
+      );
+      unsubHistory = onSnapshot(q, (s) => {
         const list = s.docs.map(d => ({ id: d.id, ...d.data() }));
         list.sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
         setDepositHistory(list);
-      } catch (e) {
-        console.warn('History fetch error:', e);
-      }
-    };
+      });
+    } catch (e) {
+      console.warn('Deposit stream error, using fallback fetch:', e);
+      const fetchHistory = async () => {
+        try {
+          const q = query(
+            collection(db, 'transactions'),
+            where('userId', '==', currentUserId),
+            where('type', '==', 'deposit'),
+            limit(15)
+          );
+          const s = await getDocs(q);
+          const list = s.docs.map(d => ({ id: d.id, ...d.data() }));
+          list.sort((a: any, b: any) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+          setDepositHistory(list);
+        } catch (err) {
+          console.warn('History fetch error:', err);
+        }
+      };
+      fetchHistory();
+    }
 
-    fetchHistory();
-    return () => unsubscribe();
-  }, [currentUserId]);
+    return () => {
+      unsubscribe();
+      unsubHistory();
+    };
+  }, [currentUserId, isLoggedIn, navigate]);
 
   const handleSelectAmount = (val: number) => {
     setAmount(val);
@@ -119,7 +138,7 @@ export default function Deposit() {
     }
   };
 
-  // ตรวจสลิปและปรับยอดเครดิตอัตโนมัติ
+  // ตรวจสลิปและปรับยอดเครดิต (พร้อม Direct Supabase Fallback)
   const handleVerifySlip = async () => {
     if (amount <= 0) {
       alert('กรุณาระบุจำนวนเงินที่ถูกต้อง');
@@ -127,28 +146,61 @@ export default function Deposit() {
     }
 
     setIsVerifying(true);
-    try {
-      const res = await fetch('/api/v1/finance/slip/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: currentUserId,
-          amount: amount,
-          transRef: transRef || `SLIP-${Date.now().toString().slice(-8)}`,
-          bankName: 'พร้อมเพย์ QR',
-          note: `ฝากเงินผ่าน QR PromptPay ยอด ฿${amount.toLocaleString()}`,
-        }),
-      });
+    const referenceCode = transRef || `SLIP-${Date.now().toString().slice(-8)}`;
 
-      const json = await res.json();
-      if (res.ok && json.status === 'success') {
-        setSuccessResult(json.data);
-      } else {
-        alert(json.error?.message || 'การตรวจสอบสลิปล้มเหลว กรุณาตรวจสอบข้อมูลสลิปอีกครั้ง');
+    try {
+      let isHandled = false;
+      // พยายามเรียก API verify ก่อน หากรันบน Server ที่มี Node API
+      try {
+        const res = await fetch('/api/v1/finance/slip/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUserId,
+            amount: amount,
+            transRef: referenceCode,
+            bankName: 'พร้อมเพย์ QR',
+            note: `ฝากเงินผ่าน QR PromptPay ยอด ฿${amount.toLocaleString()}`,
+          }),
+        });
+
+        if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+            const json = await res.json();
+            if (json.status === 'success') {
+              setSuccessResult(json.data);
+              isHandled = true;
+            }
+          }
+        }
+      } catch (apiErr) {
+        // Fallback ทำงานต่อโดยอัตโนมัติ
       }
-    } catch (e) {
+
+      // ถ้าไม่มี API Server (เช่น โฮสต์บน Vercel Static) -> บันทึกเข้า Supabase transactions ตรงจุดเดียว
+      if (!isHandled) {
+        await addDoc(collection(db, 'transactions'), {
+          userId: currentUserId,
+          username: username,
+          type: 'deposit',
+          amount: amount,
+          status: 'pending',
+          slipUrl: slipPreview || null,
+          description: `ฝากเงินผ่าน QR พร้อมเพย์ ยอด ฿${amount.toLocaleString()} (อ้างอิง: ${referenceCode})`,
+          createdAt: new Date().toISOString(),
+        });
+
+        setSuccessResult({
+          amount: amount,
+          transRef: referenceCode,
+          status: 'pending',
+          message: 'ส่งสลิปแจ้งฝากเงินเรียบร้อยแล้ว! ข้อมูลถูกส่งเข้าหลังบ้านแล้ว รอเจ้าหน้าที่ตรวจสอบและเติมเครดิต'
+        });
+      }
+    } catch (e: any) {
       console.error('Slip verify error:', e);
-      alert('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+      alert('เกิดข้อผิดพลาดในการบันทึกแจ้งฝาก: ' + (e?.message || 'กรุณาลองใหม่อีกครั้ง'));
     } finally {
       setIsVerifying(false);
     }
@@ -180,18 +232,25 @@ export default function Deposit() {
         {successResult && (
           <div className="bg-emerald-50 border-2 border-emerald-500 rounded-2xl p-6 text-center space-y-3 shadow-xl animate-bounce-short">
             <div className="w-16 h-16 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto shadow-lg">
-              <span className="material-symbols-outlined text-4xl">check_circle</span>
+              <span className="material-symbols-outlined text-4xl">
+                {successResult.status === 'pending' ? 'task_alt' : 'check_circle'}
+              </span>
             </div>
-            <h2 className="text-xl font-black text-emerald-900">ตรวจสลิปถูกต้อง เติมเงินสำเร็จ!</h2>
+            <h2 className="text-xl font-black text-emerald-950">
+              {successResult.status === 'pending' ? 'ส่งหลักฐานแจ้งฝากเงินเรียบร้อยแล้ว!' : 'ตรวจสลิปถูกต้อง เติมเงินสำเร็จ!'}
+            </h2>
             <p className="text-sm text-emerald-800">
-              ระบบได้เติมเครดิตจำนวน <strong className="text-emerald-950 font-black text-lg">฿{successResult.amount?.toLocaleString()}</strong> เข้าบัญชีของคุณเรียบร้อยแล้ว
+              {successResult.status === 'pending'
+                ? `ระบบได้รับแจ้งฝากยอด ฿${Number(successResult.amount || 0).toLocaleString()} และส่งข้อมูลไปยังแอดมินหลังบ้านแล้ว อยู่ระหว่างตรวจสอบและอนุมัติเครดิต`
+                : `ระบบได้เติมเครดิตจำนวน ฿${Number(successResult.amount || 0).toLocaleString()} เข้าบัญชีของคุณเรียบร้อยแล้ว`
+              }
             </p>
             <div className="bg-white p-3 rounded-xl border border-emerald-200 text-xs text-gray-600 font-mono">
               รหัสอ้างอิง: {successResult.transRef}
             </div>
             <div className="pt-2 flex gap-2">
               <button
-                onClick={() => { setSuccessResult(null); setStep('amount'); setSlipPreview(null); }}
+                onClick={() => { setSuccessResult(null); setStep('amount'); setSlipPreview(null); setTransRef(''); }}
                 className="flex-1 bg-gray-100 text-gray-700 font-bold py-2.5 rounded-xl text-xs hover:bg-gray-200 transition"
               >
                 ฝากเงินเพิ่ม

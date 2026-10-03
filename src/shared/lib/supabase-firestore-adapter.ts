@@ -179,7 +179,8 @@ function toSnake(data: any, table: string): any {
     if (data.tax_rate ?? data.taxRate) outTx.tax_rate = Number(data.tax_rate ?? data.taxRate);
     outTx.status = data.status || 'pending';
     if (data.slip_url || data.slipUrl) outTx.slip_url = data.slip_url || data.slipUrl;
-    if (data.description) outTx.description = String(data.description);
+    const desc = data.description || data.note;
+    if (desc) outTx.description = String(desc);
     outTx.created_at = data.created_at || data.createdAt || new Date().toISOString();
     return outTx;
   }
@@ -271,6 +272,10 @@ function fromSnake(row: any, table: string): any {
   if ('total_amount' in row) out.totalAmount = Number(row.total_amount);
   if ('expires_at' in row) out.expiresAt = row.expires_at;
   if ('slip_url' in row) out.slipUrl = row.slip_url;
+  if ('description' in row) {
+    out.description = row.description;
+    out.note = row.description;
+  }
   if ('password_hash' in row) out.passwordHash = row.password_hash;
   if ('bet_type' in row) out.betType = row.bet_type;
   if ('round_number' in row) out.roundNumber = row.round_number;
