@@ -249,6 +249,13 @@ export default function LotteryList() {
     return () => clearInterval(timer);
   }, []);
 
+  // ถ้าเข้ามาด้วย tab=yeekee ให้นำทางตรงไปยังหน้าแผงยี่กี 88 รอบ
+  useEffect(() => {
+    if (initialTab === 'yeekee') {
+      navigate('/lottery/yeekee', { replace: true });
+    }
+  }, [initialTab, navigate]);
+
   // ซิงค์การตั้งค่ารอบจาก Supabase / Firestore
   useEffect(() => {
     const q = query(collection(db, 'lotteryTypes'));
@@ -267,6 +274,10 @@ export default function LotteryList() {
   }, []);
 
   const handleTabChange = (tab: MainCategoryTab) => {
+    if (tab === 'yeekee') {
+      navigate('/lottery/yeekee');
+      return;
+    }
     setActiveTab(tab);
     setSearchParams({ tab });
   };
