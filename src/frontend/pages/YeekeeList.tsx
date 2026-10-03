@@ -378,20 +378,13 @@ export default function YeekeeList() {
         <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1 mb-0.5 z-10 relative">
           <button
             onClick={() => navigate('/lottery?tab=thai-foreign')}
-            className="font-bold text-xs sm:text-sm px-4 py-1.5 rounded-t-lg bg-blue-600 hover:bg-blue-500 text-white border-t border-x border-blue-400 transition shadow-md"
+            className="font-bold text-xs sm:text-sm px-5 py-1.5 rounded-t-lg bg-blue-600 hover:bg-blue-500 text-white border-t border-x border-blue-400 transition shadow-md"
           >
             ไทย-นอก
           </button>
 
           <button
-            onClick={() => navigate('/lottery?tab=malay')}
-            className="font-bold text-xs sm:text-sm px-4 py-1.5 rounded-t-lg bg-blue-600 hover:bg-blue-500 text-white border-t border-x border-blue-400 transition shadow-md"
-          >
-            มาเลย์
-          </button>
-
-          <button
-            className="font-bold text-xs sm:text-sm px-4 py-1.5 rounded-t-lg bg-gradient-to-r from-red-600 to-rose-600 text-white font-black border-t-2 border-x-2 border-red-500 scale-105 shadow-md"
+            className="font-bold text-xs sm:text-sm px-5 py-1.5 rounded-t-lg bg-gradient-to-r from-red-600 to-rose-600 text-white font-black border-t-2 border-x-2 border-red-500 scale-105 shadow-md"
           >
             ยี่กี
           </button>
