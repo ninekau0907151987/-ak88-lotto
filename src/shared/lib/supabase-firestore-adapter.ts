@@ -520,6 +520,8 @@ export async function getDocs(queryOrCol: CollectionReference | Query): Promise<
       if (fieldName === 'roundId') fieldName = 'round_id';
       if (fieldName === 'betType') fieldName = 'bet_type';
       if (fieldName === 'username') fieldName = 'username';
+      if (fieldName === 'phoneNumber' || fieldName === 'phone') fieldName = 'phone';
+      if (fieldName === 'password' || fieldName === 'passwordHash') fieldName = 'password_hash';
       if (fieldName === 'status') fieldName = 'status';
 
       if (c.op === '==') req = req.eq(fieldName, c.value);

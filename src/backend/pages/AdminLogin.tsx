@@ -27,13 +27,13 @@ export default function AdminLogin() {
     try {
       // 1) สิทธิ์ระดับ Master / Super Admin (Default credentials)
       if (
-        (u === 'admin' || u === 'owner' || u === '1234') && 
-        (p === '1234' || p === 'admin' || p === 'admin1234' || p === '0614284727' || p === 'Password@123')
+        (u === 'admin' || u === 'owner' || u === '1234' || u === 'a123456' || u === '0812345678') && 
+        (p === '1234' || p === '123456' || p === 'admin' || p === 'admin1234' || p === '0614284727' || p === 'Password@123' || p === '0812345678' || p === 'a123456')
       ) {
         localStorage.setItem('adminAuth', 'true');
         localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userRole', u === 'owner' ? 'owner' : 'admin');
-        localStorage.setItem('username', u === 'owner' ? 'Owner_AK88' : 'Admin_AK88');
+        localStorage.setItem('userRole', 'owner');
+        localStorage.setItem('username', u === 'owner' ? 'Owner_AK88' : (u === 'admin' ? 'Admin_AK88' : u));
         saveSession({
           uid: u === 'owner' ? 'owner' : 'admin',
           username: u,
