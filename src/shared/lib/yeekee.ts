@@ -141,39 +141,47 @@ export function determineRoundStatus(
   return 'closed';
 }
 
-/** คำนวณผลรางวัลยี่กีจากชุดเลขยิง */
+/** คำนวณผลรางวัลยี่กีจากชุดเลขยิง (จัดเรียง 6 หลักเหมือนสลากกินแบ่งรัฐบาลไทย) */
 export function computeYeekeeResult(shoots: string[]) {
   if (!shoots || shoots.length === 0) {
     return {
       sum: 0,
       subtractShoot: '00000',
       rawResult: 0,
-      resultStr: '00000',
+      resultStr: '000000',
       result3Top: '000',
       result2Top: '00',
       result2Bottom: '00',
+      result3Bottom: '000',
+      result4Top: '0000',
+      result5Top: '00000',
     };
   }
 
-  // 1) หาผลรวม
+  // 1) หาผลรวมของเลขยิง 5 หลักทั้งหมด
   const sum = shoots.reduce((acc, s) => acc + (parseInt(s, 10) || 0), 0);
 
-  // 2) ตัวลบคือลำดับที่ 16 (ถ้าไม่ถึง 16 ใช้ตัวสุดท้าย)
-  const idx16 = shoots.length >= 16 ? shoots.length - 16 : 0;
-  const subtractShoot = shoots[idx16] || '00000';
-  const subtractVal = parseInt(subtractShoot, 10) || 0;
+  // 2) ตัวลบคือลำดับที่ 18 (หากมีครบ >= 18 ลำดับ)
+  // หากมีน้อยกว่า 18 ลำดับ (เช่น มีแค่ 3 คนยิง) ให้ใช้ผลรวมออกรางวัลตรงๆ
+  let subtractShoot = '00000';
+  let subtractVal = 0;
+  if (shoots.length >= 18) {
+    subtractShoot = shoots[17] || '00000';
+    subtractVal = parseInt(subtractShoot, 10) || 0;
+  }
 
-  // 3) ผลลัพธ์ดิบ = ผลรวม - ตัวลบ (ถ้าติดลบให้ใช้ค่าสัมบูรณ์)
+  // 3) ผลลัพธ์ดิบ = ผลรวม - ตัวลบ (ถ้าไม่มีตัวลบ ผลลัพธ์ก็คือผลรวมตรงๆ)
   const rawResult = Math.abs(sum - subtractVal);
-  const resultStr = String(rawResult).padStart(5, '0');
+  // นำผลลัพธ์มาตัด 6 หลักท้ายสุด (หลักแสน หมื่น พัน ร้อย สิบ หน่วย) เสมือนสลากกินแบ่งรัฐบาลไทย
+  const resultStr = String(rawResult % 1000000).padStart(6, '0');
 
-  // 4) ตัดแยกรางวัล
-  // 3 ตัวบน = 3 ตัวท้าย
-  const result3Top = resultStr.slice(-3);
-  // 2 ตัวบน = 2 ตัวท้าย
-  const result2Top = resultStr.slice(-2);
-  // 2 ตัวล่าง = เลขคู่หน้าของ 5 ตัวท้าย (หลักหมื่น-พัน หรือหลักร้อย-สิบ)
-  const result2Bottom = resultStr.length >= 5 ? resultStr.slice(-5, -3) : resultStr.slice(0, 2);
+  // 4) จัดเรียงรางวัลแบบสลากกินแบ่งรัฐบาลไทย (6 หลัก: d1=แสน, d2=หมื่น, d3=พัน, d4=ร้อย, d5=สิบ, d6=หน่วย)
+  const result3Top = resultStr.slice(-3);       // ร้อย สิบ หน่วย (3 ตัวท้าย - รางวัลหลัก)
+  const result2Top = resultStr.slice(-2);       // สิบ หน่วย (2 ตัวท้าย)
+  const result2Bottom = resultStr.slice(-5, -3); // หมื่น พัน (2 ตัวหน้าของ 5 ตัวท้าย)
+  const result3Bottom = resultStr.slice(0, 3);  // แสน หมื่น พัน (3 ตัวหน้า)
+  const result4Top = resultStr.slice(-4);       // พัน ร้อย สิบ หน่วย (4 ตัวท้าย)
+  const result5Top = resultStr.slice(-5);       // หมื่น พัน ร้อย สิบ หน่วย (5 ตัวท้าย)
 
   return {
     sum,
@@ -183,6 +191,9 @@ export function computeYeekeeResult(shoots: string[]) {
     result3Top,
     result2Top,
     result2Bottom,
+    result3Bottom,
+    result4Top,
+    result5Top,
   };
 }
 

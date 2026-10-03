@@ -52,6 +52,7 @@ export interface YkConfig {
   rates: Record<string, number>;
   rewardShooter1: number;
   rewardShooter16: number;
+  rewardShooter18: number;
   rewardMinBet: number;
   processMinSec: number;
   processMaxSec: number;
@@ -67,6 +68,7 @@ export const DEFAULT_CONFIG: YkConfig = {
   rates: { ...DEFAULT_RATES },
   rewardShooter1: 200,
   rewardShooter16: 400,
+  rewardShooter18: 400,
   rewardMinBet: 100,
   processMinSec: 60,
   processMaxSec: 120,
@@ -187,9 +189,16 @@ const reverse = (s: string) => s.split('').reverse().join('');
 /* ------------------------------------------------------------------ */
 
 export function splitResult(N: string) {
+  const s = String(N).padStart(6, '0');
   return {
-    number: N, top3: N.slice(2), top2: N.slice(3), bottom2: N.slice(0, 2),
-    bottom3: N.slice(0, 3), top4: N.slice(1),
+    number: s,
+    top3: s.slice(-3),
+    top2: s.slice(-2),
+    bottom2: s.length >= 6 ? s.slice(-5, -3) : s.slice(0, 2),
+    bottom3: s.slice(0, 3),
+    top4: s.slice(-4),
+    top5: s.slice(-5),
+    top6: s,
   };
 }
 
@@ -207,7 +216,8 @@ export function isWinningBet(type: string, num: string, N: string): boolean {
     case 'วิ่งล่าง': return r.bottom2.includes(num);
     case '4 ตัวบน': return num === r.top4;
     case '4 ตัวโต๊ด': return sortDigits(num) === sortDigits(r.top4);
-    case '5 ตัวตรง': return num === r.number;
+    case '5 ตัวตรง': return num === r.top5;
+    case '6 ตัวตรง': return num === r.top6;
     default: return false;
   }
 }
@@ -333,6 +343,22 @@ export async function submitShoot(day: string, n: number, number: string, now: n
   if (!s.loggedIn) throw new Error('กรุณาเข้าสู่ระบบก่อนยิงเลข');
   if (!/^\d{5}$/.test(number)) throw new Error('กรุณากรอกเลข 5 หลัก');
   if (now < openMsOf(day, n) || now >= closeMsOf(day, n)) throw new Error('รอบนี้ไม่ได้เปิดรับยิงเลข');
+
+  // ตรวจสอบคูลดาวน์ 3 นาที (180 วินาที) ของผู้ใช้ในรอบนี้
+  const existingShoots = await loadShoots(day, n);
+  const userShoots = existingShoots.filter(sh => sh.userId === s.userId);
+  if (userShoots.length > 0) {
+    const lastShoot = userShoots[userShoots.length - 1];
+    const cooldownMs = 3 * 60 * 1000;
+    const elapsed = now - (lastShoot.ts || 0);
+    if (elapsed < cooldownMs) {
+      const waitSec = Math.ceil((cooldownMs - elapsed) / 1000);
+      const min = Math.floor(waitSec / 60);
+      const sec = waitSec % 60;
+      throw new Error(`คุณเพิ่งยิงเลขไป กรุณารออีก ${min} นาที ${sec} วินาที ถึงจะยิงเลขในรอบนี้ได้อีกครั้ง (คูลดาวน์ 3 นาที)`);
+    }
+  }
+
   const key = roundKey(day, n);
   const id = `${shootPrefix(key)}u${now}${Math.random().toString(36).slice(2, 6)}`;
   const { error } = await ST().insert({ id, key: id, value: { number, userId: s.userId, username: s.username, ts: now, isBot: false } });
@@ -501,13 +527,14 @@ function chooseResult(cfg: YkConfig, bets: Bet[], rnd: () => number): { N: strin
   return { N: cands[0].N, source: 'balance' };
 }
 
-/** สร้างลูกยิงสุดท้ายของบอท ให้ผลรวม−ลำดับที่16 ลงเลขเป้าหมายพอดี */
+/** สร้างลูกยิงสุดท้ายของบอท ให้ผลรวม−ลำดับที่18 ลงเลขเป้าหมายพอดี */
 function craftFinalShoot(nums: string[], target: string): string {
   const list = nums.slice();
-  const idx = list.length + 1 >= 16 ? list.length + 1 - 16 : 0;
+  const idx = list.length + 1 >= 18 ? 17 : -1;
   const sum = list.reduce((a, s) => a + (parseInt(s, 10) || 0), 0);
-  const s16 = parseInt(list[idx] || '0', 10) || 0;
-  const x = (((parseInt(target, 10) - (sum - s16)) % 100000) + 100000) % 100000;
+  const s18 = idx >= 0 ? (parseInt(list[idx] || '0', 10) || 0) : 0;
+  const targetVal = parseInt(target, 10) || 0;
+  const x = (((targetVal - (sum - s18)) % 100000) + 100000) % 100000;
   return String(x).padStart(5, '0');
 }
 
@@ -535,26 +562,30 @@ export async function settleRound(day: string, n: number, opts: { force?: boolea
   if (!mine) return 'busy';
 
   try {
-    await runNumberBot(day, n, closeMsOf(day, n), cfg, true);
+    if (cfg.numberBot.enabled) {
+      await runNumberBot(day, n, closeMsOf(day, n), cfg, true);
+    }
     let shoots = await loadShoots(day, n);
 
-    // เติมให้ครบ ≥16 ลำดับเสมอ (บอทสำรอง)
-    const fr = rng(hash('fill' + key));
-    let fill = 0;
-    while (shoots.length + fill < 16) {
-      const id = `${shootPrefix(key)}f${String(fill).padStart(2, '0')}`;
-      await ST().upsert({ id, key: id, value: { number: pad5(fr() * 100000), userId: 'bot', username: 'บอทสำรอง', ts: closeMsOf(day, n) - 5000 + fill, isBot: true } }, { onConflict: 'id', ignoreDuplicates: true });
-      fill++;
+    // หากเปิดบอทวางเลข ให้เติมให้ครบตามตั้งค่า
+    if (cfg.numberBot.enabled) {
+      const fr = rng(hash('fill' + key));
+      let fill = 0;
+      while (shoots.length + fill < Math.max(18, cfg.numberBot.minShoots)) {
+        const id = `${shootPrefix(key)}f${String(fill).padStart(2, '0')}`;
+        await ST().upsert({ id, key: id, value: { number: pad5(fr() * 100000), userId: 'bot', username: 'บอทสำรอง', ts: closeMsOf(day, n) - 5000 + fill, isBot: true } }, { onConflict: 'id', ignoreDuplicates: true });
+        fill++;
+      }
+      if (fill) shoots = await loadShoots(day, n);
     }
-    if (fill) shoots = await loadShoots(day, n);
 
     const { tickets, items, bets } = await loadRoundTickets(key);
     const closeAt = closeMsOf(day, n);
 
-    // เลือกเลขผล
+    // เลือกเลขผล (รองรับทั้ง 6 หลัก และ 5 หลัก)
     let N = '';
     let source = 'auto';
-    if (ctl?.number && /^\d{5}$/.test(ctl.number)) { N = ctl.number; source = ctl.mode === 'manual' ? 'manual' : 'target'; }
+    if (ctl?.number && /^\d{5,6}$/.test(ctl.number)) { N = ctl.number; source = ctl.mode === 'manual' ? 'manual' : 'target'; }
     else {
       const pick = chooseResult(cfg, bets, rng(hash('res' + key + now)));
       if (pick.N) { N = pick.N; source = pick.source; }
@@ -570,9 +601,9 @@ export async function settleRound(day: string, n: number, opts: { force?: boolea
     }
 
     const calc = computeYeekeeResult(finalShoots.map(s => s.number));
-    const Nfinal = String(calc.rawResult).padStart(5, '0').slice(-5);
+    const Nfinal = String(calc.rawResult % 1000000).padStart(6, '0');
     const sp = splitResult(Nfinal);
-    const sub = finalShoots.length >= 16 ? finalShoots[finalShoots.length - 16] : finalShoots[0];
+    const sub = finalShoots.length >= 18 ? finalShoots[17] : undefined;
 
     // ตรวจโพย (โพยที่ส่งหลังปิดรับ คืนเงิน)
     let totalBets = 0, totalPayout = 0;
@@ -610,9 +641,10 @@ export async function settleRound(day: string, n: number, opts: { force?: boolea
       await supabaseClient.from('transactions').insert({ user_id: uid, username: un, type: 'win', amount: amt, status: 'completed', description: `ถูกรางวัลยี่กี รอบที่ ${n} (${dayLabel(day)}) ผล ${Nfinal}`, created_at: new Date().toISOString() });
     }
 
-    // รางวัลคนยิงลำดับที่ 1 และ 16 (เฉพาะสมาชิกจริงที่แทงขั้นต่ำ)
+    // รางวัลคนยิงลำดับที่ 1 และ 18 (เฉพาะสมาชิกจริงที่แทงขั้นต่ำ)
     const rewards: [Shoot | undefined, number, string][] = [
-      [finalShoots[0], cfg.rewardShooter1, 'ที่ 1'], [sub, cfg.rewardShooter16, 'ที่ 16'],
+      [finalShoots[0], cfg.rewardShooter1, 'ที่ 1'],
+      [sub, cfg.rewardShooter18 ?? cfg.rewardShooter16 ?? 400, 'ที่ 18'],
     ];
     for (const [sh, amt, label] of rewards) {
       if (!sh || sh.isBot || !amt) continue;
@@ -648,7 +680,7 @@ export async function setControl(day: string, n: number, control: RoundControl) 
 
 /** แอดมินกรอกเลขเอง (กด Enter) — ตัดผลทันทีเมื่อปิดรับแล้ว */
 export async function submitManualResult(day: string, n: number, N: string, by = 'admin') {
-  if (!/^\d{5}$/.test(N)) throw new Error('กรุณากรอกเลขผล 5 หลัก');
+  if (!/^\d{5,6}$/.test(N)) throw new Error('กรุณากรอกเลขผล 5 หรือ 6 หลัก');
   await setControl(day, n, { mode: 'manual', number: N, by });
   const now = Date.now();
   if (now >= closeMsOf(day, n)) return settleRound(day, n, { force: true });

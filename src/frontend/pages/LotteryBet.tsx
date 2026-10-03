@@ -352,7 +352,29 @@ export default function LotteryBet() {
   const ykPhase = useMemo(() => YK.phaseOf(ykGameDay, yeekeeRoundNum, currentTime, ykRoundRow), [ykGameDay, yeekeeRoundNum, currentTime, ykRoundRow]);
   const ykShootsSum = useMemo(() => ykShoots.reduce((a, b) => a + (Number(b.number) || 0), 0), [ykShoots]);
   const ykShooter1 = ykShoots[0];
-  const ykShooter16 = ykShoots[15];
+  const ykShooter18 = ykShoots.length >= 18 ? ykShoots[17] : undefined;
+  const ykLottery6 = useMemo(() => String(ykShootsSum % 1000000).padStart(6, '0'), [ykShootsSum]);
+  const yk3Top = useMemo(() => ykLottery6.slice(-3), [ykLottery6]);
+  const yk2Top = useMemo(() => ykLottery6.slice(-2), [ykLottery6]);
+  const yk2Bottom = useMemo(() => ykLottery6.slice(-5, -3), [ykLottery6]);
+
+  // คำนวณคูลดาวน์ 3 นาที (180 วินาที) ของผู้ใช้
+  const userLastShoot = useMemo(() => {
+    const s = YK.getSession();
+    if (!s.loggedIn) return null;
+    const mine = ykShoots.filter(sh => sh.userId === s.userId);
+    return mine.length > 0 ? mine[mine.length - 1] : null;
+  }, [ykShoots]);
+
+  const cooldownRemainingSec = useMemo(() => {
+    if (!userLastShoot) return 0;
+    const elapsed = currentTime - userLastShoot.ts;
+    const cooldownMs = 3 * 60 * 1000;
+    if (elapsed < cooldownMs) {
+      return Math.ceil((cooldownMs - elapsed) / 1000);
+    }
+    return 0;
+  }, [userLastShoot, currentTime]);
   const ykResultWaitSec = useMemo(() => {
     const resAt = YK.resultAtMs(ykGameDay, yeekeeRoundNum, ykConfig);
     return Math.max(0, Math.floor((resAt - currentTime) / 1000));
@@ -395,6 +417,12 @@ export default function LotteryBet() {
   }, [isYeekee]);
 
   const handleShootNumber = async () => {
+    if (cooldownRemainingSec > 0) {
+      const m = Math.floor(cooldownRemainingSec / 60);
+      const s = cooldownRemainingSec % 60;
+      alert(`คุณเพิ่งยิงเลขไป กรุณารออีก ${m} นาที ${s} วินาที ถึงจะยิงเลขในรอบนี้ได้อีกครั้ง (คูลดาวน์ 3 นาที)`);
+      return;
+    }
     if (!/^\d{5}$/.test(ykShootInput)) {
       alert('กรุณากรอกตัวเลข 5 หลักให้ถูกต้อง (00000 - 99999)');
       return;
@@ -410,7 +438,7 @@ export default function LotteryBet() {
       await YK.submitShoot(ykGameDay, yeekeeRoundNum, ykShootInput, Date.now());
       setYkShootInput('');
       await reloadYeekee();
-      alert('ยิงเลขสำเร็จแล้ว!');
+      alert('🎯 ยิงเลข 5 หลักสำเร็จแล้ว! (คุณสามารถยิงได้อีกครั้งในอีก 3 นาที)');
     } catch (err: any) {
       alert(err?.message || 'เกิดข้อผิดพลาดในการยิงเลข');
     } finally {
@@ -1717,53 +1745,59 @@ export default function LotteryBet() {
                 >
                   {/* Shoot Input Field */}
                   <div className="flex items-center gap-1.5 w-full md:w-auto" onClick={e => e.stopPropagation()}>
-                    <span className="text-xs text-amber-300 font-bold whitespace-nowrap">🎯 ยิงเลข:</span>
+                    <span className="text-xs text-amber-300 font-bold whitespace-nowrap">🎯 ยิงเลข 5 หลัก:</span>
                     <input
                       type="text"
                       maxLength={5}
                       value={ykShootInput}
                       onChange={e => setYkShootInput(e.target.value.replace(/\D/g, ''))}
                       onKeyDown={e => { if (e.key === 'Enter') handleShootNumber(); }}
-                      placeholder="กรอก 5 หลัก"
-                      disabled={ykPhase !== 'open' || ykShooting}
+                      placeholder={cooldownRemainingSec > 0 ? `รอ ${Math.floor(cooldownRemainingSec / 60)}:${String(cooldownRemainingSec % 60).padStart(2, '0')}` : "กรอก 5 หลัก"}
+                      disabled={ykPhase !== 'open' || ykShooting || cooldownRemainingSec > 0}
                       className="w-28 bg-slate-900 border border-amber-400/60 rounded px-2 py-1 text-center font-mono font-bold text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-50"
                     />
                     <button
                       onClick={handleShootNumber}
-                      disabled={ykPhase !== 'open' || ykShooting || ykShootInput.length !== 5}
+                      disabled={ykPhase !== 'open' || ykShooting || ykShootInput.length !== 5 || cooldownRemainingSec > 0}
                       className="bg-gradient-to-r from-amber-500 to-yellow-400 hover:brightness-105 disabled:opacity-40 text-slate-950 text-xs font-black px-3 py-1.5 rounded transition shadow shrink-0 active:scale-95"
                     >
-                      {ykShooting ? 'ยิง...' : 'ยิงเลข 🎯'}
+                      {ykShooting ? 'ยิง...' : cooldownRemainingSec > 0 ? `⏳ รอ ${Math.floor(cooldownRemainingSec / 60)}:${String(cooldownRemainingSec % 60).padStart(2, '0')} น.` : 'ยิงเลข 🎯'}
                     </button>
                   </div>
 
                   {/* Ribbon Stats */}
                   <div className="flex flex-wrap items-center gap-2 text-xs w-full md:w-auto justify-end">
                     <span className="text-slate-300">
-                      ยิงแล้ว: <b className="text-amber-400 font-mono text-sm">{ykShoots.length}</b> ครั้ง
+                      ยิงแล้ว: <b className="text-amber-400 font-mono text-sm">{ykShoots.length}</b> คน
                     </span>
                     <span className="text-slate-500">|</span>
                     <span className="text-slate-300">
                       ผลรวม: <b className="text-amber-300 font-mono">{ykShootsSum.toLocaleString()}</b>
                     </span>
                     <span className="text-slate-500">|</span>
+                    <span className="text-slate-300">
+                      6 หลักหวย: <b className="text-yellow-300 font-mono tracking-wider">{ykLottery6}</b>
+                    </span>
+                    <span className="text-slate-500">|</span>
                     <span className="text-amber-300 font-bold" title="อันดับ 1 รับ ฿200">
                       🥇 #1: <b className="text-white">{ykShooter1?.username || '-'}</b>
                     </span>
-                    <span className="text-emerald-300 font-bold" title="อันดับ 16 รับ ฿400">
-                      🎯 #16: <b className="text-white">{ykShooter16?.username || '-'}</b>
-                    </span>
+                    {ykShoots.length >= 18 && (
+                      <span className="text-emerald-300 font-bold" title="อันดับ 18 รับ ฿400">
+                        🎯 #18: <b className="text-white">{ykShooter18?.username || '-'}</b>
+                      </span>
+                    )}
                     <button
                       type="button"
                       onClick={() => setShowShooterModal(true)}
                       className="ml-1 bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-400/40 rounded px-2 py-0.5 text-[11px] font-bold"
                     >
-                      🔍 ดูผลยิง
+                      🔍 ดับเบิ้ลคลิกดูตารางยิง
                     </button>
                   </div>
                 </div>
                 <div className="text-[10px] text-slate-400 text-right mt-1">
-                  💡 ดับเบิ้ลคลิกแถบยิงเลขเพื่อดูรายชื่อและประวัติการยิงทั้งหมด (อันดับ 1 รับ ฿200 / อันดับ 16 รับ ฿400)
+                  💡 ยิงเลขได้ทุกๆ 3 นาที | ดับเบิ้ลคลิกแถบยิงเลขเพื่อขยายดูตารางยิงจริง (อันดับ 1 รับ ฿200 / อันดับ 18 รับ ฿400)
                 </div>
               </div>
             )}
@@ -3351,14 +3385,19 @@ export default function LotteryBet() {
             </div>
 
             {/* Top Stat Ribbon */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3 bg-slate-950/70 border-b border-white/10 text-center">
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 bg-slate-950/70 border-b border-white/10 text-center">
               <div className="bg-slate-800/60 p-2 rounded-lg border border-white/5">
                 <div className="text-[11px] text-slate-400">ยิงทั้งหมด</div>
-                <div className="text-lg font-black text-amber-300 font-mono">{ykShoots.length} ครั้ง</div>
+                <div className="text-lg font-black text-amber-300 font-mono">{ykShoots.length} คน</div>
               </div>
               <div className="bg-slate-800/60 p-2 rounded-lg border border-white/5">
                 <div className="text-[11px] text-slate-400">ผลรวมตัวเลข</div>
                 <div className="text-lg font-black text-white font-mono">{ykShootsSum.toLocaleString()}</div>
+              </div>
+              <div className="bg-amber-950/40 p-2 rounded-lg border border-amber-400/50">
+                <div className="text-[11px] text-amber-300 font-bold">🇹🇭 6 หลักสลากกินแบ่ง</div>
+                <div className="text-lg font-black text-amber-300 font-mono tracking-widest">{ykLottery6}</div>
+                <div className="text-[10px] text-slate-300">บน: <b className="text-white">{yk3Top}</b> | ล่าง: <b className="text-white">{yk2Bottom}</b></div>
               </div>
               <div className="bg-amber-500/10 p-2 rounded-lg border border-amber-400/40">
                 <div className="text-[11px] text-amber-300 font-bold">🥇 ลำดับ 1 (฿200)</div>
@@ -3366,9 +3405,9 @@ export default function LotteryBet() {
                 <div className="text-[11px] font-mono text-amber-300">{ykShooter1?.number || ''}</div>
               </div>
               <div className="bg-emerald-500/10 p-2 rounded-lg border border-emerald-400/40">
-                <div className="text-[11px] text-emerald-300 font-bold">🎯 ลำดับ 16 (฿400)</div>
-                <div className="text-sm font-black text-white truncate">{ykShooter16?.username || '-'}</div>
-                <div className="text-[11px] font-mono text-emerald-300">{ykShooter16?.number || ''}</div>
+                <div className="text-[11px] text-emerald-300 font-bold">🎯 ลำดับ 18 (฿400)</div>
+                <div className="text-sm font-black text-white truncate">{ykShooter18?.username || (ykShoots.length < 18 ? 'ยังไม่ถึง' : '-')}</div>
+                <div className="text-[11px] font-mono text-emerald-300">{ykShooter18?.number || ''}</div>
               </div>
             </div>
 
@@ -3385,7 +3424,7 @@ export default function LotteryBet() {
                       <th className="py-2 px-2 text-center w-14">ลำดับ</th>
                       <th className="py-2 px-2 text-left">เวลา</th>
                       <th className="py-2 px-2 text-left">ผู้ยิง</th>
-                      <th className="py-2 px-2 text-center font-mono">ตัวเลข</th>
+                      <th className="py-2 px-2 text-center font-mono">ตัวเลข 5 หลัก</th>
                       <th className="py-2 px-2 text-center">รางวัลพิเศษ</th>
                     </tr>
                   </thead>
@@ -3393,21 +3432,21 @@ export default function LotteryBet() {
                     {ykShoots.map((s, idx) => {
                       const rank = idx + 1;
                       const isFirst = rank === 1;
-                      const isSixteenth = rank === 16;
+                      const isEighteenth = rank === 18;
                       return (
                         <tr
                           key={s.id || idx}
                           className={`hover:bg-white/5 ${
                             isFirst
                               ? 'bg-amber-500/15 font-bold text-amber-200'
-                              : isSixteenth
+                              : isEighteenth
                               ? 'bg-emerald-500/15 font-bold text-emerald-200'
                               : ''
                           }`}
                         >
                           <td className="py-2 px-2 text-center">
                             <span className={`inline-block w-6 h-6 rounded-full text-[11px] font-mono leading-6 ${
-                              isFirst ? 'bg-amber-400 text-slate-950 font-black' : isSixteenth ? 'bg-emerald-400 text-slate-950 font-black' : 'text-slate-400'
+                              isFirst ? 'bg-amber-400 text-slate-950 font-black' : isEighteenth ? 'bg-emerald-400 text-slate-950 font-black' : 'text-slate-400'
                             }`}>
                               {rank}
                             </span>
@@ -3428,12 +3467,12 @@ export default function LotteryBet() {
                                 🏆 โบนัส ฿200
                               </span>
                             )}
-                            {isSixteenth && (
+                            {isEighteenth && (
                               <span className="bg-emerald-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow">
                                 🎖️ โบนัส ฿400
                               </span>
                             )}
-                            {!isFirst && !isSixteenth && <span className="text-slate-600">-</span>}
+                            {!isFirst && !isEighteenth && <span className="text-slate-600">-</span>}
                           </td>
                         </tr>
                       );
@@ -3446,7 +3485,7 @@ export default function LotteryBet() {
             {/* Modal Footer */}
             <div className="bg-slate-950 p-3 border-t border-white/10 flex items-center justify-between text-xs">
               <span className="text-slate-400">
-                * โบนัสลำดับที่ 1 (฿200) และ 16 (฿400) จะได้รับทันทีเมื่อรอบออกผล (เฉพาะผู้มียอดแทงรวม ≥ ฿100)
+                * ยิงเลขได้ทุก 3 นาที | รางวัลลำดับที่ 1 (฿200) และ 18 (฿400) จะได้รับทันทีเมื่อรอบออกผล (ยอดแทงสะสม ≥ ฿100)
               </span>
               <button
                 onClick={() => setShowShooterModal(false)}

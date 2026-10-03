@@ -103,8 +103,8 @@ export default function YeekeeAdmin() {
   const handleSetTarget = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const clean = targetNumberInput.trim().replace(/\D/g, '');
-    if (clean.length !== 5) {
-      alert('กรุณากรอกตัวเลขให้ครบ 5 หลัก');
+    if (clean.length !== 5 && clean.length !== 6) {
+      alert('กรุณากรอกตัวเลข 5 หรือ 6 หลัก');
       return;
     }
     setActionLoading(true);
@@ -125,8 +125,8 @@ export default function YeekeeAdmin() {
   const handleManualResult = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const clean = manualNumberInput.trim().replace(/\D/g, '');
-    if (clean.length !== 5) {
-      alert('กรุณากรอกตัวเลขผลรางวัลให้ครบ 5 หลัก (เช่น 85942)');
+    if (clean.length !== 5 && clean.length !== 6) {
+      alert('กรุณากรอกตัวเลขผลรางวัลให้ครบ 5 หรือ 6 หลัก (เช่น 85942 หรือ 519479)');
       return;
     }
     setActionLoading(true);
@@ -896,9 +896,9 @@ export default function YeekeeAdmin() {
                       </div>
                     </div>
                     <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800">
-                      <div className="text-slate-400 font-bold">ลำดับที่ 16 ตัวลบ (฿{cfg.rewardShooter16})</div>
+                      <div className="text-slate-400 font-bold">ลำดับที่ 18 ตัวลบ (฿{cfg.rewardShooter18 ?? cfg.rewardShooter16})</div>
                       <div className="text-xs font-black text-purple-400 mt-0.5 truncate">
-                        {shoots.length >= 16 ? `${shoots[shoots.length - 16].username} (${shoots[shoots.length - 16].number})` : '-'}
+                        {shoots.length >= 18 ? `${shoots[17].username} (${shoots[17].number})` : shoots.length > 0 ? 'ใช้ผลรวมตรงๆ (ยิง < 18 คน)' : '-'}
                       </div>
                     </div>
                   </div>
@@ -934,9 +934,9 @@ export default function YeekeeAdmin() {
                         <tbody className="divide-y divide-slate-800/60 font-mono">
                           {shoots.map((s, idx) => {
                             const isFirst = idx === 0;
-                            const is16th = shoots.length >= 16 && idx === shoots.length - 16;
+                            const is18th = shoots.length >= 18 && (idx === 17 || idx === shoots.length - 18);
                             return (
-                              <tr key={s.id || idx} className={isFirst ? 'bg-amber-500/10' : is16th ? 'bg-purple-500/10' : ''}>
+                              <tr key={s.id || idx} className={isFirst ? 'bg-amber-500/10' : is18th ? 'bg-purple-500/10' : ''}>
                                 <td className="p-2 font-bold text-slate-400">#{idx + 1}</td>
                                 <td className="p-2 font-sans font-bold text-white flex items-center gap-1.5">
                                   {s.isBot && <span className="text-[10px] bg-slate-800 text-slate-400 px-1 py-0.5 rounded">บอท</span>}
@@ -946,7 +946,7 @@ export default function YeekeeAdmin() {
                                 <td className="p-2 text-slate-500 text-[11px]">{YK.hhmmss(s.ts)}</td>
                                 <td className="p-2 font-sans text-[11px]">
                                   {isFirst && <span className="text-amber-400 font-bold">🏆 ลำดับ 1 (โบนัส ฿{cfg.rewardShooter1})</span>}
-                                  {is16th && <span className="text-purple-400 font-bold">🎯 ตัวลบผล (โบนัส ฿{cfg.rewardShooter16})</span>}
+                                  {is18th && <span className="text-purple-400 font-bold">🎯 ตัวลบผล ลำดับ 18 (โบนัส ฿{cfg.rewardShooter18 ?? cfg.rewardShooter16})</span>}
                                 </td>
                               </tr>
                             );
