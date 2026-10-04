@@ -136,6 +136,30 @@ const SET_LOTTERIES: LotteryItem[] = [
     defaultCloseTime: '18:00:00',
   },
   {
+    id: 'set-hanoi-special',
+    name: 'ฮานอยพิเศษชุด (ชุดละ ฿120)',
+    category: 'set',
+    flagUrl: 'https://flagcdn.com/w80/vn.png',
+    path: '/lottery/set/hanoi-special',
+    defaultCloseTime: '17:00:00',
+  },
+  {
+    id: 'set-hanoi-vip',
+    name: 'ฮานอย VIP ชุด (ชุดละ ฿120)',
+    category: 'set',
+    flagUrl: 'https://flagcdn.com/w80/vn.png',
+    path: '/lottery/set/hanoi-vip',
+    defaultCloseTime: '19:00:00',
+  },
+  {
+    id: 'set-hanoi-star',
+    name: 'ฮานอยสตาร์ชุด (ชุดละ ฿120)',
+    category: 'set',
+    flagUrl: 'https://flagcdn.com/w80/vn.png',
+    path: '/lottery/set/hanoi-star',
+    defaultCloseTime: '12:15:00',
+  },
+  {
     id: 'set-lao',
     name: 'หวยลาวพัฒนาชุด (ชุดละ ฿120)',
     category: 'set',
@@ -143,6 +167,32 @@ const SET_LOTTERIES: LotteryItem[] = [
     path: '/lottery/set/lao',
     defaultCloseTime: '20:00:00',
     drawDays: [1, 3, 5],
+  },
+  {
+    id: 'set-lao-star',
+    name: 'หวยลาวสตาร์ชุด (ชุดละ ฿120)',
+    category: 'set',
+    flagUrl: 'https://flagcdn.com/w80/la.png',
+    path: '/lottery/set/lao-star',
+    defaultCloseTime: '15:45:00',
+  },
+  {
+    id: 'set-gsb',
+    name: 'หวยออมสิน (ชุด 4 ตัว)',
+    category: 'set',
+    flagUrl: 'https://flagcdn.com/w80/th.png',
+    path: '/lottery/set/gsb',
+    defaultCloseTime: '12:30:00',
+    monthlyDays: [1, 16],
+  },
+  {
+    id: 'set-baac',
+    name: 'หวยธกส. (ชุด 4 ตัว)',
+    category: 'set',
+    flagUrl: 'https://flagcdn.com/w80/th.png',
+    path: '/lottery/set/baac',
+    defaultCloseTime: '09:00:00',
+    monthlyDays: [16],
   },
 ];
 
@@ -528,7 +578,7 @@ export default function LotteryList() {
                   ย้อนกลับ
                 </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                 {SET_LOTTERIES.map(item => renderLotteryCard(item))}
               </div>
             </div>

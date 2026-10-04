@@ -53,15 +53,17 @@ export default function LotterySetBet() {
 
   // Selected Lottery Type
   // ★ auto-detect ประเภทจากทางเข้า URL (/lottery/set/:type)
-  //   เช่น /lottery/set/hanoi → ชุดฮานอย, /lottery/set/thai → ชุดไทย
-  //   ถ้าไม่มี param ให้ใช้ค่าเริ่มต้น
   const SET_TYPE_BY_SLUG: Record<string, { name: string; price: number }> = {
-    hanoi:   { name: 'ชุดฮานอย',   price: 120 },
-    thai:    { name: 'ชุดไทย',     price: 120 },
-    lao:     { name: 'ชุดลาว',     price: 120 },
-    malay:   { name: 'ชุดมาเลย์',  price: 120 },
-    stock:   { name: 'ชุดหุ้น',    price: 120 },
-    government: { name: 'ชุดรัฐบาล', price: 120 },
+    hanoi:          { name: 'ชุดฮานอย',         price: 120 },
+    'hanoi-special': { name: 'ฮานอยพิเศษชุด',    price: 120 },
+    'hanoi-vip':     { name: 'ฮานอย VIP ชุด',     price: 120 },
+    'hanoi-star':    { name: 'ฮานอยสตาร์ชุด',    price: 120 },
+    lao:            { name: 'ชุดลาวพัฒนา',       price: 120 },
+    'lao-star':     { name: 'หวยลาวสตาร์ชุด',    price: 120 },
+    thai:           { name: 'ชุดรัฐบาลไทย',      price: 120 },
+    gsb:            { name: 'ชุดออมสิน',         price: 120 },
+    baac:           { name: 'ชุดธกส.',          price: 120 },
+    government:     { name: 'ชุดรัฐบาลไทย',      price: 120 },
   };
   const initialSet = SET_TYPE_BY_SLUG[(type || '').toLowerCase()] || { name: 'ชุดฮานอย', price: 120 };
 
@@ -98,11 +100,13 @@ export default function LotterySetBet() {
   // Sync route param
   useEffect(() => {
     if (type) {
-      if (type === 'hanoi') setLotterySetType('ชุดฮานอย');
-      else if (type === 'lao') setLotterySetType('ชุดลาวพัฒนา');
-      else if (type === 'malay') setLotterySetType('ชุดมาเลย์');
-      else if (type === 'thai') setLotterySetType('ชุดรัฐบาลไทย');
-      else setLotterySetType(`ชุด${type}`);
+      const found = SET_TYPE_BY_SLUG[type.toLowerCase()];
+      if (found) {
+        setLotterySetType(found.name);
+        setSetPrice(found.price);
+      } else {
+        setLotterySetType(`ชุด${type}`);
+      }
     }
   }, [type]);
 
@@ -541,7 +545,6 @@ export default function LotterySetBet() {
   const getSetTypeFlag = (typeStr: string) => {
     if (typeStr.includes('ฮานอย')) return 'https://flagcdn.com/w80/vn.png';
     if (typeStr.includes('ลาว')) return 'https://flagcdn.com/w80/la.png';
-    if (typeStr.includes('มาเลย์')) return 'https://flagcdn.com/w80/my.png';
     return 'https://flagcdn.com/w80/th.png';
   };
 
@@ -559,7 +562,7 @@ export default function LotterySetBet() {
            style={{ borderColor: 'var(--bet-frame)' }}>
         <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate(-1)} 
+            onClick={() => navigate('/lottery?tab=set')} 
             className="p-2 rounded-xl transition flex items-center justify-center border"
             style={{ background: 'var(--bet-subtle)', borderColor: 'var(--bet-frame)', color: 'var(--bet-text-muted)' }}
             id="back-btn"
@@ -670,13 +673,20 @@ export default function LotterySetBet() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[
                     { name: 'ชุดฮานอย', id: 'hanoi' },
+                    { name: 'ฮานอยพิเศษชุด', id: 'hanoi-special' },
+                    { name: 'ฮานอย VIP ชุด', id: 'hanoi-vip' },
                     { name: 'ชุดลาวพัฒนา', id: 'lao' },
-                    { name: 'ชุดมาเลย์', id: 'malay' },
-                    { name: 'ชุดรัฐบาลไทย', id: 'thai' }
+                    { name: 'หวยลาวสตาร์ชุด', id: 'lao-star' },
+                    { name: 'ชุดรัฐบาลไทย', id: 'thai' },
+                    { name: 'ชุดออมสิน', id: 'gsb' },
+                    { name: 'ชุดธกส.', id: 'baac' },
                   ].map(item => (
                     <button
                       key={item.id}
-                      onClick={() => setLotterySetType(item.name)}
+                      onClick={() => {
+                        setLotterySetType(item.name);
+                        navigate(`/lottery/set/${item.id}`, { replace: true });
+                      }}
                       className="p-2.5 rounded-xl flex items-center gap-2 justify-center transition-all border-2"
                       style={setTypeBtnStyle(lotterySetType === item.name)}
                     >

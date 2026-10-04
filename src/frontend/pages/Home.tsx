@@ -38,14 +38,39 @@ export default function Home() {
   const balance = userData?.balance ?? 0;
   const formattedBalance = balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
-  // Choose proportional font size so large amounts never exceed card/form borders
-  const getBalanceFontSize = (len: number) => {
-    if (len > 15) return 'text-xl sm:text-2xl md:text-4xl';
-    if (len > 12) return 'text-2xl sm:text-3xl md:text-5xl';
-    if (len > 9) return 'text-3xl sm:text-4xl md:text-5xl lg:text-6xl';
-    if (len > 7) return 'text-4xl sm:text-5xl md:text-6xl';
-    return 'text-5xl sm:text-6xl md:text-7xl';
-  };
+  const [now, setNow] = useState<Date>(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const thaiDrawTarget = useMemo(() => {
+    const cDay = now.getDate();
+    const draws = [1, 16];
+    for (const d of draws) {
+      if (d === cDay) {
+        const target = new Date(now);
+        target.setHours(15, 20, 0, 0);
+        if (target.getTime() > now.getTime()) return target;
+      } else if (d > cDay) {
+        const target = new Date(now);
+        target.setDate(d);
+        target.setHours(15, 20, 0, 0);
+        return target;
+      }
+    }
+    return new Date(now.getFullYear(), now.getMonth() + 1, 1, 15, 20, 0, 0);
+  }, [now]);
+
+  const thaiCountdownStr = useMemo(() => {
+    const diff = thaiDrawTarget.getTime() - now.getTime();
+    if (diff <= 0) return '00:00:00';
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+    return `${days > 0 ? `${days} วัน ` : ''}${String(hours).padStart(2, '0')}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  }, [thaiDrawTarget, now]);
 
 
   return (
@@ -108,7 +133,50 @@ export default function Home() {
           </div>
         )}
 
-        {/* Main Actions */}
+        {/* Featured Thai Government Lottery Banner (ตรงตามแบบภาพตัวอย่าง) */}
+        <div className="bg-gradient-to-r from-[#170a0e] via-[#2a0e17] to-[#170a0e] border border-rose-500/50 rounded-2xl p-3 md:p-4 shadow-xl flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-3 w-full md:w-auto">
+            {/* TH Badge */}
+            <div className="w-12 h-12 rounded-full border-2 border-dashed border-red-500 flex items-center justify-center bg-red-950/60 text-red-400 font-black text-sm shrink-0 shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+              TH
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <span className="bg-gradient-to-r from-red-600 to-amber-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
+                  <span>★</span> หวยเด่น ยอดนิยมอันดับ 1
+                </span>
+                <span className="text-[#f5c518] text-[11px] font-bold">
+                  อัตราจ่ายสูงสุด 900 บาท
+                </span>
+              </div>
+              <h3 className="text-white font-black text-sm md:text-base tracking-wide">
+                หวยรัฐบาลไทย (สลากกินแบ่งรัฐบาล)
+              </h3>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-end">
+            {/* Countdown Box */}
+            <div className="bg-black/40 border border-red-900/60 rounded-xl px-3 py-1.5 text-center flex items-center gap-2">
+              <span className="material-symbols-outlined text-red-500 text-base animate-spin" style={{ animationDuration: '3s' }}>sync</span>
+              <div className="text-left">
+                <p className="text-[9px] text-red-400 font-bold leading-none">กำลังนับถอยหลัง:</p>
+                <p className="text-xs md:text-sm font-black text-red-300 font-mono tracking-tight">{thaiCountdownStr}</p>
+              </div>
+            </div>
+
+            {/* Bet Button */}
+            <Link
+              to="/lottery/thai"
+              className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 hover:brightness-110 text-white font-black text-xs md:text-sm px-4 md:px-5 py-2.5 rounded-xl shadow-lg shadow-red-600/30 flex items-center gap-1 transition active:scale-95 whitespace-nowrap"
+            >
+              <span>แทงหวยรัฐบาล</span>
+              <span className="material-symbols-outlined text-sm">arrow_forward</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Main Actions: ศูนย์รวมการเลือกแทงหวย */}
         <div className="w-full">
           <Link 
             to="/lottery" 
@@ -119,9 +187,9 @@ export default function Home() {
           </Link>
         </div>
 
-        {/* Grid Menu */}
+        {/* Grid Menu: ทางลัดหมวดหมู่ */}
         <div className="grid grid-cols-4 gap-3 md:gap-4 font-black">
-          <Link to="/lottery/thai" className="relative bg-[#0a192f] border border-[#f5c518]/40 hover:border-[#f5c518] rounded-xl p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-lg transition active:scale-[0.98]">
+          <Link to="/lottery?tab=thai-foreign" className="relative bg-[#0a192f] border border-[#f5c518]/40 hover:border-[#f5c518] rounded-xl p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-lg transition active:scale-[0.98]">
             <div className="absolute top-1.5 right-1.5 bg-gradient-to-r from-amber-500 to-yellow-400 text-[#0a192f] text-[8px] font-black px-1.5 py-0.5 rounded-full animate-pulse shadow-sm">
               เด่น
             </div>
@@ -130,11 +198,11 @@ export default function Home() {
             </span>
             <span className="text-xs md:text-sm font-black text-[#f5c518]">หวยรัฐบาล</span>
           </Link>
-          <Link to="/lottery/stock" className="bg-[#0a192f] border border-[#f5c518]/40 rounded-xl p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:border-[#f5c518] transition active:scale-[0.98]">
+          <Link to="/lottery?tab=stock" className="bg-[#0a192f] border border-[#f5c518]/40 rounded-xl p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:border-[#f5c518] transition active:scale-[0.98]">
             <span className="material-symbols-outlined text-4xl md:text-5xl mb-2 text-[#f5c518]">show_chart</span>
             <span className="text-xs md:text-sm font-black text-[#f5c518]">หุ้น VIP</span>
           </Link>
-          <Link to="/lottery/set" className="bg-[#0a192f] border border-[#f5c518]/40 rounded-xl p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:border-[#f5c518] transition active:scale-[0.98]">
+          <Link to="/lottery?tab=set" className="bg-[#0a192f] border border-[#f5c518]/40 rounded-xl p-4 md:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:border-[#f5c518] transition active:scale-[0.98]">
             <span className="material-symbols-outlined text-4xl md:text-5xl mb-2 text-[#f5c518]">grid_view</span>
             <span className="text-xs md:text-sm font-black text-[#f5c518]">หวยชุด</span>
           </Link>

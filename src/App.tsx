@@ -96,9 +96,9 @@ export default function App() {
           <Route path="lottery" element={<LotteryList />} />
 
           {/* 1) ทางเข้าแบบเจาะจง — ต้องมาก่อน lottery/:type */}
-          <Route path="lottery/set" element={<LotterySetBet />} />
+          <Route path="lottery/set" element={<Navigate to="/lottery?tab=set" replace />} />
           <Route path="lottery/set/:type" element={<LotterySetBet />} />
-          <Route path="lottery/stock" element={<StockLotteryList />} />
+          <Route path="lottery/stock" element={<Navigate to="/lottery?tab=stock" replace />} />
           <Route path="lottery/stock/:type" element={<LotteryBet />} />
           <Route path="lottery/yeekee" element={<YeekeeList />} />
 
