@@ -77,6 +77,9 @@ export default function LotteryOpenCloseManager({
           setSelectedLottery(prev => prev === name ? '' : name);
         }}
         lotterySettings={lotterySettings}
+        allowAllOption={true}
+        allOptionLabel="ทุกหวยในระบบ (แสดงทั้งหมด)"
+        allOptionValue=""
         title="เลือกหมวดหมู่หวย (แท็บด้านบน) และเลือกหวยย่อย (ปุ่มขนาดเล็กด้านล่าง)"
       />
 

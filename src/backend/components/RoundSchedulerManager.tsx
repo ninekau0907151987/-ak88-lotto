@@ -221,6 +221,7 @@ export default function RoundSchedulerManager({ lotteryTypes = {}, onLogActivity
       <LotteryCategorySelector
         selectedLottery={selectedLottery}
         onSelectLottery={setSelectedLottery}
+        lotterySettings={lotteryTypes}
         title="เลือกหมวดหมู่และประเภทหวยสำหรับจัดการรอบ"
       />
 

@@ -3237,59 +3237,28 @@ export default function AdminDashboard() {
                     </h3>
                     <p className="text-xs text-gray-500 mb-6">เลือกหมวดหมู่และประเภทหวยเพื่อกรอกเลขผลรางวัล ระบบจะคำนวณและปรับยอดเงินให้สมาชิกอัตโนมัติ</p>
 
-                    {/* ★ แท็บกรองหมวดหมู่สำหรับหน้าออกผล */}
-                    <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-6 border-b border-gray-100">
-                      {LOTTERY_CATEGORIES.map(cat => {
-                        const count = Object.keys(lotterySettings).filter(k => {
-                          const catKey = getLotteryCategory(k, lotterySettings[k]?.category);
-                          return cat.id === 'all' || catKey === cat.id;
-                        }).length;
-
-                        const isActive = resultCategoryFilter === cat.id;
-                        return (
-                          <button
-                            key={cat.id}
-                            onClick={() => setResultCategoryFilter(cat.id)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition whitespace-nowrap ${
-                              isActive
-                                ? 'bg-[var(--navy-deep)] text-[var(--gold-vibrant)] shadow-sm'
-                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                            }`}
-                          >
-                            <span className="material-symbols-outlined text-sm">{cat.icon}</span>
-                            <span>{cat.label}</span>
-                            <span className={`text-[10px] px-1.5 rounded-full font-bold ${
-                              isActive ? 'bg-[var(--gold-vibrant)] text-[var(--navy-deep)]' : 'bg-gray-200 text-gray-600'
-                            }`}>
-                              {count}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {/* ★ แถบเลือกหมวดหมู่และประเภทหวยด้านบนสำหรับหน้าออกผล */}
+                    <LotteryCategorySelector
+                      selectedLottery={selectedLotteryType}
+                      onSelectLottery={setSelectedLotteryType}
+                      lotterySettings={lotterySettings}
+                      title="เลือกหมวดหมู่และประเภทหวยสำหรับออกผลรางวัล"
+                    />
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                        <div className="space-y-4">
-                          <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase">ประเภทหวย (กรองตามหมวดด้านบน)</label>
-                            <select 
-                              value={selectedLotteryType}
-                              onChange={(e) => setSelectedLotteryType(e.target.value)}
-                              className="w-full p-3 border rounded-xl text-sm outline-none focus:border-[var(--gold-vibrant)] bg-white font-bold"
-                            >
-                              {Object.keys(lotterySettings)
-                                .filter(type => {
-                                  const data = lotterySettings[type];
-                                  const catKey = getLotteryCategory(type, data?.category);
-                                  return resultCategoryFilter === 'all' || catKey === resultCategoryFilter;
-                                })
-                                .sort()
-                                .map(type => (
-                                  <option key={type} value={type}>
-                                    {lotterySettings[type]?.icon || '🎯'} {type}
-                                  </option>
-                                ))}
-                            </select>
+                          <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between">
+                            <div>
+                              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">ประเภทหวยที่กำลังออกผล</span>
+                              <span className="text-sm font-black text-slate-800 flex items-center gap-1.5 mt-0.5">
+                                <span>{lotterySettings[selectedLotteryType]?.icon || '🎯'}</span>
+                                <span>{selectedLotteryType}</span>
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md flex items-center gap-1 border border-blue-100">
+                              <span className="material-symbols-outlined text-xs">arrow_upward</span>
+                              เปลี่ยนได้ที่แถบเลือกด้านบน
+                            </span>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                              <div className="space-y-2">
@@ -4889,25 +4858,31 @@ export default function AdminDashboard() {
 
               {/* Sub-tab 2: Per-Lottery Rules */}
               {rulesSubTab === 'lottery' && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* Left Column: Editor */}
-                  <div className="lg:col-span-2 admin-card p-6 space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {/* Lottery Selector */}
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-black text-gray-500 uppercase">เลือกประเภทหวยที่ต้องการตั้งกติกา</label>
-                        <select
-                          value={selectedRulesLottery}
-                          onChange={(e) => setSelectedRulesLottery(e.target.value)}
-                          className="w-full p-3 border rounded-xl font-bold text-sm bg-white outline-none focus:border-[var(--gold-vibrant)]"
-                        >
-                          {Object.keys(lotterySettings).map((lotKey) => (
-                            <option key={lotKey} value={lotKey}>
-                              {lotterySettings[lotKey]?.name || lotKey}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                <div className="space-y-4">
+                  <LotteryCategorySelector
+                    selectedLottery={selectedRulesLottery}
+                    onSelectLottery={setSelectedRulesLottery}
+                    lotterySettings={lotterySettings}
+                    title="เลือกหมวดหมู่และประเภทหวยสำหรับตั้งกติกาส่วนตัว"
+                  />
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Left Column: Editor */}
+                    <div className="lg:col-span-2 admin-card p-6 space-y-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {/* Lottery Selector */}
+                        <div className="space-y-1.5">
+                          <label className="text-xs font-black text-gray-500 uppercase">ประเภทหวยที่กำลังตั้งกติกา</label>
+                          <div className="w-full p-3 border rounded-xl font-black text-sm bg-slate-50 flex items-center justify-between">
+                            <span className="flex items-center gap-2">
+                              <span>{lotterySettings[selectedRulesLottery]?.icon || '🎯'}</span>
+                              <span>{lotterySettings[selectedRulesLottery]?.name || selectedRulesLottery}</span>
+                            </span>
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 flex items-center gap-1">
+                              <span className="material-symbols-outlined text-xs">arrow_upward</span>
+                              เปลี่ยนได้ที่แถบด้านบน
+                            </span>
+                          </div>
+                        </div>
 
                       {/* Banner Image URL */}
                       <div className="space-y-1.5">
@@ -5015,6 +4990,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
               )}
             </div>
           )}

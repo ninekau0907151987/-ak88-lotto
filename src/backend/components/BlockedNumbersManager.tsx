@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { db } from '@/shared/lib/firebase';
 import { collection, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import type { StaffSession } from '@/shared/lib/permissions';
+import LotteryCategorySelector from './LotteryCategorySelector';
 
 interface Props {
   lotterySettings?: Record<string, any>;
@@ -37,6 +38,9 @@ export default function BlockedNumbersManager({
   onLogActivity,
   session
 }: Props) {
+  // Master Category & Lottery Selector State (at Top)
+  const [selectedMasterLottery, setSelectedMasterLottery] = useState<string>('all');
+
   // Tab State: 'closed' (เลขปิด 100%), 'reduced' (เลขลดราคาจ่าย), 'all' (ภาพรวมทั้งหมด)
   const [subTab, setSubTab] = useState<'closed' | 'reduced' | 'all'>('closed');
 
@@ -389,6 +393,30 @@ export default function BlockedNumbersManager({
         </div>
       </div>
 
+      {/* ★ แถบเลือกหมวดหมู่และประเภทหวยด้านบน (Lottery Category Selector at Top) */}
+      <LotteryCategorySelector
+        selectedLottery={selectedMasterLottery}
+        onSelectLottery={(lottery) => {
+          setSelectedMasterLottery(lottery);
+          if (lottery === 'all') {
+            setFilterLottery('all');
+            setClosedApplyAll(true);
+            setReducedApplyAll(true);
+          } else {
+            setClosedLottery(lottery);
+            setReducedLottery(lottery);
+            setFilterLottery(lottery);
+            setClosedApplyAll(false);
+            setReducedApplyAll(false);
+          }
+        }}
+        lotterySettings={lotterySettings}
+        allowAllOption={true}
+        allOptionLabel="ทุกหวยในระบบ (หวยทั้งหมด)"
+        allOptionValue="all"
+        title="เลือกหมวดหมู่และประเภทหวยที่ต้องการจัดการเลขอั้น/ลดราคา"
+      />
+
       {/* 2. Sub-Tab Switcher Navigation */}
       <div className="bg-white rounded-2xl border border-slate-200/90 p-2 shadow-sm shadow-blue-900/5 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 p-1 bg-slate-100/80 rounded-xl">
@@ -466,22 +494,34 @@ export default function BlockedNumbersManager({
                 </span>
               </div>
 
-              {/* เลือกหวย */}
+              {/* เลือกหวย (เชื่อมโยงกับแถบเลือกด้านบน) */}
               <div>
-                <label className="text-xs font-black text-slate-700 mb-1.5 block flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm text-slate-400">casino</span>
-                  เลือกประเภทหวย
+                <label className="text-xs font-black text-slate-700 mb-1.5 block flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-slate-400">casino</span>
+                    ประเภทหวยที่กำลังจัดการ
+                  </span>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
+                    เปลี่ยนได้ที่แถบเลือกด้านบน ⬆️
+                  </span>
                 </label>
-                <select
-                  value={closedLottery}
-                  onChange={(e) => setClosedLottery(e.target.value)}
-                  disabled={closedApplyAll}
-                  className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3 text-xs font-bold text-slate-800 outline-none focus:border-red-500 focus:bg-white transition disabled:opacity-50"
-                >
-                  {lotteryList.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
+                <div className="w-full border border-slate-200 bg-slate-50/80 rounded-xl p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{selectedMasterLottery === 'all' ? '⭐' : '🎯'}</span>
+                    <span className="text-xs font-black text-slate-800">
+                      {selectedMasterLottery === 'all'
+                        ? (closedApplyAll ? `ทุกหวยในระบบ (${lotteryList.length} หวย)` : `${closedLottery} (จากทุกหวย)`)
+                        : closedLottery}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] px-2 py-0.5 rounded font-black ${
+                    closedApplyAll || selectedMasterLottery === 'all'
+                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                      : 'bg-blue-100 text-blue-800 border border-blue-200'
+                  }`}>
+                    {closedApplyAll || selectedMasterLottery === 'all' ? 'ทุกหวย' : 'หวยเดี่ยว'}
+                  </span>
+                </div>
               </div>
 
               {/* Checkbox Apply All */}
@@ -572,20 +612,20 @@ export default function BlockedNumbersManager({
                   <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                     <span>รายการเลขปิดปัจจุบัน:</span>
                     <span className="text-red-600 font-bold bg-red-50 px-2.5 py-0.5 rounded-lg border border-red-100 text-xs">
-                      {closedLottery}
+                      {selectedMasterLottery === 'all' ? 'ทุกหวยในระบบ' : closedLottery}
                     </span>
                   </h3>
                   <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                    มีเลขปิดทั้งหมด {blockedNumbersList.filter(b => b.lotteryType === closedLottery && (b.restrictionType === 'blocked' || !b.restrictionType)).length} เลข
+                    มีเลขปิดทั้งหมด {blockedNumbersList.filter(b => (selectedMasterLottery === 'all' || b.lotteryType === closedLottery) && (b.restrictionType === 'blocked' || !b.restrictionType)).length} เลข
                   </p>
                 </div>
 
                 <button
-                  onClick={() => handleClearAllCategory(closedLottery, 'blocked')}
+                  onClick={() => handleClearAllCategory(selectedMasterLottery === 'all' ? closedLottery : closedLottery, 'blocked')}
                   className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-[11px] font-black transition flex items-center gap-1"
                 >
                   <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                  ล้างเลขปิดทั้งหมดของหวยนี้
+                  {selectedMasterLottery === 'all' ? 'ล้างเลขปิดหวยปัจจุบัน' : `ล้างเลขปิดทั้งหมดของ ${closedLottery}`}
                 </button>
               </div>
 
@@ -595,6 +635,7 @@ export default function BlockedNumbersManager({
                   <thead className="text-[10px] font-black text-slate-400 uppercase bg-slate-50 sticky top-0 z-10 border-b border-slate-100">
                     <tr>
                       <th className="p-3">#</th>
+                      {selectedMasterLottery === 'all' && <th className="p-3">ประเภทหวย</th>}
                       <th className="p-3">ตัวเลข</th>
                       <th className="p-3">รูปแบบการแทง</th>
                       <th className="p-3">สถานะ</th>
@@ -604,10 +645,17 @@ export default function BlockedNumbersManager({
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {blockedNumbersList
-                      .filter(b => b.lotteryType === closedLottery && (b.restrictionType === 'blocked' || !b.restrictionType))
+                      .filter(b => (selectedMasterLottery === 'all' || b.lotteryType === closedLottery) && (b.restrictionType === 'blocked' || !b.restrictionType))
                       .map((item, idx) => (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition">
                           <td className="p-3 text-slate-400 font-bold tabular-nums">{idx + 1}</td>
+                          {selectedMasterLottery === 'all' && (
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-100 whitespace-nowrap">
+                                {item.lotteryType}
+                              </span>
+                            </td>
+                          )}
                           <td className="p-3">
                             <span className="px-2.5 py-1 bg-red-100 text-red-700 border border-red-200 rounded-lg font-mono font-black text-xs shadow-2xs">
                               {item.number}
@@ -633,13 +681,13 @@ export default function BlockedNumbersManager({
                           </td>
                         </tr>
                       ))}
-                    {blockedNumbersList.filter(b => b.lotteryType === closedLottery && (b.restrictionType === 'blocked' || !b.restrictionType)).length === 0 && (
+                    {blockedNumbersList.filter(b => (selectedMasterLottery === 'all' || b.lotteryType === closedLottery) && (b.restrictionType === 'blocked' || !b.restrictionType)).length === 0 && (
                       <tr>
-                        <td colSpan={6} className="p-12 text-center text-slate-400 italic">
+                        <td colSpan={selectedMasterLottery === 'all' ? 7 : 6} className="p-12 text-center text-slate-400 italic">
                           <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
                             <span className="material-symbols-outlined text-2xl">check_circle</span>
                           </div>
-                          ไม่มีเลขปิดรับแทงสำหรับ {closedLottery} (เปิดรับแทง 100% ทุกตัว)
+                          ไม่มีเลขปิดรับแทงสำหรับ {selectedMasterLottery === 'all' ? 'ทุกหวยในระบบ' : closedLottery} (เปิดรับแทง 100% ทุกตัว)
                         </td>
                       </tr>
                     )}
@@ -671,22 +719,34 @@ export default function BlockedNumbersManager({
                   </div>
                 </div>
 
-                {/* เลือกหวย */}
+                {/* เลือกหวย (เชื่อมโยงกับแถบเลือกด้านบน) */}
                 <div>
-                  <label className="text-xs font-black text-slate-700 mb-1.5 block flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-sm text-slate-400">casino</span>
-                    เลือกประเภทหวย
+                  <label className="text-xs font-black text-slate-700 mb-1.5 block flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm text-slate-400">casino</span>
+                      ประเภทหวยที่กำลังจัดการ
+                    </span>
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md">
+                      เปลี่ยนได้ที่แถบเลือกด้านบน ⬆️
+                    </span>
                   </label>
-                  <select
-                    value={reducedLottery}
-                    onChange={(e) => setReducedLottery(e.target.value)}
-                    disabled={reducedApplyAll}
-                    className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3 text-xs font-bold text-slate-800 outline-none focus:border-amber-500 focus:bg-white transition disabled:opacity-50"
-                  >
-                    {lotteryList.map(type => (
-                      <option key={type} value={type}>{type}</option>
-                    ))}
-                  </select>
+                  <div className="w-full border border-slate-200 bg-slate-50/80 rounded-xl p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{selectedMasterLottery === 'all' ? '⭐' : '🎯'}</span>
+                      <span className="text-xs font-black text-slate-800">
+                        {selectedMasterLottery === 'all'
+                          ? (reducedApplyAll ? `ทุกหวยในระบบ (${lotteryList.length} หวย)` : `${reducedLottery} (จากทุกหวย)`)
+                          : reducedLottery}
+                      </span>
+                    </div>
+                    <span className={`text-[10px] px-2 py-0.5 rounded font-black ${
+                      reducedApplyAll || selectedMasterLottery === 'all'
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-blue-100 text-blue-800 border border-blue-200'
+                    }`}>
+                      {reducedApplyAll || selectedMasterLottery === 'all' ? 'ทุกหวย' : 'หวยเดี่ยว'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Checkbox Apply All */}
@@ -831,20 +891,20 @@ export default function BlockedNumbersManager({
                   <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
                     <span>รายการเลขลดราคาปัจจุบัน:</span>
                     <span className="text-amber-700 font-bold bg-amber-50 px-2.5 py-0.5 rounded-lg border border-amber-200 text-xs">
-                      {reducedLottery}
+                      {selectedMasterLottery === 'all' ? 'ทุกหวยในระบบ' : reducedLottery}
                     </span>
                   </h3>
                   <p className="text-[10px] font-bold text-slate-400 mt-0.5">
-                    มีเลขลดราคาทั้งหมด {blockedNumbersList.filter(b => b.lotteryType === reducedLottery && (b.restrictionType === 'reduced' || b.restrictionType === 'special')).length} เลข
+                    มีเลขลดราคาทั้งหมด {blockedNumbersList.filter(b => (selectedMasterLottery === 'all' || b.lotteryType === reducedLottery) && (b.restrictionType === 'reduced' || b.restrictionType === 'special')).length} เลข
                   </p>
                 </div>
 
                 <button
-                  onClick={() => handleClearAllCategory(reducedLottery, 'reduced')}
+                  onClick={() => handleClearAllCategory(selectedMasterLottery === 'all' ? reducedLottery : reducedLottery, 'reduced')}
                   className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 rounded-xl text-[11px] font-black transition flex items-center gap-1"
                 >
                   <span className="material-symbols-outlined text-sm">delete_sweep</span>
-                  ล้างเลขลดราคาทั้งหมดของหวยนี้
+                  {selectedMasterLottery === 'all' ? 'ล้างเลขลดราคาหวยปัจจุบัน' : `ล้างเลขลดราคาทั้งหมดของ ${reducedLottery}`}
                 </button>
               </div>
 
@@ -854,6 +914,7 @@ export default function BlockedNumbersManager({
                   <thead className="text-[10px] font-black text-slate-400 uppercase bg-slate-50 sticky top-0 z-10 border-b border-slate-100">
                     <tr>
                       <th className="p-3">#</th>
+                      {selectedMasterLottery === 'all' && <th className="p-3">ประเภทหวย</th>}
                       <th className="p-3">ตัวเลข</th>
                       <th className="p-3">รูปแบบแทง</th>
                       <th className="p-3">อัตราจ่ายพิเศษ</th>
@@ -863,10 +924,17 @@ export default function BlockedNumbersManager({
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {blockedNumbersList
-                      .filter(b => b.lotteryType === reducedLottery && (b.restrictionType === 'reduced' || b.restrictionType === 'special'))
+                      .filter(b => (selectedMasterLottery === 'all' || b.lotteryType === reducedLottery) && (b.restrictionType === 'reduced' || b.restrictionType === 'special'))
                       .map((item, idx) => (
                         <tr key={item.id} className="hover:bg-slate-50/80 transition">
                           <td className="p-3 text-slate-400 font-bold tabular-nums">{idx + 1}</td>
+                          {selectedMasterLottery === 'all' && (
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black bg-blue-50 text-blue-700 border border-blue-100 whitespace-nowrap">
+                                {item.lotteryType}
+                              </span>
+                            </td>
+                          )}
                           <td className="p-3">
                             <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-200 rounded-lg font-mono font-black text-xs shadow-2xs">
                               {item.number}
@@ -892,13 +960,13 @@ export default function BlockedNumbersManager({
                           </td>
                         </tr>
                       ))}
-                    {blockedNumbersList.filter(b => b.lotteryType === reducedLottery && (b.restrictionType === 'reduced' || b.restrictionType === 'special')).length === 0 && (
+                    {blockedNumbersList.filter(b => (selectedMasterLottery === 'all' || b.lotteryType === reducedLottery) && (b.restrictionType === 'reduced' || b.restrictionType === 'special')).length === 0 && (
                       <tr>
-                        <td colSpan={6} className="p-12 text-center text-slate-400 italic">
+                        <td colSpan={selectedMasterLottery === 'all' ? 7 : 6} className="p-12 text-center text-slate-400 italic">
                           <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
                             <span className="material-symbols-outlined text-2xl">savings</span>
                           </div>
-                          ไม่มีเลขลดราคาสำหรับ {reducedLottery} (จ่ายเต็มอัตราปกติ 100%)
+                          ไม่มีเลขลดราคาสำหรับ {selectedMasterLottery === 'all' ? 'ทุกหวยในระบบ' : reducedLottery} (จ่ายเต็มอัตราปกติ 100%)
                         </td>
                       </tr>
                     )}
@@ -933,7 +1001,10 @@ export default function BlockedNumbersManager({
               {/* Lottery Filter */}
               <select
                 value={filterLottery}
-                onChange={(e) => setFilterLottery(e.target.value)}
+                onChange={(e) => {
+                  setFilterLottery(e.target.value);
+                  setSelectedMasterLottery(e.target.value);
+                }}
                 className="border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
               >
                 <option value="all">ทุกประเภทหวย ({lotteryList.length})</option>
