@@ -276,21 +276,6 @@ export default function AdminDashboard() {
   const [showRoundModal, setShowRoundModal] = useState(false);
   const [showAddLotteryModal, setShowAddLotteryModal] = useState(false);
   const [newLotteryName, setNewLotteryName] = useState('');
-  const [showAddAgentModal, setShowAddAgentModal] = useState(false);
-  const [newAgentName, setNewAgentName] = useState('');
-  const [newAgentUsername, setNewAgentUsername] = useState('');
-  const [newAgentPassword, setNewAgentPassword] = useState('');
-  const [newAgentLocation, setNewAgentLocation] = useState('');
-  const [newAgentCredit, setNewAgentCredit] = useState(100000);
-  const [newAgentShare, setNewAgentShare] = useState(80);
-  
-  const [showTopupModal, setShowTopupModal] = useState(false);
-  const [selectedAgentForTopup, setSelectedAgentForTopup] = useState<any>(null);
-  const [topupAmount, setTopupAmount] = useState(0);
-
-  const [showEditAgentModal, setShowEditAgentModal] = useState(false);
-  const [editingAgent, setEditingAgent] = useState<any>(null);
-
   const [copiedKey, setCopiedKey] = useState('');
   const [selectedLotteryForRound, setSelectedLotteryForRound] = useState('');
   const [newRoundOpen, setNewRoundOpen] = useState('');
@@ -2355,13 +2340,13 @@ export default function AdminDashboard() {
                   size="md"
                 />
                 <MoneyCard
-                  label="เอเย่นต์ทั้งหมด"
-                  value={agents.length}
-                  icon="support_agent"
+                  label="สมาชิกทั้งหมด"
+                  value={users.length}
+                  icon="group"
                   currency={false}
                   tone="default"
                   size="md"
-                  hint={`สมาชิก ${users.length} คน`}
+                  hint={`ผู้ใช้งานเว็บตรง`}
                 />
               </div>
 
@@ -2840,105 +2825,6 @@ export default function AdminDashboard() {
             />
           )}
 
-          {/* 2. จัดการเอเย่นต์ (Hierarchy: Master -> Agent) */}
-          {activeTab === 'agents' && (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
-                  <button className="px-6 py-2 bg-[var(--navy-deep)] text-[var(--gold-vibrant)] rounded-xl font-black text-xs shadow-lg">เอเย่นต์ทั้งหมด</button>
-                  <button className="px-6 py-2 text-gray-400 font-bold text-xs hover:bg-gray-50 rounded-xl transition">รออนุมัติ</button>
-                </div>
-                <button 
-                  onClick={() => setShowAddAgentModal(true)}
-                  className="bg-[var(--gold-vibrant)] text-[var(--navy-deep)] px-6 py-3 rounded-xl font-black shadow-xl hover:scale-105 transition active:scale-95 flex items-center gap-2"
-                >
-                  <span className="material-symbols-outlined">person_add</span>
-                  เพิ่มเอเย่นต์ใหม่
-                </button>
-              </div>
-
-              <div className="admin-card overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="admin-table border-b">
-                      <tr>
-                        <th className="p-4">ข้อมูลเอเย่นต์</th>
-                        <th className="p-4">เครดิตคงเหลือ</th>
-                        <th className="p-4">ถือหุ้น (%)</th>
-                        <th className="p-4">สมาชิกในสาย</th>
-                        <th className="p-4">ยอดรวม (Intake)</th>
-                        <th className="p-4">วันที่เข้าร่วม</th>
-                        <th className="p-4 text-right">จัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {agents.map(agent => (
-                        <tr key={agent.id} className="border-b hover:bg-gray-50/50 transition">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-[var(--navy-deep)] text-[var(--gold-vibrant)] rounded-xl flex items-center justify-center font-black">
-                                {agent.name?.slice(0, 1).toUpperCase()}
-                              </div>
-                              <div>
-                                <div className="font-black text-[var(--navy-deep)]">{agent.name}</div>
-                                <div className="text-[10px] text-gray-400">User: {agent.username}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <div className="font-black text-green-600">฿{(agent.creditLimit || 0).toLocaleString()}</div>
-                          </td>
-                          <td className="p-4">
-                            <div className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-black inline-block border border-blue-100">
-                              {agent.share || 80}%
-                            </div>
-                          </td>
-                          <td className="p-4 font-bold text-gray-500">
-                            {users.filter(u => u.agentId === agent.id).length} ท่าน
-                          </td>
-                          <td className="p-4">
-                            <div className="font-black text-[var(--navy-deep)]">฿{(agent.totalIntake || 0).toLocaleString()}</div>
-                          </td>
-                          <td className="p-4 text-[10px] text-gray-400">
-                            {new Date(agent.createdAt).toLocaleDateString('th-TH')}
-                          </td>
-                          <td className="p-4 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button 
-                                onClick={() => { setSelectedAgentForTopup(agent); setShowTopupModal(true); }}
-                                className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition"
-                                title="เติมเครดิต"
-                              >
-                                <span className="material-symbols-outlined text-sm">payments</span>
-                              </button>
-                              <button 
-                                onClick={() => { setEditingAgent(agent); setShowEditAgentModal(true); }}
-                                className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
-                                title="แก้ไข"
-                              >
-                                <span className="material-symbols-outlined text-sm">edit</span>
-                              </button>
-                              <button 
-                                className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
-                                title="ระงับ"
-                              >
-                                <span className="material-symbols-outlined text-sm">block</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {agents.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="p-10 text-center text-gray-400 italic">ยังไม่มีข้อมูลเอเย่นต์ในระบบ</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
           {/* 4. ตั้งค่าระบบ (Lottery, Result, Blocked, Monitor, Limits) */}
           {activeTab === 'settings' && (
             <div className="space-y-6">
@@ -4028,10 +3914,10 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div className="space-y-4 pt-4">
-                         <label className="block text-sm font-black text-gray-700">การถือหุ้นและเครดิตระบบ</label>
+                         <label className="block text-sm font-black text-gray-700">การบริหารความเสี่ยงและเครดิตระบบ</label>
                          <div className="space-y-3">
                             <div className="flex justify-between items-center p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                               <span className="text-xs font-bold text-gray-500">เปิดระบบถือหุ้นเอเย่นต์ (Sharing Mode)</span>
+                               <span className="text-xs font-bold text-gray-500">เปิดระบบควบคุมความเสี่ยงอัตโนมัติ (Risk Management Mode)</span>
                                <label className="relative inline-flex items-center cursor-pointer">
                                   <input type="checkbox" className="sr-only peer" checked={globalSettings.progressionEnabled} onChange={(e) => setGlobalSettings({...globalSettings, progressionEnabled: e.target.checked})} />
                                   <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--gold-vibrant)]"></div>
@@ -4049,7 +3935,7 @@ export default function AdminDashboard() {
                               </div>
                               <div>
                                  <div className="text-sm font-black text-[var(--navy-deep)]">Master Security Check</div>
-                                 <div className="text-[10px] text-gray-500">การเปลี่ยนแปลงค่าเหล่านี้จะมีผลทันทีกับทุกเอเย่นต์</div>
+                                 <div className="text-[10px] text-gray-500">การเปลี่ยนแปลงค่าเหล่านี้จะมีผลทันทีกับสมาชิกและทุกโพยในระบบ</div>
                               </div>
                            </div>
                            <button 
@@ -4071,24 +3957,13 @@ export default function AdminDashboard() {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <div className="flex gap-2 p-2 rounded-2xl shadow-sm" style={{ background: 'var(--admin-card)', border: '1px solid var(--admin-border)' }}>
-                  <button 
-                    onClick={() => setActiveMembersSubTab('users')}
-                    className={`px-6 py-2 rounded-xl font-black text-xs transition ${activeMembersSubTab === 'users' ? 'shadow-lg' : ''}`}
-                    style={activeMembersSubTab === 'users'
-                      ? { background: 'var(--admin-accent)', color: '#fff' }
-                      : { color: 'var(--admin-text-muted)' }}
+                  <div 
+                    className="px-6 py-2 rounded-xl font-black text-xs shadow-lg flex items-center gap-2"
+                    style={{ background: 'var(--admin-accent)', color: '#fff' }}
                   >
-                    สมาชิกทั่วไป
-                  </button>
-                  <button 
-                    onClick={() => setActiveMembersSubTab('agents')}
-                    className={`px-6 py-2 rounded-xl font-black text-xs transition ${activeMembersSubTab === 'agents' ? 'shadow-lg' : ''}`}
-                    style={activeMembersSubTab === 'agents'
-                      ? { background: 'var(--admin-accent)', color: '#fff' }
-                      : { color: 'var(--admin-text-muted)' }}
-                  >
-                    สายเอเย่นต์
-                  </button>
+                    <span className="material-symbols-outlined text-sm">group</span>
+                    <span>สมาชิกทั้งหมด (ระบบเว็บตรง)</span>
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowAddMemberModal(true)}
@@ -4103,9 +3978,7 @@ export default function AdminDashboard() {
               <DataToolbar
                 search={searchQuery}
                 onSearchChange={setSearchQuery}
-                searchPlaceholder={activeMembersSubTab === 'users'
-                  ? 'ค้นหา: ชื่อผู้ใช้, เบอร์โทร, รหัสสมาชิก...'
-                  : 'ค้นหา: ชื่อเอเย่นต์, รหัส API, เบอร์โทร...'}
+                searchPlaceholder="ค้นหา: ชื่อผู้ใช้, เบอร์โทร, รหัสสมาชิก..."
                 statusOptions={[
                   { value: 'active',  label: 'ใช้งานปกติ' },
                   { value: 'blocked', label: 'ถูกระงับ' },
@@ -4127,139 +4000,87 @@ export default function AdminDashboard() {
                 sortBy={membersSort}
                 onSortChange={setMembersSort}
                 onExport={() => exportCsv(
-                  activeMembersSubTab === 'users' ? filteredUsers : filteredAgents,
-                  activeMembersSubTab === 'users'
-                    ? [
-                        { key: 'username',    label: 'ชื่อผู้ใช้' },
-                        { key: 'phoneNumber', label: 'เบอร์โทร' },
-                        { key: 'balance',     label: 'ยอดเงิน' },
-                        { key: 'status',      label: 'สถานะ' },
-                        { key: 'agentId',     label: 'เอเย่นต์' },
-                        { key: 'createdAt',   label: 'วันที่สมัคร' },
-                      ]
-                    : [
-                        { key: 'name',        label: 'ชื่อเอเย่นต์' },
-                        { key: 'phone',       label: 'เบอร์โทร' },
-                        { key: 'balance',     label: 'เครดิต' },
-                        { key: 'status',      label: 'สถานะ' },
-                        { key: 'commission',  label: 'คอมมิชชัน %' },
-                        { key: 'createdAt',   label: 'วันที่สร้าง' },
-                      ],
-                  activeMembersSubTab === 'users' ? 'members' : 'agents',
+                  filteredUsers,
+                  [
+                    { key: 'username',    label: 'ชื่อผู้ใช้' },
+                    { key: 'phoneNumber', label: 'เบอร์โทร' },
+                    { key: 'balance',     label: 'ยอดเงิน' },
+                    { key: 'status',      label: 'สถานะ' },
+                    { key: 'createdAt',   label: 'วันที่สมัคร' },
+                  ],
+                  'members',
                 )}
                 expanded={membersExpanded}
                 onToggleExpand={() => setMembersExpanded(v => !v)}
                 onReset={() => {
                   setSearchQuery(''); setMembersStatuses([]); setMembersSort('createdAt_desc');
                 }}
-                resultCount={activeMembersSubTab === 'users' ? filteredUsers.length : filteredAgents.length}
-                resultLabel={activeMembersSubTab === 'users' ? 'สมาชิก' : 'เอเย่นต์'}
+                resultCount={filteredUsers.length}
+                resultLabel="สมาชิก"
               />
 
               <div className="admin-card overflow-hidden">
                 <table className="w-full text-left text-sm border-collapse">
                   <thead className="admin-table border-b">
                     <tr>
-                      <th className="p-4">{activeMembersSubTab === 'users' ? 'สมาชิก' : 'เอเย่นต์'}</th>
-                      <th className="p-4">{activeMembersSubTab === 'users' ? 'เบอร์โทร' : 'รหัสเอเย่นต์ (API Key)'}</th>
-                      {activeMembersSubTab === 'users' && <th className="p-4">บัญชีธนาคาร</th>}
+                      <th className="p-4">สมาชิก</th>
+                      <th className="p-4">เบอร์โทร</th>
+                      <th className="p-4">บัญชีธนาคาร</th>
                       <th className="p-4 text-right">ยอดเงิน / เครดิต</th>
-                      <th className="p-4 text-center">{activeMembersSubTab === 'users' ? 'เอเย่นต์ผู้ดูแล' : 'หุ้นส่วน/คอม (%)'}</th>
+                      <th className="p-4 text-center">ประเภทบัญชี</th>
                       <th className="p-4 text-center">สถานะ</th>
                       <th className="p-4 text-right">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {activeMembersSubTab === 'users' ? (
-                      filteredUsers
-                        .map(user => (
-                          <tr key={user.id} className="border-b transition">
-                            <td className="p-4">
-                              <div className="font-bold text-[var(--navy-deep)]">{user.username}</div>
-                              <div className="text-[10px] text-gray-400">{user.firstName} {user.lastName}</div>
-                            </td>
-                            <td className="p-4 font-bold">{user.phoneNumber}</td>
-                            <td className="p-4">
-                              <div className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-                                <span className="material-symbols-outlined text-xs text-blue-600">account_balance</span>
-                                {user.bankName || 'ไม่ระบุธนาคาร'}
-                              </div>
-                              <div className="font-mono text-xs font-bold text-slate-500 mt-0.5">{user.bankAccount || '-'}</div>
-                            </td>
-                            <td className="p-4 font-black text-green-600">฿{(user.balance || 0).toLocaleString()}</td>
-                            <td className="p-4">
-                              <div className="text-xs font-bold text-blue-600">
-                                {agents.find(a => a.id === user.agentId)?.name || 'Master'}
-                              </div>
-                            </td>
-                            <td className="p-4">
-                               <StatusBadge status={user.status === 'blocked' ? 'blocked' : 'active'} />
-                            </td>
-                            <td className="p-4">
-                              <div className="flex justify-end items-center gap-2">
-                                <button 
-                                  onClick={() => { setSelectedUserForCredit(user); setCreditAction('add'); setCreditAmount(0); setCreditNote(''); setShowCreditModal(true); }}
-                                  className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-black transition flex items-center gap-1.5 border border-blue-200"
-                                  title="กำหนดหรือเติมลดเครดิตสมาชิก"
-                                >
-                                  <span className="material-symbols-outlined text-sm">payments</span>
-                                  <span>กำหนดเครดิต</span>
-                                </button>
-                                <button 
-                                  onClick={() => updateUserStatus(user.id, user.status === 'blocked' ? 'active' : 'blocked')}
-                                  className={`p-1.5 rounded-lg transition ${user.status === 'blocked' ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
-                                  title={user.status === 'blocked' ? 'ปลดบล็อก' : 'ระงับบัญชี'}
-                                >
-                                  <span className="material-symbols-outlined text-sm">{user.status === 'blocked' ? 'lock_open' : 'block'}</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                    ) : (
-                      agents
-                        .filter(a => !searchQuery || a.name?.includes(searchQuery) || a.username?.includes(searchQuery))
-                        .map(agent => (
-                          <tr key={agent.id} className="border-b transition">
-                            <td className="p-4">
-                              <div className="font-bold text-[var(--navy-deep)]">{agent.name}</div>
-                              <div className="text-[10px] text-gray-400">ID: {agent.username}</div>
-                            </td>
-                            <td className="p-4">
-                              <code className="bg-gray-100 px-2 py-1 rounded text-xs border font-mono select-all">{agent.apiKey || 'No Code'}</code>
-                            </td>
-                            <td className="p-4 text-right">
-                              <div className="font-black text-blue-600">฿{(agent.creditLimit || 0).toLocaleString()}</div>
-                              <div className="text-[9px] text-gray-400 uppercase">Credit Limit</div>
-                            </td>
-                            <td className="p-4 text-center">
-                              <div className="text-xs font-bold text-orange-600">
-                                {agent.sharePercentage || 0}% / {agent.commissionRate || 0}%
-                              </div>
-                            </td>
-                            <td className="p-4 text-center">
-                               <span className="px-2 py-1 rounded-full bg-green-100 text-green-600 text-[10px] font-black uppercase">
-                                ACTIVE
-                              </span>
-                            </td>
-                            <td className="p-4 text-right">
-                              <div className="flex justify-end gap-2">
-                                 <button 
-                                  className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition"
-                                  onClick={() => alert('แก้ไขข้อมูลเอเย่นต์ (Coming Soon)')}
-                                >
-                                  <span className="material-symbols-outlined text-sm">edit</span>
-                                </button>
-                                <button 
-                                  className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition"
-                                  onClick={() => alert('ระงับการใช้งานเอเย่นต์ (Coming Soon)')}
-                                >
-                                  <span className="material-symbols-outlined text-sm">person_off</span>
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
+                    {filteredUsers.map(user => (
+                      <tr key={user.id} className="border-b transition">
+                        <td className="p-4">
+                          <div className="font-bold text-[var(--navy-deep)]">{user.username}</div>
+                          <div className="text-[10px] text-gray-400">{user.firstName} {user.lastName}</div>
+                        </td>
+                        <td className="p-4 font-bold">{user.phoneNumber}</td>
+                        <td className="p-4">
+                          <div className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+                            <span className="material-symbols-outlined text-xs text-blue-600">account_balance</span>
+                            {user.bankName || 'ไม่ระบุธนาคาร'}
+                          </div>
+                          <div className="font-mono text-xs font-bold text-slate-500 mt-0.5">{user.bankAccount || '-'}</div>
+                        </td>
+                        <td className="p-4 font-black text-green-600">฿{(user.balance || 0).toLocaleString()}</td>
+                        <td className="p-4 text-center">
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                            เว็บตรง
+                          </span>
+                        </td>
+                        <td className="p-4">
+                           <StatusBadge status={user.status === 'blocked' ? 'blocked' : 'active'} />
+                        </td>
+                        <td className="p-4">
+                          <div className="flex justify-end items-center gap-2">
+                            <button 
+                              onClick={() => { setSelectedUserForCredit(user); setCreditAction('add'); setCreditAmount(0); setCreditNote(''); setShowCreditModal(true); }}
+                              className="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-black transition flex items-center gap-1.5 border border-blue-200"
+                              title="กำหนดหรือเติมลดเครดิตสมาชิก"
+                            >
+                              <span className="material-symbols-outlined text-sm">payments</span>
+                              <span>กำหนดเครดิต</span>
+                            </button>
+                            <button 
+                              onClick={() => updateUserStatus(user.id, user.status === 'blocked' ? 'active' : 'blocked')}
+                              className={`p-1.5 rounded-lg transition ${user.status === 'blocked' ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                              title={user.status === 'blocked' ? 'ปลดบล็อก' : 'ระงับบัญชี'}
+                            >
+                              <span className="material-symbols-outlined text-sm">{user.status === 'blocked' ? 'lock_open' : 'block'}</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {filteredUsers.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="p-10 text-center text-gray-400 italic">ไม่พบข้อมูลสมาชิกตามเงื่อนไข</td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
@@ -4273,7 +4094,6 @@ export default function AdminDashboard() {
                <div className="flex gap-2 bg-white p-2 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
                 {[
                   { id: 'lottery', label: 'แยกตามหวย', icon: 'list_alt' },
-                  { id: 'agent', label: 'แยกตามเอเย่นต์', icon: 'support_agent' },
                   { id: 'user', label: 'แยกตามสมาชิก', icon: 'person' }
                 ].map(sub => (
                   <button
@@ -4289,7 +4109,7 @@ export default function AdminDashboard() {
 
               <div className="admin-card p-6">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="font-black text-[var(--navy-deep)]">รายงานกำไรขาดทุน {activeReportsSubTab === 'lottery' ? '(แยกตามประเภทหวย)' : activeReportsSubTab === 'agent' ? '(แยกตามเอเย่นต์)' : '(แยกตามสมาชิก)'}</h3>
+                  <h3 className="font-black text-[var(--navy-deep)]">รายงานกำไรขาดทุน {activeReportsSubTab === 'lottery' ? '(แยกตามประเภทหวย)' : '(แยกตามสมาชิก)'}</h3>
                   <div className="flex gap-2">
                      <input type="date" className="p-2 border rounded-xl text-xs font-bold" value={toLocalYYYYMMDD(new Date())} />
                   </div>
@@ -4332,30 +4152,6 @@ export default function AdminDashboard() {
                                </td>
                             </tr>
                           );
-                        })
-                      ) : activeReportsSubTab === 'agent' ? (
-                        agents.map(agent => {
-                           const bets = transactions.filter(t => t.type === 'bet' && t.agentId === agent.id);
-                           const totalBet = bets.reduce((sum, b) => sum + (b.amount || 0), 0);
-                           const totalWon = bets.filter(b => b.status === 'won').reduce((sum, b) => sum + (b.winAmount || 0), 0);
-                           const profit = totalBet - totalWon;
-                           
-                           if (totalBet === 0) return null;
-                           
-                           return (
-                             <tr key={agent.id} className="border-b transition">
-                                <td className="p-4 font-black">{agent.name}</td>
-                                <td className="p-4 text-right font-bold text-[var(--navy-deep)]">฿{totalBet.toLocaleString()}</td>
-                                <td className="p-4 text-right font-bold text-blue-600">฿{(totalBet * (agent.commissionRate || 0) / 100).toLocaleString()}</td>
-                                <td className="p-4 text-right font-bold text-red-600">฿{totalWon.toLocaleString()}</td>
-                                <td className={`p-4 text-right font-black ${profit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  ฿{profit.toLocaleString()}
-                                </td>
-                                <td className="p-4 text-center">
-                                  <span className="px-2 py-1 bg-green-100 text-green-600 rounded text-[10px] font-bold uppercase">Settled</span>
-                                </td>
-                             </tr>
-                           );
                         })
                       ) : (
                         users.slice(0, 20).map(user => {
@@ -6090,317 +5886,6 @@ export default function AdminDashboard() {
           )}
         </div>
       </main>
-
-      {/* Top-up Agent Modal */}
-      {showTopupModal && selectedAgentForTopup && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="bg-[var(--navy-deep)] p-4 flex justify-between items-center text-white">
-              <h3 className="font-black flex items-center gap-2">
-                <span className="material-symbols-outlined">payments</span>
-                เติมเครดิตเอเย่นต์
-              </h3>
-              <button onClick={() => setShowTopupModal(false)} className="text-white/50 hover:text-white transition">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="text-center space-y-1 mb-4">
-                <div className="text-sm text-gray-500">เอเย่นต์</div>
-                <div className="font-black text-lg text-[var(--navy-deep)]">{selectedAgentForTopup.name}</div>
-                <div className="text-xs text-gray-400">เครดิตปัจจุบัน: ฿{(selectedAgentForTopup.creditLimit || 0).toLocaleString()}</div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase">จำนวนเงินที่ต้องการเติม (บาท)</label>
-                <input 
-                  type="number" 
-                  min="0"
-                  value={topupAmount}
-                  onChange={(e) => setTopupAmount(Number(e.target.value))}
-                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition text-center font-bold text-lg"
-                  placeholder="0"
-                />
-              </div>
-              <div className="pt-4 flex gap-3">
-                <button 
-                  onClick={() => setShowTopupModal(false)}
-                  className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition"
-                >
-                  ยกเลิก
-                </button>
-                <button 
-                  onClick={async () => {
-                    if (topupAmount <= 0) {
-                      alert('กรุณาระบุจำนวนเงินที่มากกว่า 0');
-                      return;
-                    }
-                    if (globalSettings.masterBalance < topupAmount) {
-                      alert('เครดิตมาเตอร์ไม่เพียงพอสำหรับการเติมให้เอเย่นต์');
-                      return;
-                    }
-
-                    try {
-                      const newAgentCredit = (selectedAgentForTopup.creditLimit || 0) + topupAmount;
-                      const newMasterBalance = globalSettings.masterBalance - topupAmount;
-
-                      // Update Agent
-                      await updateDoc(doc(db, 'agents', selectedAgentForTopup.id), { creditLimit: newAgentCredit });
-                      
-                      // Update Master
-                      await updateGlobalSetting('masterBalance', newMasterBalance);
-
-                      // Create transaction
-                      await addDoc(collection(db, 'transactions'), {
-                        userId: selectedAgentForTopup.id,
-                        username: selectedAgentForTopup.name,
-                        type: 'master_to_agent',
-                        amount: topupAmount,
-                        status: 'success',
-                        createdAt: new Date().toISOString(),
-                        description: `มาสเตอร์เติมเครดิตให้เอเย่นต์ ${selectedAgentForTopup.name}`,
-                        adminId: 'Master'
-                      });
-
-                      await logActivity('เติมเครดิตเอเย่นต์', `มาสเตอร์เติมเครดิตให้ ${selectedAgentForTopup.name} จำนวน ฿${topupAmount.toLocaleString()}`, 'agent');
-                      
-                      alert('เติมเครดิตเอเย่นต์สำเร็จ');
-                      setShowTopupModal(false);
-                      setTopupAmount(0);
-                      setSelectedAgentForTopup(null);
-                    } catch (e) {
-                      console.error(e);
-                      alert('เกิดข้อผิดพลาด');
-                    }
-                  }}
-                  className="flex-1 py-3 rounded-xl font-black text-[var(--navy-deep)] bg-[var(--gold-vibrant)] hover:bg-opacity-90 transition"
-                >
-                  ยืนยันการเติม
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Agent Modal */}
-      {showEditAgentModal && editingAgent && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="bg-[var(--navy-deep)] p-4 flex justify-between items-center text-white">
-              <h3 className="font-black flex items-center gap-2">
-                <span className="material-symbols-outlined">edit</span>
-                แก้ไขข้อมูลเอเย่นต์
-              </h3>
-              <button onClick={() => setShowEditAgentModal(false)} className="text-white/50 hover:text-white transition">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase">ชื่อเอเย่นต์ (แสดงผล)</label>
-                <input 
-                  type="text" 
-                  defaultValue={editingAgent.name}
-                  id="edit-agent-name"
-                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">ไอดี (Username)</label>
-                  <input 
-                    type="text" 
-                    defaultValue={editingAgent.username}
-                    id="edit-agent-username"
-                    className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition bg-gray-50"
-                    disabled
-                  />
-                  <div className="text-[10px] text-gray-400">ไม่สามารถเปลี่ยนไอดีได้</div>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">รหัสผ่านใหม่</label>
-                  <input 
-                    type="text" 
-                    placeholder="เว้นว่างไว้ถ้าไม่เปลี่ยน"
-                    id="edit-agent-password"
-                    className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase">ที่ตั้ง / สาขา (Location)</label>
-                <input 
-                  type="text" 
-                  defaultValue={editingAgent.location}
-                  id="edit-agent-location"
-                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                />
-              </div>
-              <div className="pt-4 flex gap-3">
-                <button 
-                  onClick={() => setShowEditAgentModal(false)}
-                  className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition"
-                >
-                  ยกเลิก
-                </button>
-                <button 
-                  onClick={async () => {
-                    const nameInput = document.getElementById('edit-agent-name') as HTMLInputElement;
-                    const passInput = document.getElementById('edit-agent-password') as HTMLInputElement;
-                    const locInput = document.getElementById('edit-agent-location') as HTMLInputElement;
-                    
-                    if (!nameInput.value) {
-                      alert('กรุณากรอกชื่อเอเย่นต์');
-                      return;
-                    }
-
-                    const updates: any = {
-                      name: nameInput.value,
-                      location: locInput.value,
-                    };
-
-                    if (passInput.value) {
-                      updates.password = passInput.value;
-                    }
-
-                    await updateDoc(doc(db, 'agents', editingAgent.id), updates);
-                    await logActivity('แก้ไขเอเย่นต์', `แก้ไขข้อมูลเอเย่นต์: ${nameInput.value}`, 'agent');
-                    setShowEditAgentModal(false);
-                    setEditingAgent(null);
-                  }}
-                  className="flex-1 py-3 rounded-xl font-black text-[var(--navy-deep)] bg-[var(--gold-vibrant)] hover:bg-opacity-90 transition"
-                >
-                  บันทึกข้อมูล
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Agent Modal */}
-      {showAddAgentModal && (
-        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="bg-[var(--navy-deep)] p-4 flex justify-between items-center text-white">
-              <h3 className="font-black flex items-center gap-2">
-                <span className="material-symbols-outlined">person_add</span>
-                เพิ่มเอเย่นต์ใหม่
-              </h3>
-              <button onClick={() => setShowAddAgentModal(false)} className="text-white/50 hover:text-white transition">
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-            <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase">ชื่อเอเย่นต์ (แสดงผล)</label>
-                <input 
-                  type="text" 
-                  value={newAgentName}
-                  onChange={(e) => setNewAgentName(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                  placeholder="เช่น Agent VIP 01"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">ไอดี (Username)</label>
-                  <input 
-                    type="text" 
-                    value={newAgentUsername}
-                    onChange={(e) => setNewAgentUsername(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                    placeholder="เช่น agent01"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">รหัสผ่าน (Password)</label>
-                  <input 
-                    type="text" 
-                    value={newAgentPassword}
-                    onChange={(e) => setNewAgentPassword(e.target.value)}
-                    className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                    placeholder="รหัสผ่าน"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-gray-500 uppercase">ที่ตั้ง / สาขา (Location)</label>
-                <input 
-                  type="text" 
-                  value={newAgentLocation}
-                  onChange={(e) => setNewAgentLocation(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                  placeholder="เช่น กรุงเทพฯ, สาขา 1"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">% ถือสู้ (รับกิน) (0-100)</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    max="100"
-                    value={newAgentShare}
-                    onChange={(e) => setNewAgentShare(Number(e.target.value))}
-                    className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-gray-500 uppercase">เครดิตเริ่มต้น (บาท)</label>
-                  <input 
-                    type="number" 
-                    min="0"
-                    value={newAgentCredit}
-                    onChange={(e) => setNewAgentCredit(Number(e.target.value))}
-                    className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
-                  />
-                </div>
-              </div>
-              <div className="pt-4 flex gap-3">
-                <button 
-                  onClick={() => setShowAddAgentModal(false)}
-                  className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition"
-                >
-                  ยกเลิก
-                </button>
-                <button 
-                  onClick={async () => {
-                    if (!newAgentName || !newAgentUsername || !newAgentPassword) {
-                      alert('กรุณากรอกชื่อ ไอดี และรหัสผ่านให้ครบถ้วน');
-                      return;
-                    }
-                    const apiKey = 'AK88-' + Math.random().toString(36).substr(2, 9).toUpperCase() + '-' + Date.now().toString().slice(-4);
-                    await addDoc(collection(db, 'agents'), {
-                      name: newAgentName,
-                      username: newAgentUsername,
-                      password: newAgentPassword, // In a real app, hash this!
-                      location: newAgentLocation,
-                      apiKey,
-                      sharePercentage: newAgentShare,
-                      commissionRate: 0,
-                      creditLimit: newAgentCredit,
-                      status: 'active',
-                      createdAt: new Date().toISOString()
-                    });
-                    await logActivity('เพิ่มเอเย่นต์', `สร้างเอเย่นต์ใหม่: ${newAgentName} (${newAgentUsername})`, 'agent');
-                    setShowAddAgentModal(false);
-                    setNewAgentName('');
-                    setNewAgentUsername('');
-                    setNewAgentPassword('');
-                    setNewAgentLocation('');
-                    setNewAgentCredit(100000);
-                    setNewAgentShare(80);
-                  }}
-                  className="flex-1 py-3 rounded-xl font-black text-[var(--navy-deep)] bg-[var(--gold-vibrant)] hover:bg-opacity-90 transition"
-                >
-                  บันทึกข้อมูล
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add Lottery Modal */}
       {showAddLotteryModal && (
