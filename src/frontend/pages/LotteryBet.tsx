@@ -231,7 +231,7 @@ export default function LotteryBet() {
     
     const TYPE_MAP: Record<string, string> = {
       'thai': 'หวยรัฐบาล',
-      'yeekee': 'ยี่กี 4D',
+      'yeekee': 'หวยยี่กี 88 รอบ',
       'baac': 'หวยธกส.',
       'gsb': 'หวยออมสิน',
       'lao-pratuchai': 'หวยลาวประตูชัย',
@@ -247,7 +247,6 @@ export default function LotteryBet() {
       'hanoi-redcross': 'ฮานอยกาชาด',
       'hanoi-special': 'ฮานอยพิเศษ',
       'hanoi-samakkhi': 'ฮานอยสามัคคี',
-      'malay': 'หวยมาเลย์',
       'hanoi': 'หวยฮานอย',
       'hanoi-vip': 'ฮานอย(VIP)',
       'lao-star-vip': 'หวยลาวสตาร์(VIP)',
@@ -300,7 +299,6 @@ export default function LotteryBet() {
     const t = typeParam.toLowerCase();
     if (t.includes('lao')) return 'https://flagcdn.com/w80/la.png';
     if (t.includes('hanoi') || t.includes('vietnam')) return 'https://flagcdn.com/w80/vn.png';
-    if (t.includes('malay')) return 'https://flagcdn.com/w80/my.png';
     if (t.includes('dowjones')) return 'https://flagcdn.com/w80/us.png';
     if (t.includes('nikkei')) return 'https://flagcdn.com/w80/jp.png';
     if (t.includes('china')) return 'https://flagcdn.com/w80/cn.png';
@@ -321,7 +319,7 @@ export default function LotteryBet() {
   const getBaseLotteryName = (typeParam: string | undefined) => {
     if (!typeParam) return 'หวยรัฐบาล';
     if (typeParam.startsWith('yeekee-')) {
-      return 'ยี่กี 4D';
+      return 'หวยยี่กี 88 รอบ';
     }
     return getLotteryDisplayName(typeParam);
   };
@@ -457,7 +455,6 @@ export default function LotteryBet() {
         const nameStr = String(item.name || '');
         if (type === 'thai' && (idStr.includes('รัฐบาล') || nameStr.includes('รัฐบาล'))) return true;
         if (type === 'lao' && (idStr.includes('ลาว') || nameStr.includes('ลาว'))) return true;
-        if (type === 'malay' && (idStr.includes('มาเลย์') || nameStr.includes('มาเลย์'))) return true;
         if (type === 'baac' && (idStr.includes('ธกส') || nameStr.includes('ธกส'))) return true;
         if (type === 'gsb' && (idStr.includes('ออมสิน') || nameStr.includes('ออมสิน'))) return true;
         if (baseLotteryName && (idStr.includes(baseLotteryName) || baseLotteryName.includes(idStr))) return true;
@@ -1343,7 +1340,7 @@ export default function LotteryBet() {
         createdAt: new Date(now).toISOString(),
         expiresAt: new Date(expires).toISOString(),
         userId: currentUserId,
-        lotteryType: isYeekee ? 'ยี่กี 4D' : displayName,
+        lotteryType: displayName,
         lotterySlug: isYeekee ? 'yeekee' : (type || 'thai'),
         roundId: isYeekee ? YK.ticketRoundId(YK.roundKey(ykGameDay, yeekeeRoundNum)) : undefined,
         customerName: customerName.trim() || 'ลูกค้าทั่วไป'
@@ -1440,7 +1437,7 @@ export default function LotteryBet() {
         createdAt: new Date(now).toISOString(),
         expiresAt: new Date(expires).toISOString(),
         userId: currentUserId,
-        lotteryType: isYeekee ? 'ยี่กี 4D' : displayName,
+        lotteryType: displayName,
         lotterySlug: isYeekee ? 'yeekee' : (type || 'thai'),
         roundId: isYeekee ? YK.ticketRoundId(YK.roundKey(ykGameDay, yeekeeRoundNum)) : undefined,
         customerName: info.customerName

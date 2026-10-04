@@ -45,9 +45,6 @@ const FLAG_MAP: Record<string, { code: string; label: string }> = {
   'singapore': { code: 'sg', label: 'สิงคโปร์' },
   'สิงคโปร์': { code: 'sg', label: 'สิงคโปร์' },
 
-  // มาเลเซีย
-  'malay': { code: 'my', label: 'มาเลเซีย' },
-  'มาเลย์': { code: 'my', label: 'มาเลเซีย' },
 
   // สหรัฐอเมริกา
   'dowjones': { code: 'us', label: 'สหรัฐอเมริกา' },

@@ -349,49 +349,6 @@ const LOTTERY_RULES_PRESETS: Record<string, LotteryPresetRule> = {
     ],
   },
 
-  'หวยมาเลย์ 4D': {
-    name: 'หวยมาเลย์ 4D',
-    category: 'หวยต่างประเทศ / มาเลเซีย',
-    flagKey: 'my',
-    closeTimeDesc: 'ปิดรับแทงทุกวันพุธ เสาร์ และอาทิตย์ เวลา 18:00 น.',
-    resultTimeDesc: 'ออกผลรางวัลเวลา 18:30 น. เป็นต้นไป',
-    sourceDesc: 'อ้างอิงผลสลาก Magnum 4D / Damacai ประเทศมาเลเซียอย่างเป็นทางการ',
-    overview: 'หวยมาเลย์ หรือ Magnum 4D ออกรางวัลสัปดาห์ละ 3 วัน (วันพุธ, เสาร์, อาทิตย์ และวันอังคารพิเศษบางสัปดาห์) โดยใช้ผลรางวัล 4 หลักในการออกผลรางวัล',
-    defaultRates: {
-      '3 ตัวบน': 850,
-      '3 ตัวโต๊ด': 120,
-      '2 ตัวบน': 92,
-      '2 ตัวล่าง': 92,
-      'วิ่งบน': 3.2,
-      'วิ่งล่าง': 4.2,
-    },
-    prizes: [
-      {
-        title: '3 ตัวบน',
-        badge: 'ท้าย 3 ตัว รางวัลที่ 1',
-        badgeColor: 'bg-emerald-600 text-white',
-        desc: 'ใช้ตัวเลข 3 ตัวท้ายของรางวัลที่ 1 (1st Prize)',
-        example: 'รางวัลที่ 1 ออก [5678] → 3 ตัวบนคือ "678"',
-      },
-      {
-        title: '2 ตัวบน',
-        badge: 'ท้าย 2 ตัว รางวัลที่ 1',
-        badgeColor: 'bg-purple-600 text-white',
-        desc: 'ใช้ตัวเลข 2 ตัวท้ายของรางวัลที่ 1 (1st Prize)',
-        example: 'รางวัลที่ 1 ออก [5678] → 2 ตัวบนคือ "78"',
-      },
-      {
-        title: '2 ตัวล่าง',
-        badge: 'ท้าย 2 ตัว รางวัลที่ 2',
-        badgeColor: 'bg-rose-600 text-white',
-        desc: 'ใช้ตัวเลข 2 ตัวท้ายของรางวัลที่ 2 (2nd Prize)',
-        example: 'รางวัลที่ 2 ออก [1234] → 2 ตัวล่างคือ "34"',
-      },
-    ],
-    terms: [
-      'ปิดรับแทง 18:00 น. วันพุธ เสาร์ และอาทิตย์',
-    ],
-  },
 
   'หวยธกส.': {
     name: 'หวย ธ.ก.ส.',
@@ -478,7 +435,6 @@ function resolveLotteryStandardName(slugOrName?: string): string | null {
   if (s === 'hanoi-special' || s === 'hanoispecial' || s.includes('ฮานอยพิเศษ')) return 'ฮานอยพิเศษ';
   if (s === 'hanoi-vip' || s === 'hanoivip' || s.includes('ฮานอยvip') || s.includes('ฮานอย(vip)')) return 'ฮานอย(VIP)';
   if (s === 'lao' || s === 'laos' || s.includes('ลาว')) return 'หวยลาวพัฒนา';
-  if (s === 'malay' || s === 'malaysia' || s.includes('มาเลย์')) return 'หวยมาเลย์ 4D';
   if (s === 'yeekee' || s === 'yiki' || s.includes('ยี่กี')) return 'หวยยี่กี 88 รอบ';
   if (s === 'baac' || s.includes('ธกส') || s.includes('ธ.ก.ส')) return 'หวยธกส.';
   if (s === 'gsb' || s.includes('ออมสิน')) return 'หวยออมสิน';

@@ -62,8 +62,6 @@ export const MASTER_LOTTERY_CATALOG: LotteryItemDef[] = [
   { name: 'ลาวกาชาด', category: 'foreign', icon: '🇱🇦', path: '/lottery/lao-redcross', bgGradient: 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]' },
   { name: 'หวยลาวสตาร์(VIP)', category: 'foreign', icon: '🇱🇦', path: '/lottery/lao-star-vip', bgGradient: 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]' },
   { name: 'ลาว VIP', category: 'foreign', icon: '🇱🇦', path: '/lottery/stock/lao-vip', bgGradient: 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]' },
-
-  { name: 'หวยมาเลย์', category: 'foreign', icon: '🇲🇾', path: '/lottery/malay', bgGradient: 'bg-gradient-to-b from-[#2ecc71] to-[#27ae60]' },
   { name: 'ดาวน์โจนส์ STAR', category: 'foreign', icon: '🇺🇸', path: '/lottery/dowjones-star', bgGradient: 'bg-gradient-to-b from-[#95a5a6] to-[#7f8c8d]' },
 
   // --- 4. หวยชุด ---
