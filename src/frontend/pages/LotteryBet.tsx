@@ -3128,86 +3128,200 @@ export default function LotteryBet() {
         </div>
       )}
 
-      {/* Final Receipt Modal */}
+      {/* Final Receipt Modal (3D Elevated Realistic Bill with QR Code & Payout Rates) */}
       {showSuccessReceipt && (
-        <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center p-4">
-           <div className="bg-white rounded-xl shadow-lg w-full max-w-sm overflow-hidden flex flex-col relative animate-in zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:zoom-out-95 duration-200 border-2 border-[#107c10]">
+        <div className="fixed inset-0 bg-black/75 z-[200] flex items-center justify-center p-3 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white rounded-3xl shadow-[0_30px_70px_-10px_rgba(0,0,0,0.7),0_15px_30px_rgba(0,0,0,0.5)] w-full max-w-sm overflow-hidden flex flex-col relative animate-in zoom-in-95 duration-200 border-2 border-emerald-500 my-auto">
+            
+            {/* รอยบากตั๋วซ้ายขวา (Ticket Side Notches) เพื่อสร้างมิติตั๋วนูน 3D สมจริง */}
+            <div className="absolute -left-3.5 top-[230px] w-7 h-7 rounded-full bg-[#060c2b] shadow-inner z-20 pointer-events-none"></div>
+            <div className="absolute -right-3.5 top-[230px] w-7 h-7 rounded-full bg-[#060c2b] shadow-inner z-20 pointer-events-none"></div>
+
+            {/* Receipt Header (สไตล์หัวสลิป 3D นูนขึ้น) */}
+            <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 p-4 text-white text-center pb-7 relative shadow-md">
+              <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center mx-auto mb-2 shadow-[0_4px_15px_rgba(0,0,0,0.25)] relative">
+                <span className="material-symbols-outlined text-3xl text-emerald-600 font-bold">check_circle</span>
+              </div>
+              <h2 className="text-xl font-black tracking-wide drop-shadow-sm">ส่งโพยสำเร็จ</h2>
+              <p className="text-xs text-emerald-100 font-medium opacity-90 mt-0.5">
+                ตัดเครดิตและบันทึกโพยเข้าระบบแล้ว (100%)
+              </p>
               
-              {/* Receipt Header */}
-              <div className="bg-[#107c10] p-4 text-white text-center pb-8 relative">
-                 <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-2 shadow-lg">
-                   <span className="material-symbols-outlined text-4xl text-[#107c10]">check_circle</span>
-                 </div>
-                 <h2 className="text-xl font-black">ส่งโพยสำเร็จ</h2>
-                 <p className="text-xs text-green-100 font-medium opacity-80 mt-1">ตัดเครดิตและบันทึกโพยเข้าระบบแล้ว</p>
-                 
-                 {/* Receipt Zigzag top part simulation */}
-                 <div className="absolute -bottom-2 left-0 right-0 h-4 bg-white" style={{ clipPath: 'polygon(0% 100%, 5% 0%, 10% 100%, 15% 0%, 20% 100%, 25% 0%, 30% 100%, 35% 0%, 40% 100%, 45% 0%, 50% 100%, 55% 0%, 60% 100%, 65% 0%, 70% 100%, 75% 0%, 80% 100%, 85% 0%, 90% 100%, 95% 0%, 100% 100%)' }}></div>
-              </div>
+              {/* Receipt Zigzag top part simulation */}
+              <div className="absolute -bottom-2 left-0 right-0 h-4 bg-white" style={{ clipPath: 'polygon(0% 100%, 2.5% 0%, 5% 100%, 7.5% 0%, 10% 100%, 12.5% 0%, 15% 100%, 17.5% 0%, 20% 100%, 22.5% 0%, 25% 100%, 27.5% 0%, 30% 100%, 32.5% 0%, 35% 100%, 37.5% 0%, 40% 100%, 42.5% 0%, 45% 100%, 47.5% 0%, 50% 100%, 52.5% 0%, 55% 100%, 57.5% 0%, 60% 100%, 62.5% 0%, 65% 100%, 67.5% 0%, 70% 100%, 72.5% 0%, 75% 100%, 77.5% 0%, 80% 100%, 82.5% 0%, 85% 100%, 87.5% 0%, 90% 100%, 92.5% 0%, 95% 100%, 97.5% 0%, 100% 100%)' }}></div>
+            </div>
+            
+            {/* Receipt Body */}
+            <div className="px-5 pb-5 pt-3 bg-white space-y-3 relative text-xs">
               
-              {/* Receipt Body */}
-              <div className="px-6 pb-6 pt-2 bg-white space-y-4 relative">
-                 <div className="text-center border-b border-dashed border-gray-300 pb-4">
-                    <div className="text-lg font-black text-[var(--navy-deep)] mb-1">{showSuccessReceipt.displayName}</div>
-                    <div className="text-xl sm:text-2xl md:text-3xl font-black text-red-600 bg-red-50 py-2 px-3 rounded-lg my-2 border border-red-100 max-w-full overflow-hidden truncate">
-                      ฿ {showSuccessReceipt.total.toLocaleString(undefined, {minimumFractionDigits: 2})}
-                    </div>
-                 </div>
-
-                 <div className="space-y-2 text-sm mt-3 border-b border-gray-200 pb-3">
-                     <div className="flex justify-between items-center bg-gray-50 p-2 rounded border border-gray-100">
-                         <span className="text-gray-500 font-bold">รหัสบิล</span>
-                         <span className="font-mono font-black text-blue-700 tracking-wider">
-                           {showSuccessReceipt.ticketId}
-                         </span>
-                     </div>
-                     <div className="flex justify-between items-center py-1">
-                         <span className="text-gray-500 font-bold">เวลาทำรายการ</span>
-                         <span className="font-bold text-gray-700">{new Date(showSuccessReceipt.date).toLocaleString('th-TH')}</span>
-                     </div>
-                     <div className="flex justify-between items-center py-1">
-                         <span className="text-gray-500 font-bold">ชื่อผู้ซื้อ</span>
-                         <span className="font-bold text-gray-700">{showSuccessReceipt.customerName}</span>
-                     </div>
-                 </div>
-
-                 {/* Bet List */}
-                 <div>
-                    <div className="text-[11px] font-bold text-gray-400 mb-2">รายการแทง ({showSuccessReceipt.bets.length} รายการ)</div>
-                    <div className="max-h-32 overflow-y-auto pr-1">
-                       {showSuccessReceipt.bets.map((bet, idx) => (
-                           <div key={idx} className="flex justify-between items-center py-1 border-b border-gray-50 last:border-0">
-                               <div className="flex items-center gap-2">
-                                  <span className="text-[10px] text-gray-400 w-4">{idx + 1}.</span>
-                                  <span className="text-xs font-bold text-gray-700 w-16">{bet.type}</span>
-                                  <span className="text-sm font-black text-[var(--navy-deep)]">{bet.number}</span>
-                               </div>
-                               <div className="text-xs font-bold text-red-600">
-                                  {bet.amount} ฿
-                               </div>
-                           </div>
-                       ))}
-                    </div>
-                 </div>
+              {/* Title & Status Badge */}
+              <div className="text-center space-y-1.5 pb-2 border-b border-dashed border-gray-300">
+                <div className="text-base sm:text-lg font-black text-[#0a192f] tracking-wide">
+                  {showSuccessReceipt.displayName}
+                </div>
+                
+                {/* สถานะโพย: รอผลรางวัล & ยืนยันเข้าถูก */}
+                <div className="inline-flex items-center gap-1.5 bg-amber-50 border border-amber-300 px-3 py-1 rounded-full shadow-sm text-xs font-black text-amber-900">
+                  <span className="material-symbols-outlined text-sm text-amber-600 animate-spin" style={{ animationDuration: '4s' }}>schedule</span>
+                  <span>สถานะ: รอผลรางวัล</span>
+                  <span className="bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full">
+                    เข้าถูก 100%
+                  </span>
+                </div>
               </div>
 
-              <div className="p-4 bg-gray-50 border-t border-gray-200 flex gap-2">
-                  <button 
-                     onClick={() => copyTicketAsBillText(showSuccessReceipt)}
-                     className="flex-1 py-3 bg-blue-600 text-white font-black rounded-lg hover:bg-blue-700 transition shadow outline-none flex items-center justify-center gap-1.5 text-xs"
-                  >
-                     <span className="material-symbols-outlined text-[18px]">content_copy</span>
-                     คัดลอกบิล
-                  </button>
-                  <button 
-                     onClick={() => setShowSuccessReceipt(null)}
-                     className="flex-1 py-3 bg-[var(--navy-deep)] text-[var(--gold-vibrant)] font-black rounded-lg hover:bg-black transition shadow outline-none flex items-center justify-center gap-1.5 text-xs"
-                  >
-                     <span className="material-symbols-outlined text-[18px]">close</span>
-                     ปิดบิล (เริ่มแทงใหม่)
-                  </button>
+              {/* 3D Financial Summary Card: ยอดแทงรวม & โอกาสถูกสูงสุด */}
+              {(() => {
+                const totalPotentialWin = showSuccessReceipt.bets.reduce((sum, b) => {
+                  const rate = b.payoutRate || (lotteryConfig?.rates?.[b.type] ?? DEFAULT_RATES[b.type] ?? 900);
+                  return sum + (Number(b.amount || 0) * Number(rate || 0));
+                }, 0);
+
+                return (
+                  <div className="bg-gradient-to-br from-red-50 via-rose-50 to-amber-50 border border-red-200 rounded-2xl p-2.5 shadow-sm space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-white/90 rounded-xl p-2 text-center border border-red-200/60 shadow-xs">
+                        <div className="text-[10px] text-gray-500 font-bold">ยอดเงินแทงรวม</div>
+                        <div className="text-lg sm:text-xl font-black text-red-600 font-mono tracking-tight mt-0.5">
+                          ฿ {showSuccessReceipt.total.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                        </div>
+                      </div>
+
+                      <div className="bg-gradient-to-br from-amber-100 to-yellow-50 rounded-xl p-2 text-center border border-amber-300 shadow-xs">
+                        <div className="text-[10px] text-amber-800 font-bold flex items-center justify-center gap-0.5">
+                          <span className="material-symbols-outlined text-xs text-amber-600">stars</span>
+                          <span>โอกาสถูกสูงสุด</span>
+                        </div>
+                        <div className="text-lg sm:text-xl font-black text-amber-900 font-mono tracking-tight mt-0.5">
+                          ฿ {totalPotentialWin.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="text-[9px] text-center text-amber-700 font-medium">
+                      💡 คำนวณจากราคาจ่ายสูงสุดของแต่ละประเภท (เช่น แทง ฿5 ลุ้นสูงสุด ฿4,500 - ฿9,000)
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Bill Meta Data */}
+              <div className="space-y-1.5 bg-gray-50 p-2.5 rounded-xl border border-gray-200/80 text-[11px]">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500 font-bold">รหัสบิล</span>
+                  <span className="font-mono font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200 tracking-wider">
+                    {showSuccessReceipt.ticketId}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500 font-bold">เวลาทำรายการ</span>
+                  <span className="font-bold text-gray-700">{new Date(showSuccessReceipt.date).toLocaleString('th-TH')}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-500 font-bold">ชื่อผู้ซื้อ</span>
+                  <span className="font-bold text-gray-700">{showSuccessReceipt.customerName}</span>
+                </div>
               </div>
-           </div>
+
+              {/* Bet List with Payout & Max Win per item */}
+              <div>
+                <div className="flex justify-between items-center text-[11px] font-bold text-gray-500 mb-1.5 px-1">
+                  <span>รายการแทง ({showSuccessReceipt.bets.length} รายการ)</span>
+                  <span>ราคาจ่าย / ลุ้นสูงสุด</span>
+                </div>
+                <div className="max-h-32 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
+                  {showSuccessReceipt.bets.map((bet, idx) => {
+                    const rate = bet.payoutRate || (lotteryConfig?.rates?.[bet.type] ?? DEFAULT_RATES[bet.type] ?? 900);
+                    const itemMaxWin = Number(bet.amount || 0) * Number(rate || 0);
+
+                    return (
+                      <div key={idx} className="bg-gray-50 hover:bg-gray-100 p-2 rounded-xl border border-gray-200/70 flex items-center justify-between text-xs transition">
+                        <div className="flex items-center gap-2">
+                          <span className="w-4 h-4 rounded-full bg-blue-100 text-blue-700 font-black text-[9px] flex items-center justify-center shrink-0">
+                            {idx + 1}
+                          </span>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-gray-700 text-[11px]">{bet.type}</span>
+                              <span className="font-mono font-black text-[#0a192f] text-sm">{bet.number}</span>
+                            </div>
+                            <div className="text-[10px] text-emerald-700 font-medium">
+                              จ่าย ฿{rate.toLocaleString()} (ลุ้น ฿{itemMaxWin.toLocaleString()})
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-xs font-black text-red-600 font-mono">
+                            {bet.amount} ฿
+                          </div>
+                          <div className="text-[9px] text-amber-600 font-bold">
+                            รอผล
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* สถานะ QR Code สำหรับตรวจสอบโพย */}
+              <div className="bg-slate-900 text-white rounded-2xl p-2.5 border border-slate-700 shadow-md flex items-center gap-2.5">
+                <div className="w-16 h-16 bg-white p-1 rounded-xl shadow shrink-0 flex items-center justify-center">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(`https://ak88-lotto.vercel.app/tickets?id=${showSuccessReceipt.ticketId}`)}&margin=2`}
+                    alt="Ticket QR Code"
+                    className="w-full h-full object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1 text-[11px] font-black text-amber-400">
+                    <span className="material-symbols-outlined text-sm">qr_code_scanner</span>
+                    <span>QR เช็คสถานะโพย</span>
+                  </div>
+                  <p className="text-[9px] text-slate-300 mt-0.5 leading-tight">
+                    สแกนตรวจสอบสถานะบิล ตรวจผลรางวัลสดได้ 24 ชม.
+                  </p>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold px-1.5 py-0.2 rounded flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      เข้าถูก 100%
+                    </span>
+                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold px-1.5 py-0.2 rounded">
+                      รอผลรางวัล
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="p-3 bg-gray-50 border-t border-gray-200 flex gap-2">
+              <button 
+                onClick={() => copyTicketAsBillText(showSuccessReceipt)}
+                className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition shadow flex items-center justify-center gap-1 text-xs active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                <span>คัดลอกบิล</span>
+              </button>
+              <button 
+                onClick={() => window.print()}
+                className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl transition shadow flex items-center justify-center gap-1 text-xs active:scale-95"
+                title="พิมพ์สลิปบิล"
+              >
+                <span className="material-symbols-outlined text-[16px]">print</span>
+                <span>พิมพ์</span>
+              </button>
+              <button 
+                onClick={() => setShowSuccessReceipt(null)}
+                className="flex-1 py-2.5 bg-[#0a192f] hover:bg-black text-[#f5c518] font-black rounded-xl transition shadow flex items-center justify-center gap-1 text-xs active:scale-95"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+                <span>ปิดบิล (เริ่มใหม่)</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

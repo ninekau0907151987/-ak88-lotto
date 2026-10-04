@@ -125,14 +125,37 @@ export default function BillDetailModal({
     return acc;
   }, {});
 
+  const DEFAULT_RATES: Record<string, number> = {
+    '3 ตัวบน': 900,
+    '3 ตัวโต๊ด': 150,
+    '2 ตัวบน': 90,
+    '2 ตัวล่าง': 90,
+    '3 ตัวล่าง': 450,
+    '3 ตัวหน้า': 450,
+    '2 ตัวโต๊ด': 13,
+    'วิ่งบน': 3.2,
+    'วิ่งล่าง': 4.2,
+    '4 ตัวบน': 7000,
+    '4 ตัวโต๊ด': 250,
+  };
+
+  const totalPotentialWin = (ticket.bets || []).reduce((sum, b) => {
+    const rate = b.payoutRate || DEFAULT_RATES[b.type] || 900;
+    return sum + (Number(b.amount || 0) * Number(rate || 0));
+  }, 0);
+
   return (
-    <div className="fixed inset-0 bg-black/70 z-[300] flex items-center justify-center p-3 backdrop-blur-sm">
+    <div className="fixed inset-0 bg-black/75 z-[300] flex items-center justify-center p-3 backdrop-blur-sm">
       <motion.div
         initial={{ scale: 0.92, opacity: 0, y: 15 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 15 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[92vh] border border-gray-200"
+        className="bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.7),0_12px_28px_rgba(0,0,0,0.5)] w-full max-w-md overflow-hidden flex flex-col max-h-[92vh] border-2 border-[var(--gold-vibrant,#d4af37)]/70 relative"
       >
+        {/* รอยบากตั๋วซ้ายขวา (Ticket Side Notches) */}
+        <div className="absolute -left-3.5 top-[230px] w-7 h-7 rounded-full bg-[#060c2b] shadow-inner z-20 pointer-events-none"></div>
+        <div className="absolute -right-3.5 top-[230px] w-7 h-7 rounded-full bg-[#060c2b] shadow-inner z-20 pointer-events-none"></div>
+
         {/* Header - Receipt Style */}
         <div className="bg-[var(--navy-deep,#0a192f)] text-white p-4 relative text-center border-b-4 border-[var(--gold-vibrant,#d4af37)]">
           <button
@@ -151,6 +174,54 @@ export default function BillDetailModal({
 
         {/* Scrollable Body */}
         <div className="p-4 overflow-y-auto space-y-3.5 flex-1 bg-gray-50/50 text-xs">
+          
+          {/* Status Badge */}
+          <div className="flex items-center justify-between bg-amber-50/90 border border-amber-300 rounded-xl p-2.5 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping"></span>
+              <div>
+                <div className="text-[10px] text-amber-700 font-bold leading-none">สถานะโพยปัจจุบัน</div>
+                <div className="text-xs font-black text-amber-900 mt-0.5 flex items-center gap-1">
+                  <span className="material-symbols-outlined text-sm text-amber-600">hourglass_top</span>
+                  <span>{isCancelled ? 'ยกเลิกแล้ว' : 'รอผลรางวัล'}</span>
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                <span className="material-symbols-outlined text-[12px]">verified</span>
+                <span>เข้าถูก 100%</span>
+              </span>
+              <div className="text-[9px] text-gray-500 font-bold mt-0.5">บันทึกในระบบแล้ว</div>
+            </div>
+          </div>
+
+          {/* 3D Financial Summary Card: ยอดแทงรวม & โอกาสถูกสูงสุด */}
+          <div className="bg-gradient-to-br from-red-50 via-rose-50 to-amber-50 border border-red-200 rounded-2xl p-2.5 shadow-sm space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-white/90 rounded-xl p-2 text-center border border-red-200/60 shadow-xs">
+                <div className="text-[10px] text-gray-500 font-bold">ยอดเงินแทงรวม</div>
+                <div className="text-lg sm:text-xl font-black text-red-600 font-mono tracking-tight mt-0.5">
+                  ฿ {ticket.totalAmount.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-amber-100 to-yellow-50 rounded-xl p-2 text-center border border-amber-300 shadow-xs">
+                <div className="text-[10px] text-amber-800 font-bold flex items-center justify-center gap-0.5">
+                  <span className="material-symbols-outlined text-xs text-amber-600">stars</span>
+                  <span>โอกาสถูกสูงสุด</span>
+                </div>
+                <div className="text-lg sm:text-xl font-black text-amber-900 font-mono tracking-tight mt-0.5">
+                  ฿ {totalPotentialWin.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[9px] text-center text-amber-700 font-medium">
+              💡 คำนวณจากราคาจ่ายสูงสุดของแต่ละประเภท (เช่น แทง ฿5 ลุ้นสูงสุด ฿4,500 - ฿9,000)
+            </div>
+          </div>
+
           {/* Bill Info Card */}
           <div className="bg-white p-3.5 rounded-xl border border-gray-200 shadow-sm space-y-2">
             <div className="flex justify-between items-center pb-2 border-b border-gray-100">
@@ -248,21 +319,33 @@ export default function BillDetailModal({
             <div className="p-3 space-y-2.5 max-h-48 overflow-y-auto">
               {Object.entries(groupedBets).map(([type, bets]) => {
                 const typeTotal = bets.reduce((sum, b) => sum + b.amount, 0);
+                const rate = DEFAULT_RATES[type] || 900;
                 return (
                   <div key={type} className="border border-gray-100 rounded-lg p-2 bg-[#fdfcfa]">
                     <div className="flex justify-between items-center mb-1 pb-1 border-b border-dashed border-gray-200">
-                      <span className="font-black text-blue-900 bg-blue-50 px-2 py-0.5 rounded text-[10px]">
-                        {type}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-black text-blue-900 bg-blue-50 px-2 py-0.5 rounded text-[10px]">
+                          {type}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-bold">
+                          จ่าย ฿{rate}
+                        </span>
+                      </div>
                       <span className="font-bold text-gray-600">รวม ฿{typeTotal.toLocaleString()}</span>
                     </div>
-                    <div className="grid grid-cols-3 gap-1 pt-1">
-                      {bets.map((b, idx) => (
-                        <div key={idx} className="bg-white p-1 rounded border border-gray-100 flex justify-between items-center font-mono">
-                          <span className="font-black text-gray-800">{b.number}</span>
-                          <span className="text-red-600 font-black">฿{b.amount}</span>
-                        </div>
-                      ))}
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      {bets.map((b, idx) => {
+                        const itemWin = b.amount * rate;
+                        return (
+                          <div key={idx} className="bg-white p-1.5 rounded border border-gray-100 flex justify-between items-center font-mono">
+                            <div>
+                              <span className="font-black text-gray-800 text-xs">{b.number}</span>
+                              <span className="text-[9px] text-emerald-600 block">ลุ้น ฿{itemWin.toLocaleString()}</span>
+                            </div>
+                            <span className="text-red-600 font-black text-xs">฿{b.amount}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -270,14 +353,33 @@ export default function BillDetailModal({
             </div>
           </div>
 
-          {/* Total Amount Box */}
-          <div className="bg-amber-50 border-2 border-amber-300 rounded-xl p-3 flex justify-between items-center">
-            <div>
-              <div className="font-black text-amber-900 text-sm">ยอดรวมทั้งสิ้น</div>
-              <div className="text-[10px] text-amber-700">หักภาษี ณ ที่จ่าย {taxRate}% เมื่อถูกรางวัล</div>
+          {/* สถานะ QR Code สำหรับตรวจสอบโพย */}
+          <div className="bg-slate-900 text-white rounded-2xl p-2.5 border border-slate-700 shadow-md flex items-center gap-2.5">
+            <div className="w-16 h-16 bg-white p-1 rounded-xl shadow shrink-0 flex items-center justify-center">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(`https://ak88-lotto.vercel.app/tickets?id=${ticket.id}`)}&margin=2`}
+                alt="Ticket QR Code"
+                className="w-full h-full object-contain"
+                loading="lazy"
+              />
             </div>
-            <div className="text-xl font-black text-red-600 font-mono">
-              ฿{ticket.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 text-[11px] font-black text-amber-400">
+                <span className="material-symbols-outlined text-sm">qr_code_scanner</span>
+                <span>QR เช็คสถานะโพย</span>
+              </div>
+              <p className="text-[9px] text-slate-300 mt-0.5 leading-tight">
+                สแกนตรวจสอบสถานะบิล ตรวจผลรางวัลสดได้ 24 ชม.
+              </p>
+              <div className="mt-1 flex items-center gap-1.5">
+                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-bold px-1.5 py-0.2 rounded flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  เข้าถูก 100%
+                </span>
+                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-bold px-1.5 py-0.2 rounded">
+                  สถานะ: {isCancelled ? 'ยกเลิกแล้ว' : 'รอผลรางวัล'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
