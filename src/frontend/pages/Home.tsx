@@ -44,6 +44,8 @@ export default function Home() {
     if (len > 7) return 'text-3xl sm:text-4xl md:text-5xl';
     return 'text-4xl sm:text-5xl md:text-6xl';
   };
+
+  const [now, setNow] = useState<Date>(new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);
