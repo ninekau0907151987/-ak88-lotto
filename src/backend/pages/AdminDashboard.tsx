@@ -1971,23 +1971,22 @@ export default function AdminDashboard() {
    * แท็บไหนไม่มีสิทธิ์ → ซ่อนจากเมนูเลย (ไม่ใช่แค่กดไม่ได้)
    * ================================================================== */
   const ALL_TABS: { id: AdminTab; label: string; icon: string; perm: Permission; section: string; tier: 'staff' | 'master' }[] = [
-    // --- 🟢 ส่วนที่ 1: งานประจำวันของแอดมิน (5 เมนูหลัก) ---
-    { id: 'finance',           label: '1. การเงิน & ฝาก-ถอน',   icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW,   section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
-    { id: 'reports',           label: '2. รายการโพย & บิล',     icon: 'receipt_long',           perm: PERMISSIONS.REPORT_VIEW,    section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
-    { id: 'lottery_control',   label: '3. ตรวจผล & เปิด-ปิดหวย',icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW,  section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
-    { id: 'members',           label: '4. จัดการสมาชิก & เครดิต',icon: 'group',                 perm: PERMISSIONS.MEMBER_VIEW,    section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
-    { id: 'overview',          label: '5. ภาพรวม & สรุปยอด',   icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW, section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
+    // --- 🟢 เมนูหลักบริหารจัดการ (Core Workflow 1-7 - จัดลำดับการทำงานต่อเนื่อง ไม่สลับไปมา) ---
+    { id: 'finance',           label: '1. การเงิน & ฝาก-ถอน',       icon: 'account_balance_wallet', perm: PERMISSIONS.FINANCE_VIEW,   section: 'เมนูหลักบริหารจัดการ', tier: 'staff' },
+    { id: 'payout_rates',      label: '2. ตั้งค่าหวย & อัตราจ่าย',   icon: 'payments',               perm: PERMISSIONS.SETTINGS_VIEW,  section: 'เมนูหลักบริหารจัดการ', tier: 'staff' },
+    { id: 'lottery_control',   label: '3. เปิด-ปิดหวย & ตรวจผล',    icon: 'toggle_on',              perm: PERMISSIONS.SETTINGS_VIEW,  section: 'เมนูหลักบริหารจัดการ', tier: 'staff' },
+    { id: 'intake_monitor',    label: '4. ศูนย์ตรวจจับรับกินเสี่ยง', icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW,  section: 'เมนูหลักบริหารจัดการ', tier: 'staff' },
+    { id: 'reports',           label: '5. รายการโพย & บิล',         icon: 'receipt_long',           perm: PERMISSIONS.REPORT_VIEW,    section: 'เมนูหลักบริหารจัดการ', tier: 'staff' },
+    { id: 'members',           label: '6. จัดการสมาชิก & เครดิต',    icon: 'group',                  perm: PERMISSIONS.MEMBER_VIEW,    section: 'เมนูหลักบริหารจัดการ', tier: 'staff' },
+    { id: 'overview',          label: '7. ภาพรวม & สรุปยอด',       icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW, section: 'เมนูหลักบริหารจัดการ', tier: 'staff' },
 
-    // --- 👑 ส่วนที่ 2: โหมดเจ้าของ / ระบบคำนวณความเสี่ยงและอัตราจ่าย (Master Mode) ---
-    { id: 'payout_rates',      label: '1. ตั้งค่าจ่าย & ขั้นต่ำ-สูงสุด', icon: 'payments',       perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'intake_settings',   label: '2. ตั้งค่ารับกิน & งบประมาณ',  icon: 'tune',            perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'intake_monitor',    label: '3. ศูนย์ตรวจจับรับกินสด',      icon: 'monitoring',      perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'round_scheduler',   label: '4. จัดตารางรอบ & ปฏิทินหวย',   icon: 'calendar_month',  perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'blocked_numbers',   label: '5. เลขอั้น & ลดราคาจ่าย',      icon: 'block',           perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'staff',             label: 'พนักงาน & กำหนดสิทธิ์',        icon: 'manage_accounts', perm: PERMISSIONS.STAFF_VIEW,     section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'settings',          label: 'ตั้งค่าระบบแม่ & กติกา',       icon: 'settings',        perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'system_control',    label: 'เปิด-ปิดระบบฉุกเฉิน',         icon: 'power_settings_new', perm: PERMISSIONS.SETTINGS_VIEW, section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'history',           label: 'ประวัติ & ความปลอดภัย',        icon: 'history',         perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    // --- 👑 ส่วนการตั้งค่าระบบขั้นสูง & แอดมิน (Advanced & Master) ---
+    { id: 'round_scheduler',   label: 'จัดตารางรอบ & ปฏิทินหวย',   icon: 'calendar_month',         perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ตั้งค่าระบบขั้นสูง', tier: 'master' },
+    { id: 'blocked_numbers',   label: 'เลขอั้น & ลดราคาจ่าย',      icon: 'block',                  perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ตั้งค่าระบบขั้นสูง', tier: 'master' },
+    { id: 'staff',             label: 'พนักงาน & กำหนดสิทธิ์',        icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW,     section: 'ตั้งค่าระบบขั้นสูง', tier: 'master' },
+    { id: 'settings',          label: 'ตั้งค่าระบบแม่ & กติกา',       icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW,  section: 'ตั้งค่าระบบขั้นสูง', tier: 'master' },
+    { id: 'system_control',    label: 'เปิด-ปิดระบบฉุกเฉิน',         icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW, section: 'ตั้งค่าระบบขั้นสูง', tier: 'master' },
+    { id: 'history',           label: 'ประวัติ & ความปลอดภัย',        icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'ตั้งค่าระบบขั้นสูง', tier: 'master' },
   ];
 
   /** ★ เมนูที่ผู้ใช้คนนี้เห็นได้ (กรองตามสิทธิ์) */
@@ -2098,14 +2097,14 @@ export default function AdminDashboard() {
         </div>
 
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
-          {/* 🟢 ส่วนที่ 1: งานประจำวัน (แอดมิน - 5 เมนูหลัก) */}
+          {/* 🟢 ส่วนที่ 1: เมนูหลักบริหารจัดการ (7 เมนูตามลำดับ ไม่สลับไปมา) */}
           <div className="rounded-xl border border-blue-200 overflow-hidden bg-white shadow-sm">
             <div className="px-3 py-2 bg-blue-50/90 border-b border-blue-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-base text-blue-700">task_alt</span>
-                <span className="text-xs font-black text-blue-900">งานประจำวัน (แอดมิน)</span>
+                <span className="text-xs font-black text-blue-900">เมนูหลักการจัดการ (Workflow 1-7)</span>
               </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-blue-200 text-blue-900">5 เมนูหลัก</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-blue-200 text-blue-900">7 เมนูหลัก</span>
             </div>
             <div className="p-1.5 space-y-1 bg-white">
               {tabs.filter(t => t.tier === 'staff').map(tab => {
@@ -2505,21 +2504,19 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* 1. ตั้งค่า อัตราจ่าย (Payout Rates) */}
+          {/* 2. ตั้งค่าหวย & อัตราจ่าย (Payout Rates) */}
           {activeTab === 'payout_rates' && (
             <RiskIntakeSettings
               lotteryTypes={lotterySettings}
               onLogActivity={logActivity}
-              defaultTab="rates"
             />
           )}
 
-          {/* 2. ตั้งค่ารับกิน (Risk Intake & คำนวณใส่ตัวเงิน) */}
+          {/* Fallback หากเข้าผ่าน intake_settings */}
           {activeTab === 'intake_settings' && (
             <RiskIntakeSettings
               lotteryTypes={lotterySettings}
               onLogActivity={logActivity}
-              defaultTab="intake"
             />
           )}
 

@@ -8,13 +8,14 @@ interface IntakeItem {
   id: number;
   name: string;
   baseRate: number;            // อัตราจ่ายเต็ม (บาท)
-  discountPercent: number;     // ส่วนลด %
+  discountPercent: number;     // ส่วนลด % (ล็อค 10%)
   discountedRate: number;      // อัตราจ่ายเมื่อมีส่วนลด (บาท)
   allocationPercent: number;   // สัดส่วนรับกิน % (รวมกันได้ 100%)
   maxIntakePerNumber: number;  // กินตัวละเท่าไหร่ (บาท)
   totalTypeBudget: number;     // งบรับกินรวมประเภทนี้ (บาท)
   minBet: number;              // แทงขั้นต่ำ (บาท)
-  maxBet: number;              // แทงสูงสุด (บาท)
+  maxBet: number;              // แทงสูงสุดต่อบิล (บาท)
+  maxBetPerUser?: number;      // แทงสูงสุดต่อยูส (บาท)
   enabled?: boolean;
 }
 
@@ -66,21 +67,15 @@ const DEFAULT_OTHER_ALLOCATIONS: Record<string, number> = {
   '4 ตัวโต๊ด': 0.5,
 };
 
-export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, defaultTab = 'rates' }: Props) {
+export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }: Props) {
   const lottoList = Object.keys(lotteryTypes).length > 0
     ? Object.keys(lotteryTypes)
     : ['หวยรัฐบาลไทย', 'หวยลาวพัฒนา', 'หวยฮานอยพิเศษ', 'หวยมาเลย์ 4D', 'หวยยี่กี 88 รอบ'];
 
   const [selectedLottery, setSelectedLottery] = useState<string>(lottoList[0] || 'หวยรัฐบาลไทย');
   
-  // ★ แยกเป็น 2 แถบข้อมูลตามคำขอ: 1. ตั้งค่าอัตราจ่าย | 2. ตั้งค่ากิน (คำนวณใส่ตัวเงิน)
-  const [activeSubTab, setActiveSubTab] = useState<'rates' | 'intake'>(defaultTab);
-
-  useEffect(() => {
-    if (defaultTab) {
-      setActiveSubTab(defaultTab);
-    }
-  }, [defaultTab]);
+  // เครื่องมือคำนวณงบประมาณรับกินขั้นสูง (พับเก็บได้)
+  const [showBudgetCalculator, setShowBudgetCalculator] = useState(false);
 
   // ข้อมูลรอบหวยสำหรับตั้งค่าเป็นรอบๆ
   const [rounds, setRounds] = useState<RoundOption[]>([]);
@@ -193,18 +188,22 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
             ? Number(s.allocationPercent) 
             : (defaultMap[s.name] ?? (s.name.includes('3 ตัว') ? 25 : s.name.includes('2 ตัว') ? 20 : 2));
           const calculatedTypeBudget = Number(s.totalTypeBudget) || Math.round(gBudget * (allocPct / 100));
+          const is3 = s.name.includes('3 ตัว');
+          const is2 = s.name.includes('2 ตัว');
+          const baseRate = Number(s.baseRate) || (is3 ? 900 : is2 ? 92 : 3.2);
 
           return {
             id: s.id,
             name: s.name,
-            baseRate: Number(s.baseRate) || (s.name.includes('3 ตัว') ? 900 : s.name.includes('2 ตัว') ? 90 : 3.2),
-            discountPercent: Number(s.discountPercent) || (s.name.includes('3 ตัว') ? 30 : s.name.includes('2 ตัว') ? 28 : 12),
-            discountedRate: Number(s.discountedRate) || (s.name.includes('3 ตัว') ? 550 : s.name.includes('2 ตัว') ? 70 : 2.8),
+            baseRate,
+            discountPercent: 10,       // ล็อคส่วนลด 10% คงที่ตามคำขอ
+            discountedRate: baseRate,  // จ่ายเต็ม 100% (ไม่มีหักลดทอน)
             allocationPercent: allocPct,
-            maxIntakePerNumber: Number(s.maxIntakePerNumber) || (s.name.includes('3 ตัว') ? 1000 : s.name.includes('2 ตัว') ? 3000 : 10000),
+            maxIntakePerNumber: Number(s.maxIntakePerNumber) || (is3 ? 1000 : is2 ? 3000 : 10000),
             totalTypeBudget: calculatedTypeBudget,
             minBet: Number(s.minBet) || 1,
             maxBet: Number(s.maxBet) || 5000,
+            maxBetPerUser: Number(s.maxBetPerUser) || (is3 ? 20000 : is2 ? 50000 : 100000),
             enabled: s.enabled !== false,
           };
         }));
@@ -221,26 +220,24 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
           const is4Digit = typeName.includes('4 ตัว');
 
           const baseRate = is3Digit ? (typeName.includes('โต๊ด') ? 150 : typeName.includes('ล่าง') || typeName.includes('หน้า') ? 450 : 900)
-            : is2Digit ? 90
+            : is2Digit ? 92
             : isRun ? (typeName === 'วิ่งล่าง' ? 4.2 : 3.2)
             : isPin ? 8
             : is4Digit ? (typeName.includes('โต๊ด') ? 200 : 5000)
-            : 90;
-
-          const discountPct = is3Digit ? 30 : is2Digit ? 28 : 10;
-          const discountedRate = Math.round(baseRate * (1 - discountPct / 100) * 10) / 10;
+            : 92;
 
           return {
             id: index + 1,
             name: typeName,
             baseRate,
-            discountPercent: discountPct,
-            discountedRate,
+            discountPercent: 10,       // ล็อคส่วนลด 10%
+            discountedRate: baseRate,  // จ่ายเต็ม 100%
             allocationPercent: allocPct,
             maxIntakePerNumber: is3Digit ? 1000 : is2Digit ? 3000 : isRun ? 10000 : 2000,
             totalTypeBudget: Math.round(200000 * (allocPct / 100)),
             minBet: 1,
             maxBet: isRun ? 10000 : 5000,
+            maxBetPerUser: is3Digit ? 20000 : is2Digit ? 50000 : isRun ? 100000 : 30000,
             enabled: true,
           };
         });
@@ -313,16 +310,15 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
     });
   };
 
-  // ปรับอัตราจ่ายเต็ม (Base Rate)
+  // ปรับอัตราจ่ายเต็ม (Base Rate) - สมาชิกรับ 100% เต็มตามที่ตั้งไว้
   const handleBaseRateChange = (idx: number, newRate: number) => {
     setIntakeItems(prev => {
       const updated = [...prev];
-      const item = updated[idx];
-      const autoDiscountedRate = Math.round(newRate * (1 - (item.discountPercent || 0) / 100) * 10) / 10;
       updated[idx] = {
         ...updated[idx],
         baseRate: newRate,
-        discountedRate: autoDiscountedRate,
+        discountPercent: 10,
+        discountedRate: newRate, // จ่ายเต็ม 100%
       };
       return updated;
     });
@@ -352,7 +348,7 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
   };
 
   // บันทึกการตั้งค่า (รองรับการผูกกับรอบหวยที่เลือก)
-  const handleSave = async (tabName: 'rates' | 'intake') => {
+  const handleSave = async (_tabName?: string) => {
     setSaving(true);
     setMessage(null);
     try {
@@ -364,6 +360,7 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
         minBet: 1,
         maxBet: 5000,
         maxUserLimit,
+        discountPercent: 10,
         totalRiskBudget: globalRiskBudget,
         subItems: intakeItems,
         updatedAt: new Date().toISOString(),
@@ -381,19 +378,29 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
       // 2. บันทึกลง Supabase โดยตรง (ใช้งานได้ 100% บน Vercel)
       await setDoc(doc(db, 'risk_intake_configs', selectedLottery), payload, { merge: true });
 
-      // 3. ซิงค์อัตราจ่ายเข้า lotteryTypes เพื่อให้หน้าแทงใช้งานได้ทันที
+      // 3. ซิงค์อัตราจ่าย และเพดานเดิมพัน เข้า lotteryTypes เพื่อให้หน้าแทงใช้งานได้ทันที
       const flatRates: Record<string, number> = {};
+      const minBets: Record<string, number> = {};
+      const maxBets: Record<string, number> = {};
+      const maxPerUsers: Record<string, number> = {};
       intakeItems.forEach(item => {
         flatRates[item.name] = Number(item.baseRate) || 0;
+        minBets[item.name] = Number(item.minBet) || 1;
+        maxBets[item.name] = Number(item.maxBet) || 5000;
+        maxPerUsers[item.name] = Number(item.maxBetPerUser) || 50000;
       });
       await setDoc(doc(db, 'lotteryTypes', selectedLottery), {
         rates: flatRates,
+        minBets,
+        maxBets,
+        maxPerUsers,
+        subItems: intakeItems,
+        discountPercent: 10,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
-      const actionLabel = tabName === 'rates' ? 'บันทึกอัตราจ่าย' : 'บันทึกเพดานรับกินและตัวเงิน';
-      setMessage({ text: `${actionLabel} สำหรับ ${selectedLottery} สำเร็จแล้ว (บันทึกลงระบบ)`, type: 'success' });
-      onLogActivity?.(actionLabel, `บันทึกข้อมูลของ ${selectedLottery}`, 'settings');
+      setMessage({ text: `บันทึกการตั้งค่าสำหรับ ${selectedLottery} สำเร็จแล้ว (จ่ายเต็ม 100% / ล็อคส่วนลด 10%)`, type: 'success' });
+      onLogActivity?.('ตั้งค่าหวย & อัตราจ่าย', `บันทึกอัตราจ่ายและเพดานเดิมพันของ ${selectedLottery}`, 'settings');
     } catch (err: any) {
       setMessage({ text: 'เกิดข้อผิดพลาดในการบันทึก: ' + err.message, type: 'error' });
     } finally {
@@ -412,10 +419,10 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
             </div>
             <div>
               <h2 className="text-xl font-black text-slate-900">
-                ระบบจัดการอัตราจ่ายและเพดานรับกิน (แยกแถบข้อมูล & รอบหวย)
+                ตั้งค่าหวย & อัตราจ่าย (จ่ายเต็ม 100% • ล็อคส่วนลด 10%)
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                แยกแถบชัดเจน: แถบที่ 1 ตั้งค่าอัตราจ่าย | แถบที่ 2 ตั้งค่ากิน (คำนวณใส่ตัวเงิน) กำหนดเป็นรอบๆ
+                กำหนดอัตราจ่ายเต็ม แทงขั้นต่ำ แทงสูงสุดต่อบิล และแทงสูงสุดต่อยูสเซอร์ (บันทึกรายรอบหวย)
               </p>
             </div>
           </div>
@@ -482,335 +489,350 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
         </div>
       </div>
 
-      {/* 3. สลับแถบข้อมูลหลัก: [1. ตั้งค่า อัตราจ่าย] VS [2. ตั้งค่ากิน (คำนวณใส่ตัวเงิน)] */}
-      <div className="flex border-b border-slate-200 gap-2 bg-slate-100/70 p-1.5 rounded-2xl">
-        <button
-          onClick={() => setActiveSubTab('rates')}
-          className={`flex-1 py-3 px-5 rounded-xl text-sm font-black transition flex items-center justify-center gap-2.5 shadow-sm ${
-            activeSubTab === 'rates'
-              ? 'bg-white text-blue-700 border border-blue-200 shadow-md shadow-blue-900/5'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-          }`}
-        >
-          <span className="material-symbols-outlined text-lg">price_change</span>
-          1. ตั้งค่า อัตราจ่าย (Payout Rates & Discounts)
-        </button>
-        <button
-          onClick={() => setActiveSubTab('intake')}
-          className={`flex-1 py-3 px-5 rounded-xl text-sm font-black transition flex items-center justify-center gap-2.5 shadow-sm ${
-            activeSubTab === 'intake'
-              ? 'bg-white text-emerald-700 border border-emerald-200 shadow-md shadow-emerald-900/5'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-          }`}
-        >
-          <span className="material-symbols-outlined text-lg">shield_with_heart</span>
-          2. ตั้งค่ากิน (Risk Intake & คำนวณใส่ตัวเงิน)
-        </button>
-      </div>
-
       {/* ========================================================================= */}
-      {/* แถบที่ 1: ตั้งค่า อัตราจ่าย (Payout Rates)                                 */}
+      {/* 3. ตารางกำหนดอัตราจ่าย และเพดานเดิมพัน (ไม่มีแท็บสลับ - จ่ายเต็ม 100% ล็อค 10%) */}
       {/* ========================================================================= */}
-      {activeSubTab === 'rates' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
-              <div>
-                <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-blue-600">payments</span>
-                  กำหนดอัตราจ่ายเต็ม ส่วนลด และเพดานแทงต่อบิล: {selectedLottery}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  ปรับเปลี่ยนอัตราจ่ายของรอบ {currentRound?.roundNumber || 'งวดปัจจุบัน'} มีผลต่อการคำนวณเงินรางวัลของสมาชิกทันที
-                </p>
-              </div>
-
-              <button
-                onClick={() => handleSave('rates')}
-                disabled={saving || loading}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black shadow-md shadow-blue-600/25 transition active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-sm">save</span>
-                {saving ? 'กำลังบันทึก...' : 'บันทึกอัตราจ่าย'}
-              </button>
+      <div className="space-y-6">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+            <div>
+              <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                <span className="material-symbols-outlined text-blue-600">payments</span>
+                กำหนดอัตราจ่ายเต็ม เพดานแทงต่อบิล และแทงสูงสุดต่อยูส: {selectedLottery}
+              </h3>
+              <p className="text-xs text-slate-500">
+                รอบ {currentRound?.roundNumber || 'งวดปัจจุบัน'} • อัตราจ่ายเต็ม 100% มีผลต่อการคำนวณเงินรางวัลของสมาชิกทันที
+              </p>
             </div>
 
-            {/* ตารางอัตราจ่าย */}
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase font-black">
-                    <th className="py-3 px-4">ประเภทเดิมพัน</th>
-                    <th className="py-3 px-4 text-center">อัตราจ่ายเต็ม (บาท)</th>
-                    <th className="py-3 px-4 text-center">ส่วนลด (%)</th>
-                    <th className="py-3 px-4 text-center">จ่ายหลังลด (บาท)</th>
-                    <th className="py-3 px-4 text-center">แทงขั้นต่ำ (บาท)</th>
-                    <th className="py-3 px-4 text-center">แทงสูงสุด (บาท)</th>
-                    <th className="py-3 px-4 text-center">สถานะ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-800 font-bold">
-                  {intakeItems.map((item, idx) => (
-                    <tr key={item.id} className="hover:bg-blue-50/40 transition">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                          <span className="font-black text-slate-900">{item.name}</span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <input
-                          type="number"
-                          value={item.baseRate}
-                          onChange={(e) => handleBaseRateChange(idx, Number(e.target.value) || 0)}
-                          className="w-24 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-blue-700 outline-none focus:border-blue-500 focus:bg-white"
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={item.discountPercent}
-                          onChange={(e) => handleDiscountChange(idx, Number(e.target.value) || 0)}
-                          className="w-20 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-slate-700 outline-none focus:border-blue-500 focus:bg-white"
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-black text-xs inline-block">
-                          ฿{item.discountedRate.toLocaleString()}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <input
-                          type="number"
-                          value={item.minBet}
-                          onChange={(e) => handleItemFieldChange(idx, 'minBet', Number(e.target.value) || 1)}
-                          className="w-20 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-blue-500"
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <input
-                          type="number"
-                          value={item.maxBet}
-                          onChange={(e) => handleItemFieldChange(idx, 'maxBet', Number(e.target.value) || 5000)}
-                          className="w-24 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-blue-500"
-                        />
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleItemFieldChange(idx, 'enabled', !item.enabled)}
-                          className={`px-3 py-1 rounded-full text-[11px] font-black transition ${
-                            item.enabled !== false
-                              ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                              : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-                          }`}
-                        >
-                          {item.enabled !== false ? 'เปิดรับ' : 'ปิด'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <button
+              onClick={() => handleSave()}
+              disabled={saving || loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-xs font-black shadow-md shadow-blue-600/25 transition active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm">save</span>
+              {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าหวย'}
+            </button>
           </div>
-        </div>
-      )}
 
-      {/* ========================================================================= */}
-      {/* แถบที่ 2: ตั้งค่ากิน (Risk Intake & คำนวณใส่ตัวเงิน)                        */}
-      {/* ========================================================================= */}
-      {activeSubTab === 'intake' && (
-        <div className="space-y-6">
-          {/* แผงคำนวณงบประมาณรับกินใส่ตัวเงิน (Budget Allocation Calculator) */}
-          <div className="bg-gradient-to-br from-emerald-950 to-slate-900 text-white p-6 rounded-2xl border border-emerald-900/50 shadow-xl space-y-5">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-emerald-800/40 pb-4">
+          {/* ป้ายแจ้งเตือนระบบส่วนลดล็อคคงที่ 10% จ่ายเต็ม 100% */}
+          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 p-3.5 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-emerald-600 text-xl">lock</span>
               <div>
-                <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-sm">calculate</span>
-                  การจัดสรรงบรับกินความเสี่ยงใส่ตัวเงินจริง (Per-Round Budget Allocation)
+                <span className="text-xs font-black text-emerald-950">
+                  ระบบส่วนลดถูกล็อคคงที่ 10% • อัตราจ่าย 100% เต็ม (เช่น 3 ตัวบน ฿{intakeItems.find(i => i.name === '3 ตัวบน')?.baseRate || 900} / 2 ตัวบน ฿{intakeItems.find(i => i.name === '2 ตัวบน')?.baseRate || 92} จ่ายเต็ม ไม่มีหักลดทอน)
                 </span>
-                <h3 className="text-xl font-black text-white mt-1">
-                  รอบ: {currentRound?.roundNumber || 'งวดปัจจุบัน'} • {selectedLottery}
-                </h3>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleAutoBalance100}
-                  className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-3.5 py-2 rounded-xl text-xs font-black transition active:scale-95 flex items-center gap-1.5"
-                >
-                  <span className="material-symbols-outlined text-sm">balance</span>
-                  จัดสรร 100% อัตโนมัติ
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSave('intake')}
-                  disabled={saving || loading}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/25 transition active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  <span className="material-symbols-outlined text-sm">save</span>
-                  {saving ? 'กำลังบันทึก...' : 'บันทึกเพดานรับกิน'}
-                </button>
-              </div>
-            </div>
-
-            {/* ช่องกรอกตัวเงินงบรับกินรวม */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                  งบรับกินรวมต่องวด (บาท):
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-emerald-400 font-black text-lg">฿</span>
-                  <input
-                    type="number"
-                    value={globalRiskBudget}
-                    onChange={(e) => handleGlobalBudgetChange(Number(e.target.value) || 0)}
-                    className="w-full bg-black/30 border border-emerald-500/40 rounded-lg p-2 text-base font-black text-emerald-300 outline-none focus:border-emerald-400"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">งบความเสี่ยงรวมที่จะกระจายไปยัง 14 ประเภทย่อย</p>
-              </div>
-
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <label className="text-[11px] font-bold text-slate-400 block mb-1">
-                  จำกัดยอดแทงสูงสุดต่อยูสเซอร์ (บาท):
-                </label>
-                <div className="flex items-center gap-2">
-                  <span className="text-emerald-400 font-black text-lg">฿</span>
-                  <input
-                    type="number"
-                    value={maxUserLimit}
-                    onChange={(e) => setMaxUserLimit(Number(e.target.value) || 0)}
-                    className="w-full bg-black/30 border border-white/20 rounded-lg p-2 text-base font-black text-white outline-none focus:border-emerald-400"
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">เพดานแทงรวมของสมาชิกคนเดียวในรอบนี้</p>
-              </div>
-
-              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-[11px] font-bold text-slate-400">สัดส่วนที่จัดสรรแล้ว:</span>
-                  <span className={`text-xs font-black ${
-                    totalAllocatedPercent === 100 ? 'text-emerald-400' : 'text-amber-400'
-                  }`}>
-                    {totalAllocatedPercent}% / 100%
-                  </span>
-                </div>
-                {/* Progress Bar */}
-                <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden mt-2 p-0.5">
-                  <div
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      totalAllocatedPercent === 100 ? 'bg-emerald-400' : totalAllocatedPercent > 100 ? 'bg-rose-500' : 'bg-amber-400'
-                    }`}
-                    style={{ width: `${Math.min(100, totalAllocatedPercent)}%` }}
-                  />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-2">
-                  รวมงบเงินจัดสรรแล้ว: <b className="text-white">฿{totalAllocatedMoney.toLocaleString()}</b> (คงเหลือ {remainingPercent}%)
+                <p className="text-[11px] text-emerald-700">
+                  ตั้งอัตราจ่ายเท่าไหร่ สมาชิกได้รับรางวัลเต็มจำนวน 100% ตามที่กำหนด
                 </p>
               </div>
             </div>
+            <span className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-black tracking-wide whitespace-nowrap shadow-sm">
+              🔒 จ่ายเต็ม 100%
+            </span>
           </div>
 
-          {/* ตารางคำนวณตัวเงินรับกิน (Type Budget & Max Intake Per Number) */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-            <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
-              <span className="material-symbols-outlined text-emerald-600">table_chart</span>
-              ตารางคำนวณงบเงินรับกินและเพดานรับกินรายเลข (กินตัวละเท่าไหร่)
-            </h4>
-
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase font-black">
-                    <th className="py-3 px-4">ประเภทเดิมพัน</th>
-                    <th className="py-3 px-3 text-center">สัดส่วนรับกิน (%)</th>
-                    <th className="py-3 px-4 text-center">งบเงินประเภทนี้ (บาท)</th>
-                    <th className="py-3 px-4 text-center bg-emerald-50/50">กินตัวละเท่าไหร่ (บาท)</th>
-                    <th className="py-3 px-4 text-center">ภาระจ่ายเสี่ยงสูงสุด (บาท)</th>
-                    <th className="py-3 px-3 text-center">จำนวนเลขเต็มงบ</th>
-                    <th className="py-3 px-3 text-center">สถานะ</th>
+          {/* ตารางอัตราจ่ายและเพดานเดิมพัน */}
+          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase font-black">
+                  <th className="py-3 px-4">ประเภทเดิมพัน</th>
+                  <th className="py-3 px-4 text-center">อัตราจ่ายเต็ม (บาท)</th>
+                  <th className="py-3 px-4 text-center">แทงขั้นต่ำ (บาท)</th>
+                  <th className="py-3 px-4 text-center">แทงสูงสุดต่อบิล (บาท)</th>
+                  <th className="py-3 px-4 text-center bg-blue-50/70 text-blue-900 border-x border-blue-100">
+                    แทงสูงสุดต่อยูส (บาท)
+                  </th>
+                  <th className="py-3 px-4 text-center">สถานะ</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-800 font-bold">
+                {intakeItems.map((item, idx) => (
+                  <tr key={item.id} className="hover:bg-blue-50/40 transition">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                        <span className="font-black text-slate-900">{item.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <input
+                        type="number"
+                        value={item.baseRate}
+                        onChange={(e) => handleBaseRateChange(idx, Number(e.target.value) || 0)}
+                        className="w-24 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-blue-700 outline-none focus:border-blue-500 focus:bg-white"
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <input
+                        type="number"
+                        value={item.minBet}
+                        onChange={(e) => handleItemFieldChange(idx, 'minBet', Number(e.target.value) || 1)}
+                        className="w-20 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-blue-500"
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <input
+                        type="number"
+                        value={item.maxBet}
+                        onChange={(e) => handleItemFieldChange(idx, 'maxBet', Number(e.target.value) || 5000)}
+                        className="w-24 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-blue-500"
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-center bg-blue-50/30 border-x border-blue-100">
+                      <input
+                        type="number"
+                        value={item.maxBetPerUser ?? 50000}
+                        onChange={(e) => handleItemFieldChange(idx, 'maxBetPerUser', Number(e.target.value) || 0)}
+                        className="w-28 text-center py-1.5 px-2 bg-white border border-blue-300 rounded-lg text-xs font-black text-blue-800 outline-none focus:border-blue-600 shadow-2xs"
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleItemFieldChange(idx, 'enabled', !item.enabled)}
+                        className={`px-3 py-1 rounded-full text-[11px] font-black transition ${
+                          item.enabled !== false
+                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+                        }`}
+                      >
+                        {item.enabled !== false ? 'เปิดรับ' : 'ปิด'}
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-800 font-bold">
-                  {intakeItems.map((item, idx) => {
-                    const maxPayoutExposure = Math.round(item.maxIntakePerNumber * item.baseRate);
-                    const numberCapacity = item.maxIntakePerNumber > 0 
-                      ? Math.floor(item.totalTypeBudget / item.maxIntakePerNumber) 
-                      : 0;
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-                    return (
-                      <tr key={item.id} className="hover:bg-emerald-50/40 transition">
-                        <td className="py-3 px-4 font-black text-slate-900">
-                          {item.name}
-                          <span className="block text-[10px] text-slate-400 font-normal">เรทจ่าย: ฿{item.baseRate}</span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={item.allocationPercent}
-                            onChange={(e) => handleAllocationChange(idx, Number(e.target.value) || 0)}
-                            className="w-16 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-slate-800 outline-none focus:border-emerald-500 focus:bg-white"
-                          />
-                          <span className="text-[10px] text-slate-400 ml-1">%</span>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-900 font-black text-xs inline-block">
-                            ฿{item.totalTypeBudget.toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-center bg-emerald-50/30">
-                          <div className="flex items-center justify-center gap-1">
-                            <span className="text-emerald-700 font-black">฿</span>
-                            <input
-                              type="number"
-                              value={item.maxIntakePerNumber}
-                              onChange={(e) => handleItemFieldChange(idx, 'maxIntakePerNumber', Number(e.target.value) || 0)}
-                              className="w-24 text-center py-1.5 px-2 bg-white border border-emerald-300 rounded-lg text-xs font-black text-emerald-800 outline-none focus:border-emerald-500 shadow-sm"
-                            />
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <span className="text-xs font-black text-rose-700">
-                            ฿{maxPayoutExposure.toLocaleString()}
-                          </span>
-                          <span className="block text-[9px] text-slate-400 font-normal">(กินตัวละ × เรท)</span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 text-[11px] font-black">
-                            {numberCapacity} เลข
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleItemFieldChange(idx, 'enabled', !item.enabled)}
-                            className={`px-3 py-1 rounded-full text-[11px] font-black transition ${
-                              item.enabled !== false
-                                ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
-                                : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-                            }`}
-                          >
-                            {item.enabled !== false ? 'เปิดรับ' : 'ปิด'}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={() => handleSave()}
+              disabled={saving || loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl text-xs font-black shadow-md shadow-blue-600/25 transition active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <span className="material-symbols-outlined text-sm">save</span>
+              {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าหวย'}
+            </button>
           </div>
         </div>
-      )}
+
+        {/* 4. เมนูพับเก็บได้สำหรับการจัดสรรงบประมาณรับกินความเสี่ยงต่องวด (เครื่องมือคำนวณขั้นสูง) */}
+        <div className="rounded-2xl border border-slate-200 overflow-hidden bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => setShowBudgetCalculator(!showBudgetCalculator)}
+            className="w-full flex items-center justify-between p-4 bg-slate-50 hover:bg-slate-100 transition text-left"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="material-symbols-outlined text-emerald-600">calculate</span>
+              <div>
+                <span className="text-xs font-black text-slate-900">
+                  เครื่องมือคำนวณงบประมาณรับกินความเสี่ยงและเพดานรับกินรายเลขต่องวด (ขั้นสูง)
+                </span>
+                <p className="text-[10px] text-slate-500">
+                  กำหนดงบรวมต่องวด (Global Risk Budget) และเพดานกินตัวละเท่าไหร่
+                </p>
+              </div>
+            </div>
+            <span className={`material-symbols-outlined text-slate-500 transition-transform ${showBudgetCalculator ? 'rotate-180' : ''}`}>
+              expand_more
+            </span>
+          </button>
+
+          {showBudgetCalculator && (
+            <div className="p-6 space-y-6 border-t border-slate-200">
+              {/* แผงคำนวณงบประมาณรับกินใส่ตัวเงิน (Budget Allocation Calculator) */}
+              <div className="bg-gradient-to-br from-emerald-950 to-slate-900 text-white p-6 rounded-2xl border border-emerald-900/50 shadow-xl space-y-5">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-emerald-800/40 pb-4">
+                  <div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-sm">calculate</span>
+                      การจัดสรรงบรับกินความเสี่ยงใส่ตัวเงินจริง (Per-Round Budget Allocation)
+                    </span>
+                    <h3 className="text-xl font-black text-white mt-1">
+                      รอบ: {currentRound?.roundNumber || 'งวดปัจจุบัน'} • {selectedLottery}
+                    </h3>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={handleAutoBalance100}
+                      className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 px-3.5 py-2 rounded-xl text-xs font-black transition active:scale-95 flex items-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-sm">balance</span>
+                      จัดสรร 100% อัตโนมัติ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSave()}
+                      disabled={saving || loading}
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2 rounded-xl text-xs font-black shadow-lg shadow-emerald-500/25 transition active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-sm">save</span>
+                      {saving ? 'กำลังบันทึก...' : 'บันทึกเพดานรับกิน'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* ช่องกรอกตัวเงินงบรับกินรวม */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      งบรับกินรวมต่องวด (บาท):
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-400 font-black text-lg">฿</span>
+                      <input
+                        type="number"
+                        value={globalRiskBudget}
+                        onChange={(e) => handleGlobalBudgetChange(Number(e.target.value) || 0)}
+                        className="w-full bg-black/30 border border-emerald-500/40 rounded-lg p-2 text-base font-black text-emerald-300 outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">งบความเสี่ยงรวมที่จะกระจายไปยังประเภทย่อย</p>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <label className="text-[11px] font-bold text-slate-400 block mb-1">
+                      จำกัดยอดแทงสูงสุดต่อยูสเซอร์ (บาท):
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-emerald-400 font-black text-lg">฿</span>
+                      <input
+                        type="number"
+                        value={maxUserLimit}
+                        onChange={(e) => setMaxUserLimit(Number(e.target.value) || 0)}
+                        className="w-full bg-black/30 border border-white/20 rounded-lg p-2 text-base font-black text-white outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-1">เพดานแทงรวมของสมาชิกคนเดียวในรอบนี้</p>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="text-[11px] font-bold text-slate-400">สัดส่วนที่จัดสรรแล้ว:</span>
+                      <span className={`text-xs font-black ${
+                        totalAllocatedPercent === 100 ? 'text-emerald-400' : 'text-amber-400'
+                      }`}>
+                        {totalAllocatedPercent}% / 100%
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/10 h-3 rounded-full overflow-hidden mt-2 p-0.5">
+                      <div
+                        className={`h-full rounded-full transition-all duration-300 ${
+                          totalAllocatedPercent === 100 ? 'bg-emerald-400' : totalAllocatedPercent > 100 ? 'bg-rose-500' : 'bg-amber-400'
+                        }`}
+                        style={{ width: `${Math.min(100, totalAllocatedPercent)}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400 mt-2">
+                      รวมงบเงินจัดสรรแล้ว: <b className="text-white">฿{totalAllocatedMoney.toLocaleString()}</b> (คงเหลือ {remainingPercent}%)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* ตารางคำนวณตัวเงินรับกิน (Type Budget & Max Intake Per Number) */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <h4 className="text-sm font-black text-slate-800 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-emerald-600">table_chart</span>
+                  ตารางคำนวณงบเงินรับกินและเพดานรับกินรายเลข (กินตัวละเท่าไหร่)
+                </h4>
+
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase font-black">
+                        <th className="py-3 px-4">ประเภทเดิมพัน</th>
+                        <th className="py-3 px-3 text-center">สัดส่วนรับกิน (%)</th>
+                        <th className="py-3 px-4 text-center">งบเงินประเภทนี้ (บาท)</th>
+                        <th className="py-3 px-4 text-center bg-emerald-50/50">กินตัวละเท่าไหร่ (บาท)</th>
+                        <th className="py-3 px-4 text-center">ภาระจ่ายเสี่ยงสูงสุด (บาท)</th>
+                        <th className="py-3 px-3 text-center">จำนวนเลขเต็มงบ</th>
+                        <th className="py-3 px-3 text-center">สถานะ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-800 font-bold">
+                      {intakeItems.map((item, idx) => {
+                        const maxPayoutExposure = Math.round(item.maxIntakePerNumber * item.baseRate);
+                        const numberCapacity = item.maxIntakePerNumber > 0 
+                          ? Math.floor(item.totalTypeBudget / item.maxIntakePerNumber) 
+                          : 0;
+
+                        return (
+                          <tr key={item.id} className="hover:bg-emerald-50/40 transition">
+                            <td className="py-3 px-4 font-black text-slate-900">
+                              {item.name}
+                              <span className="block text-[10px] text-slate-400 font-normal">เรทจ่าย: ฿{item.baseRate}</span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <input
+                                type="number"
+                                min="0"
+                                max="100"
+                                step="0.1"
+                                value={item.allocationPercent}
+                                onChange={(e) => handleAllocationChange(idx, Number(e.target.value) || 0)}
+                                className="w-16 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-slate-800 outline-none focus:border-emerald-500 focus:bg-white"
+                              />
+                              <span className="text-[10px] text-slate-400 ml-1">%</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="px-3 py-1.5 rounded-lg bg-slate-100 text-slate-900 font-black text-xs inline-block">
+                                ฿{item.totalTypeBudget.toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 text-center bg-emerald-50/30">
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="text-emerald-700 font-black">฿</span>
+                                <input
+                                  type="number"
+                                  value={item.maxIntakePerNumber}
+                                  onChange={(e) => handleItemFieldChange(idx, 'maxIntakePerNumber', Number(e.target.value) || 0)}
+                                  className="w-24 text-center py-1.5 px-2 bg-white border border-emerald-300 rounded-lg text-xs font-black text-emerald-800 outline-none focus:border-emerald-500 shadow-sm"
+                                />
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="text-xs font-black text-rose-700">
+                                ฿{maxPayoutExposure.toLocaleString()}
+                              </span>
+                              <span className="block text-[9px] text-slate-400 font-normal">(กินตัวละ × เรท)</span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <span className="px-2.5 py-1 rounded-md bg-blue-50 text-blue-800 text-[11px] font-black">
+                                {numberCapacity} เลข
+                              </span>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleItemFieldChange(idx, 'enabled', !item.enabled)}
+                                className={`px-3 py-1 rounded-full text-[11px] font-black transition ${
+                                  item.enabled !== false
+                                    ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                                    : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
+                                }`}
+                              >
+                                {item.enabled !== false ? 'เปิดรับ' : 'ปิด'}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

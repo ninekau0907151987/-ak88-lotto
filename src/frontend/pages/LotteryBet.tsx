@@ -1237,9 +1237,17 @@ export default function LotteryBet() {
         const r = Number(info.customPayoutRate ?? info.payoutRate);
         if (r > 0) payoutRate = r;
       }
+      const subItem = Array.isArray(lotteryConfig?.subItems) 
+        ? lotteryConfig.subItems.find((s: any) => s.name === bet.type) 
+        : null;
+      const typeMinBet = Number(subItem?.minBet ?? lotteryConfig?.minBets?.[bet.type] ?? minBet);
+      const typeMaxBet = Number(subItem?.maxBet ?? lotteryConfig?.maxBets?.[bet.type] ?? maxPerBet);
+      const typeMaxPerUser = Number(subItem?.maxBetPerUser ?? lotteryConfig?.maxPerUsers?.[bet.type]);
+
+      if (typeMinBet && bet.amount < typeMinBet) errors.push(`${bet.type} ${bet.number}: ขั้นต่ำ ${typeMinBet} บาท`);
+      if (typeMaxBet && bet.amount > typeMaxBet) errors.push(`${bet.type} ${bet.number}: สูงสุด ${typeMaxBet} บาทต่อบิล`);
+      if (typeMaxPerUser && bet.amount > typeMaxPerUser) errors.push(`${bet.type} ${bet.number}: เกินเพดานแทงสูงสุดต่อยูส ฿${typeMaxPerUser.toLocaleString()} บาท`);
       const maxAmt = Number(info?.maxAmount) || 0;
-      if (minBet && bet.amount < minBet) errors.push(`${bet.type} ${bet.number}: ขั้นต่ำ ${minBet} บาท`);
-      if (maxPerBet && bet.amount > maxPerBet) errors.push(`${bet.type} ${bet.number}: สูงสุด ${maxPerBet} บาท`);
       if (maxAmt && bet.amount > maxAmt) errors.push(`${bet.type} ${bet.number}: เลขนี้ซื้อได้สูงสุด ${maxAmt} บาท`);
       const median = Number(lotteryConfig?.medianRates?.[bet.type]) || 0;
       out.push({
