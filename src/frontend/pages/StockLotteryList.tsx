@@ -2,23 +2,24 @@ import { Link, useNavigate } from 'react-router-dom';
 
 export default function StockLotteryList() {
   const navigate = useNavigate();
-  // ข้อมูลจำลองสำหรับหวยหุ้น (มีทั้งเปิดรับและปิดรับ)
+  // ข้อมูลสำหรับหวยหุ้น: เปิดเฉพาะ หุ้นไทย (เช้า) เท่านั้น หวยอื่นปิดรับทั้งหมด
   const stocks = [
-    { id: 'nikkei-m', name: 'หุ้นนิเคอิ (เช้า)', flag: '🇯🇵', closeTime: '09:20 น.', isOpen: true },
+    { id: 'thai-morning', name: 'หุ้นไทย (เช้า)', flag: '🇹🇭', closeTime: '10:00 น.', isOpen: true },
+    { id: 'nikkei-m', name: 'หุ้นนิเคอิ (เช้า)', flag: '🇯🇵', closeTime: '09:20 น.', isOpen: false },
     { id: 'nikkei-a', name: 'หุ้นนิเคอิ (บ่าย)', flag: '🇯🇵', closeTime: '12:50 น.', isOpen: false },
-    { id: 'hsi-m', name: 'หุ้นฮั่งเส็ง (เช้า)', flag: '🇭🇰', closeTime: '10:50 น.', isOpen: true },
-    { id: 'hsi-a', name: 'หุ้นฮั่งเส็ง (บ่าย)', flag: '🇭🇰', closeTime: '14:50 น.', isOpen: true },
+    { id: 'hsi-m', name: 'หุ้นฮั่งเส็ง (เช้า)', flag: '🇭🇰', closeTime: '10:50 น.', isOpen: false },
+    { id: 'hsi-a', name: 'หุ้นฮั่งเส็ง (บ่าย)', flag: '🇭🇰', closeTime: '14:50 น.', isOpen: false },
     { id: 'china-m', name: 'หุ้นจีน (เช้า)', flag: '🇨🇳', closeTime: '10:20 น.', isOpen: false },
-    { id: 'china-a', name: 'หุ้นจีน (บ่าย)', flag: '🇨🇳', closeTime: '13:50 น.', isOpen: true },
-    { id: 'taiwan', name: 'หุ้นไต้หวัน', flag: '🇹🇼', closeTime: '12:20 น.', isOpen: true },
+    { id: 'china-a', name: 'หุ้นจีน (บ่าย)', flag: '🇨🇳', closeTime: '13:50 น.', isOpen: false },
+    { id: 'taiwan', name: 'หุ้นไต้หวัน', flag: '🇹🇼', closeTime: '12:20 น.', isOpen: false },
     { id: 'korea', name: 'หุ้นเกาหลี', flag: '🇰🇷', closeTime: '12:50 น.', isOpen: false },
-    { id: 'singapore', name: 'หุ้นสิงคโปร์', flag: '🇸🇬', closeTime: '15:50 น.', isOpen: true },
-    { id: 'india', name: 'หุ้นอินเดีย', flag: '🇮🇳', closeTime: '16:40 น.', isOpen: true },
+    { id: 'singapore', name: 'หุ้นสิงคโปร์', flag: '🇸🇬', closeTime: '15:50 น.', isOpen: false },
+    { id: 'india', name: 'หุ้นอินเดีย', flag: '🇮🇳', closeTime: '16:40 น.', isOpen: false },
     { id: 'russia', name: 'หุ้นรัสเซีย', flag: '🇷🇺', closeTime: '22:30 น.', isOpen: false },
-    { id: 'egypt', name: 'หุ้นอียิปต์', flag: '🇪🇬', closeTime: '18:50 น.', isOpen: true },
+    { id: 'egypt', name: 'หุ้นอียิปต์', flag: '🇪🇬', closeTime: '18:50 น.', isOpen: false },
     { id: 'germany', name: 'หุ้นเยอรมัน', flag: '🇩🇪', closeTime: '22:20 น.', isOpen: false },
-    { id: 'england', name: 'หุ้นอังกฤษ', flag: '🇬🇧', closeTime: '22:20 น.', isOpen: true },
-    { id: 'dowjones', name: 'หุ้นดาวโจนส์', flag: '🇺🇸', closeTime: '03:00 น.', isOpen: true },
+    { id: 'england', name: 'หุ้นอังกฤษ', flag: '🇬🇧', closeTime: '22:20 น.', isOpen: false },
+    { id: 'dowjones', name: 'หุ้นดาวโจนส์', flag: '🇺🇸', closeTime: '03:00 น.', isOpen: false },
   ];
 
   return (

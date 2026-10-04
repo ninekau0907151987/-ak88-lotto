@@ -20,7 +20,7 @@ import {
   prettyValue, didChange, getPinInfo, setPin,
 } from '@/shared/lib/settingsHistory';
 import {
-  LOTTERY_CATEGORIES, getLotteryCategory, getCategoryLabel, MASTER_LOTTERY_CATALOG,
+  LOTTERY_CATEGORIES, getLotteryCategory, getCategoryLabel, MASTER_LOTTERY_CATALOG, isAllowedOpenLottery,
   type LotteryCategoryKey
 } from '@/shared/lib/lotteryCatalog';
 import RoundSchedulerManager from '../components/RoundSchedulerManager';
@@ -1158,6 +1158,68 @@ export default function AdminDashboard() {
     }
   };
 
+  const applyOnlyThreeLotteries = async () => {
+    try {
+      const types = Object.keys(lotterySettings);
+      await Promise.all(types.map(type => {
+        const shouldOpen = isAllowedOpenLottery(type);
+        return setDoc(doc(db, 'lotteryTypes', type), { 
+          isOpen: shouldOpen,
+          status: shouldOpen ? 'open' : 'closed',
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }));
+
+      // ตรวจสอบและเปิดรอบให้ หุ้นไทยเช้า
+      const now = new Date();
+      const nextMorning = new Date(now);
+      nextMorning.setHours(10, 0, 0, 0);
+      if (nextMorning.getTime() <= now.getTime()) {
+        nextMorning.setDate(nextMorning.getDate() + 1);
+      }
+      await setDoc(doc(db, 'lotteryTypes', 'หุ้นไทยเช้า'), {
+        id: 'หุ้นไทยเช้า',
+        name: 'หุ้นไทยเช้า',
+        category: 'stock',
+        icon: '🇹🇭',
+        path: '/lottery/stock/thai-morning',
+        isOpen: true,
+        status: 'open',
+        closingTime: nextMorning.toISOString(),
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // ตรวจสอบและเปิดรอบให้ หวยรัฐบาลไทย
+      await setDoc(doc(db, 'lotteryTypes', 'หวยรัฐบาลไทย'), {
+        id: 'หวยรัฐบาลไทย',
+        name: 'หวยรัฐบาลไทย',
+        category: 'thai',
+        icon: '🇹🇭',
+        path: '/lottery/thai',
+        isOpen: true,
+        status: 'open',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      // ตรวจสอบและเปิดรอบให้ หวยยี่กี 88 รอบ
+      await setDoc(doc(db, 'lotteryTypes', 'หวยยี่กี 88 รอบ'), {
+        id: 'หวยยี่กี 88 รอบ',
+        name: 'หวยยี่กี 88 รอบ',
+        category: 'yeekee',
+        icon: '⏱️',
+        path: '/lottery/yeekee',
+        isOpen: true,
+        status: 'open',
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+
+      await logActivity('เปิด 3 หวยหลัก', 'เปิดเฉพาะ หวยไทย, หุ้นไทยเช้า, ยี่กี และปิดหวยอื่นทั้งหมด', 'lottery');
+    } catch (e: any) {
+      console.error('applyOnlyThreeLotteries failed:', e);
+      throw e;
+    }
+  };
+
   const syncAllLotteries = async () => {
     if(!window.confirm(`ระบบจะซิงค์ประเภทหวยทั้งหมด (${MASTER_LOTTERY_CATALOG.length} รายการ) พร้อมจัดหมวดหมู่ให้ตรงกันทั้งหน้าบ้านและหลังบ้าน ดำเนินการต่อหรือไม่?`)) return;
     
@@ -1165,6 +1227,7 @@ export default function AdminDashboard() {
       for (const item of MASTER_LOTTERY_CATALOG) {
         const found = Object.values(lotterySettings).find((l: any) => l.name === item.name || l.id === item.name);
         const docId = found ? (found as any).id || item.name : item.name;
+        const shouldOpen = isAllowedOpenLottery(item.name);
         
         await setDoc(doc(db, 'lotteryTypes', docId), {
           id: docId,
@@ -1172,7 +1235,7 @@ export default function AdminDashboard() {
           category: item.category,
           icon: item.icon,
           path: item.path,
-          isOpen: true,
+          isOpen: shouldOpen,
           isHidden: false,
           updatedAt: new Date().toISOString()
         }, { merge: true });
@@ -2502,19 +2565,20 @@ export default function AdminDashboard() {
               </div>
 
               <LotteryOpenCloseManager
-              lotterySettings={lotterySettings}
-              onToggleStatus={toggleLotteryStatus}
-              onToggleAllStatus={toggleAllLotteryStatus}
-              onUpdateClosingTime={updateLotterySession}
-              onDeleteLottery={handleDeleteLottery}
-              onSyncAllLotteries={syncAllLotteries}
-              onOpenAddModal={() => setShowAddLotteryModal(true)}
-              onOpenResistance={(type) => {
-                setSelectedResistanceLottery(type);
-                setActiveTab('settings');
-                setActiveSettingsSubTab('resistance');
-              }}
-            />
+                lotterySettings={lotterySettings}
+                onToggleStatus={toggleLotteryStatus}
+                onToggleAllStatus={toggleAllLotteryStatus}
+                onApplyOnlyThree={applyOnlyThreeLotteries}
+                onUpdateClosingTime={updateLotterySession}
+                onDeleteLottery={handleDeleteLottery}
+                onSyncAllLotteries={syncAllLotteries}
+                onOpenAddModal={() => setShowAddLotteryModal(true)}
+                onOpenResistance={(type) => {
+                  setSelectedResistanceLottery(type);
+                  setActiveTab('settings');
+                  setActiveSettingsSubTab('resistance');
+                }}
+              />
             </div>
           )}
 
@@ -2874,6 +2938,7 @@ export default function AdminDashboard() {
                   lotterySettings={lotterySettings}
                   onToggleStatus={toggleLotteryStatus}
                   onToggleAllStatus={toggleAllLotteryStatus}
+                  onApplyOnlyThree={applyOnlyThreeLotteries}
                   onUpdateClosingTime={updateLotterySession}
                   onDeleteLottery={handleDeleteLottery}
                   onSyncAllLotteries={syncAllLotteries}

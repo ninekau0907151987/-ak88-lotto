@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import LotteryCategorySelector from './LotteryCategorySelector';
+import { supabaseClient } from '@/shared/lib/firebase';
+import { isAllowedOpenLottery } from '@/shared/lib/lotteryCatalog';
 
 interface RoundItem {
   id?: string;
@@ -20,7 +22,7 @@ interface Props {
 export default function RoundSchedulerManager({ lotteryTypes = {}, onLogActivity }: Props) {
   const lottoList = Object.keys(lotteryTypes).length > 0
     ? Object.keys(lotteryTypes)
-    : ['หวยรัฐบาลไทย', 'หวยลาวพัฒนา', 'หวยฮานอยพิเศษ', 'หวยมาเลย์ 4D', 'หวยยี่กี 88 รอบ'];
+    : ['หวยรัฐบาลไทย', 'หุ้นไทยเช้า', 'หวยยี่กี 88 รอบ'];
 
   const [selectedLottery, setSelectedLottery] = useState<string>(lottoList[0] || 'หวยรัฐบาลไทย');
   const [rounds, setRounds] = useState<RoundItem[]>([]);
@@ -34,40 +36,75 @@ export default function RoundSchedulerManager({ lotteryTypes = {}, onLogActivity
     { roundNumber: 'งวดที่ 1', openTime: '', closeTime: '', resultTime: '' }
   ]);
 
-  // Fetch Calendar Data from API
+  // Fetch Calendar Data from API or Supabase Direct
   const fetchCalendar = async (lotType: string) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/v1/rounds/calendar?type=${encodeURIComponent(lotType)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      if (json.status === 'success' && Array.isArray(json.rounds)) {
-        setRounds(json.rounds);
+      if (res.ok) {
+        const json = await res.json();
+        if (json.status === 'success' && Array.isArray(json.rounds)) {
+          setRounds(json.rounds);
+          return;
+        }
       }
     } catch (err: any) {
-      console.warn('Fallback rounds query:', err.message);
-      // Fallback sample data if empty
-      setRounds([
-        {
-          id: 'sample-1',
-          roundNumber: '16 พฤษภาคม 2567',
-          lotteryType: lotType,
-          openTime: new Date(Date.now() - 3600000).toISOString(),
-          closeTime: new Date(Date.now() + 3600000 * 4).toISOString(),
-          resultTime: new Date(Date.now() + 3600000 * 5).toISOString(),
-          status: 'active'
-        },
-        {
-          id: 'sample-2',
-          roundNumber: '02 พฤษภาคม 2567',
-          lotteryType: lotType,
-          openTime: new Date(Date.now() - 3600000 * 48).toISOString(),
-          closeTime: new Date(Date.now() - 3600000 * 24).toISOString(),
-          resultTime: new Date(Date.now() - 3600000 * 22).toISOString(),
-          status: 'resulted',
-          winningNumbers: { top3: '942', bottom2: '58' }
-        }
-      ]);
+      console.warn('API rounds failed, trying Supabase direct:', err.message);
+    }
+
+    try {
+      const { data: dbRounds } = await supabaseClient
+        .from('lottery_rounds')
+        .select('*')
+        .eq('lottery_type', lotType)
+        .order('created_at', { ascending: false });
+
+      if (dbRounds && dbRounds.length > 0) {
+        setRounds(dbRounds.map((r: any) => ({
+          id: r.id,
+          roundNumber: r.round_number || r.roundNumber || 'งวดปัจจุบัน',
+          lotteryType: r.lottery_type || lotType,
+          openTime: r.open_time || r.openTime || new Date().toISOString(),
+          closeTime: r.close_time || r.closeTime || new Date().toISOString(),
+          resultTime: r.result_time || r.resultTime,
+          status: r.status === 'open' ? 'active' : (r.status || 'closed'),
+          winningNumbers: r.result || r.winningNumbers
+        })));
+        return;
+      }
+
+      // ถ้าไม่มีในฐานข้อมูล ให้ใช้ค่าเริ่มต้นตามนโยบาย:
+      // เปิดรอบเฉพาะ หวยรัฐบาลไทย, หุ้นไทยเช้า, ยี่กี เท่านั้น
+      const isAllowed = isAllowedOpenLottery(lotType);
+      if (isAllowed) {
+        const now = Date.now();
+        setRounds([
+          {
+            id: `current-${lotType}`,
+            roundNumber: lotType.includes('ไทย') ? 'งวดวันที่ 16 ตุลาคม 2569' : 'งวดประจำวัน (เปิดรับ)',
+            lotteryType: lotType,
+            openTime: new Date(now - 3600000).toISOString(),
+            closeTime: new Date(now + 3600000 * 6).toISOString(),
+            resultTime: new Date(now + 3600000 * 7).toISOString(),
+            status: 'active'
+          }
+        ]);
+      } else {
+        // หวยอื่นปิดรอบทั้งหมด
+        setRounds([
+          {
+            id: `closed-${lotType}`,
+            roundNumber: 'งวดล่าสุด (ปิดรับแทงชั่วคราว)',
+            lotteryType: lotType,
+            openTime: new Date(Date.now() - 3600000 * 24).toISOString(),
+            closeTime: new Date(Date.now() - 3600000 * 12).toISOString(),
+            resultTime: new Date(Date.now() - 3600000 * 10).toISOString(),
+            status: 'closed'
+          }
+        ]);
+      }
+    } catch (e: any) {
+      console.warn('Error loading fallback rounds:', e);
     } finally {
       setLoading(false);
     }

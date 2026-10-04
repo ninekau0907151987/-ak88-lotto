@@ -98,6 +98,7 @@ export const MASTER_LOTTERY_CATALOG: LotteryItemDef[] = [
   { name: 'จีนปิดรอบบ่าย', category: 'stock', icon: '🇨🇳', path: '/lottery/stock/china-afternoon', bgGradient: 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]' },
   { name: 'ฮั่งเส็งปิดบ่าย', category: 'stock', icon: '🇭🇰', path: '/lottery/stock/hangseng-afternoon', bgGradient: 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]' },
   { name: 'หุ้นสิงคโปร์', category: 'stock', icon: '🇸🇬', path: '/lottery/stock/singapore-stock', bgGradient: 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]' },
+  { name: 'หุ้นไทยเช้า', category: 'stock', icon: '🇹🇭', path: '/lottery/stock/thai-morning', bgGradient: 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]' },
   { name: 'หุ้นไทยปิดเย็น', category: 'stock', icon: '🇹🇭', path: '/lottery/stock/thai-evening', bgGradient: 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]' },
   { name: 'หุ้นอินเดีย', category: 'stock', icon: '🇮🇳', path: '/lottery/stock/india-stock', bgGradient: 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]' },
   { name: 'หุ้นอียิปต์', category: 'stock', icon: '🇪🇬', path: '/lottery/stock/egypt-stock', bgGradient: 'bg-gradient-to-b from-[#f1c40f] to-[#f39c12]' },
@@ -108,6 +109,29 @@ export const MASTER_LOTTERY_CATALOG: LotteryItemDef[] = [
   { name: 'ดาวน์โจนส์ MIDNIGHT', category: 'stock', icon: '🇺🇸', path: '/lottery/stock/dowjones-midnight', bgGradient: 'bg-gradient-to-b from-[#95a5a6] to-[#7f8c8d]' },
   { name: 'ดาวน์โจนส์ EXTRA', category: 'stock', icon: '🇺🇸', path: '/lottery/stock/dowjones-extra', bgGradient: 'bg-gradient-to-b from-[#95a5a6] to-[#7f8c8d]' },
 ];
+
+/** 3 รายการหวยหลักที่ระบบอนุญาตให้เปิดรับแทงตามคำสั่งผู้ดูแลระบบ (หวยไทย, หุ้นไทยเช้า, ยี่กี) */
+export const SYSTEM_OPEN_LOTTERIES: readonly string[] = [
+  'หวยรัฐบาลไทย',
+  'หวยรัฐบาล',
+  'หุ้นไทยเช้า',
+  'หวยยี่กี 88 รอบ',
+  'ยี่กี 4D',
+  'yeekee'
+];
+
+/** ตรวจสอบว่าเป็นหนึ่งใน 3 หวยหลักที่เปิดรับแทงหรือไม่ */
+export function isAllowedOpenLottery(nameOrId: string): boolean {
+  if (!nameOrId) return false;
+  const n = nameOrId.trim();
+  return SYSTEM_OPEN_LOTTERIES.some(allowed => 
+    n === allowed || 
+    n.toLowerCase() === allowed.toLowerCase() ||
+    (allowed === 'หวยรัฐบาลไทย' && n.includes('รัฐบาล')) ||
+    (allowed === 'หุ้นไทยเช้า' && (n.includes('หุ้นไทยเช้า') || n.includes('thai-morning'))) ||
+    (allowed === 'หวยยี่กี 88 รอบ' && (n.includes('ยี่กี') || n.includes('yeekee')))
+  );
+}
 
 /** ระบุหมวดหมู่จากชื่อหรือค่าที่บันทึก */
 export function getLotteryCategory(name: string, savedCategory?: string): LotteryCategoryKey {

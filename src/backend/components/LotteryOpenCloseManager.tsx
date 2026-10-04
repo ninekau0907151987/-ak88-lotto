@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  LOTTERY_CATEGORIES, getLotteryCategory, getCategoryLabel,
+  LOTTERY_CATEGORIES, getLotteryCategory, getCategoryLabel, isAllowedOpenLottery,
   type LotteryCategoryKey
 } from '@/shared/lib/lotteryCatalog';
 import LotteryCategorySelector from './LotteryCategorySelector';
@@ -9,6 +9,7 @@ interface Props {
   lotterySettings: Record<string, any>;
   onToggleStatus: (type: string, status: boolean) => Promise<void>;
   onToggleAllStatus?: (status: boolean) => Promise<void>;
+  onApplyOnlyThree?: () => Promise<void>;
   onUpdateClosingTime?: (type: string, timeStr: string) => Promise<void>;
   onDeleteLottery?: (type: string) => Promise<void>;
   onSyncAllLotteries?: () => Promise<void>;
@@ -19,9 +20,11 @@ interface Props {
 export default function LotteryOpenCloseManager({
   lotterySettings,
   onToggleStatus,
+  onApplyOnlyThree,
 }: Props) {
   const [selectedLottery, setSelectedLottery] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isApplyingPreset, setIsApplyingPreset] = useState(false);
 
   const lottoKeys = Object.keys(lotterySettings).sort();
 
@@ -39,10 +42,30 @@ export default function LotteryOpenCloseManager({
     return matchesSearch;
   });
 
+  const handleApplyOnlyThree = async () => {
+    if (!window.confirm('⚠️ ยืนยันคำสั่งผู้บริหาร:\n\n• ปิดรับแทงทุกหวยในระบบ\n• เปิดเฉพาะ 3 หวยหลัก: หวยไทย, หุ้นไทยเช้า, หวยยี่กี 88 รอบ เท่านั้น\n\nต้องการดำเนินการทันทีหรือไม่?')) {
+      return;
+    }
+    setIsApplyingPreset(true);
+    try {
+      if (onApplyOnlyThree) {
+        await onApplyOnlyThree();
+      } else {
+        const promises = lottoKeys.map(k => onToggleStatus(k, isAllowedOpenLottery(k)));
+        await Promise.all(promises);
+      }
+      alert('✅ ดำเนินการสำเร็จ!\nระบบได้ทำการเปิดเฉพาะ หวยไทย, หุ้นไทยเช้า, หวยยี่กี 88 รอบ และปิดหวยอื่นทั้งหมดเรียบร้อยแล้ว');
+    } catch (e: any) {
+      alert('เกิดข้อผิดพลาด: ' + (e?.message || e));
+    } finally {
+      setIsApplyingPreset(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Top Header Card */}
-      <div className="admin-card p-6 bg-white shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border border-slate-200">
+      <div className="admin-card p-6 bg-white shadow-sm flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border border-slate-200">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-sm">
             <span className="material-symbols-outlined text-2xl">toggle_on</span>
@@ -57,8 +80,18 @@ export default function LotteryOpenCloseManager({
           </div>
         </div>
 
-        {/* Status Counter Badges */}
-        <div className="flex items-center gap-2">
+        {/* Action Button & Status Counter Badges */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            onClick={handleApplyOnlyThree}
+            disabled={isApplyingPreset}
+            className="px-4 py-2 rounded-xl font-black text-xs bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-105 text-white shadow-md flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
+            title="คลิกเดียวเพื่อปิดทุกหวย และเปิดเฉพาะ หวยไทย, หุ้นไทยเช้า, ยี่กี"
+          >
+            <span className="material-symbols-outlined text-base">rule</span>
+            <span>{isApplyingPreset ? 'กำลังดำเนินการ...' : '⚡ เปิดเฉพาะ 3 หวยหลัก (หวยไทย, หุ้นไทยเช้า, ยี่กี)'}</span>
+          </button>
+
           <span className="px-3.5 py-1.5 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
             เปิดรับ {openCount} รายการ

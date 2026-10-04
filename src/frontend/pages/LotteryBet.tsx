@@ -10,6 +10,7 @@ import BillDetailModal from '@/frontend/components/BillDetailModal';
 import ActionConfirmModal from '@/frontend/components/ActionConfirmModal';
 import CompactTicketList from '@/frontend/components/CompactTicketList';
 import * as YK from '@/shared/lib/yeekeeEngine';
+import { isAllowedOpenLottery } from '@/shared/lib/lotteryCatalog';
 
 interface BetItem {
   id: string;
@@ -280,6 +281,7 @@ export default function LotteryBet() {
       'china-afternoon': 'จีนปิดรอบบ่าย',
       'hangseng-afternoon': 'ฮั่งเส็งปิดบ่าย',
       'singapore-stock': 'หุ้นสิงคโปร์',
+      'thai-morning': 'หุ้นไทยเช้า',
       'thai-evening': 'หุ้นไทยปิดเย็น',
       'india-stock': 'หุ้นอินเดีย',
       'egypt-stock': 'หุ้นอียิปต์',
@@ -575,13 +577,21 @@ export default function LotteryBet() {
     if (globalSettings?.systemOpen === false || globalSettings?.bettingOpen === false) {
       return true;
     }
-    // 2. Admin open/close status
+
+    // 2. Strict Rule: ปิดทุกหวย เปิดเฉพาะ 3 หวยหลัก (หวยไทย, หุ้นไทยเช้า, ยี่กี)
+    const isAllowed = isAllowedOpenLottery(displayName) || isAllowedOpenLottery(type || '');
+    const isExplicitlyOpen = lotteryConfig?.isOpen === true || lotteryConfig?.is_open === true;
+    if (!isAllowed && !isExplicitlyOpen) {
+      return true; // ปิดรับแทงทุกหวยที่ไม่ได้รับอนุญาต
+    }
+
+    // 3. Admin open/close status
     if (lotteryConfig) {
       if (lotteryConfig.isOpen === false || lotteryConfig.is_open === false) return true;
       if (lotteryConfig.status === 'closed') return true;
       if (lotteryConfig.isPaused === true || lotteryConfig.is_paused === true) return true;
 
-      // 3. Closing time check
+      // 4. Closing time check
       const closeTimeVal = lotteryConfig.closingTime || lotteryConfig.close_time;
       if (closeTimeVal) {
         const closeMs = new Date(closeTimeVal).getTime();
@@ -591,7 +601,7 @@ export default function LotteryBet() {
       }
     }
     return false;
-  }, [isYeekee, ykPhase, globalSettings, lotteryConfig, currentTime]);
+  }, [isYeekee, ykPhase, globalSettings, lotteryConfig, currentTime, displayName, type]);
 
   const remainingCloseSec = useMemo(() => {
     const closeTimeVal = lotteryConfig?.closingTime || lotteryConfig?.close_time;

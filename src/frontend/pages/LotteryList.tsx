@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { collection, onSnapshot, query } from 'firebase/firestore';
 import { db, supabaseClient } from '@/shared/lib/firebase';
 import * as YK from '@/shared/lib/yeekeeEngine';
+import { isAllowedOpenLottery } from '@/shared/lib/lotteryCatalog';
 
 export type MainCategoryTab = 'all' | 'thai' | 'foreign' | 'yeekee' | 'stock' | 'set' | 'thai-foreign';
 
@@ -132,6 +133,7 @@ const BASE_LOTTERIES: LotteryItem[] = [
   },
 
   // --- 4. หวยหุ้น VIP ---
+  { id: 'หุ้นไทยเช้า', name: 'หุ้นไทยเช้า', category: 'stock', flagUrl: 'https://flagcdn.com/w80/th.png', path: '/lottery/stock/thai-morning', defaultCloseTime: '10:00:00' },
   { id: 'นิเคอิ VIP (เช้า)', name: 'นิเคอิ VIP (เช้า)', category: 'stock', flagUrl: 'https://flagcdn.com/w80/jp.png', path: '/lottery/stock/nikkei-m', defaultCloseTime: '09:20:00' },
   { id: 'จีน VIP (เช้า)', name: 'จีน VIP (เช้า)', category: 'stock', flagUrl: 'https://flagcdn.com/w80/cn.png', path: '/lottery/stock/china-m', defaultCloseTime: '10:20:00' },
   { id: 'ฮั่งเส็ง VIP (เช้า)', name: 'ฮั่งเส็ง VIP (เช้า)', category: 'stock', flagUrl: 'https://flagcdn.com/w80/hk.png', path: '/lottery/stock/hangseng-m', defaultCloseTime: '10:50:00' },
@@ -364,12 +366,34 @@ export default function LotteryList() {
 
   // คำนวณวันและเวลาปิดรับแทง "YYYY-MM-DD HH:mm:ss" เชื่อมกับข้อมูลหลังบ้าน
   const getClosingInfo = (item: LotteryItem) => {
-    // กรณียี่กี 88 รอบ
+    const isAllowed = isAllowedOpenLottery(item.name) || isAllowedOpenLottery(item.id);
+    const cfg = lotteryConfigs[item.name] || lotteryConfigs[item.id] || null;
+    
+    // กฎเหล็ก: ปิดทุกหวย เปิด 3 อย่าง (หวยไทย, หุ้นไทยเช้า, ยี่กี)
+    // หากไม่ใช่ 3 หวยนี้ และไม่ได้ถูกเปิดเจาะจงในระบบ -> ปิดรับแทง 100%
+    const isDbOpen = cfg?.isOpen === true || cfg?.is_open === true;
+    const isDbClosed = cfg?.isOpen === false || cfg?.is_open === false;
+    
+    if (isDbClosed || (!isAllowed && !isDbOpen)) {
+      // คำนวณเวลาแสดงผลอ้างอิง
+      const [h, m, s] = item.defaultCloseTime.split(':').map(Number);
+      const targetDate = new Date(now);
+      targetDate.setHours(h, m, s || 0, 0);
+      return {
+        dateTimeStr: cfg?.closingTime || cfg?.closeTime || cfg?.close_time 
+          ? formatFullDateTime(new Date(cfg.closingTime || cfg.closeTime || cfg.close_time))
+          : formatFullDateTime(targetDate),
+        isOpen: false,
+        countdownText: 'ปิดรับแทง',
+        statusNote: 'ปิดรับแทงชั่วคราว',
+      };
+    }
+
+    // 1. กรณียี่กี 88 รอบ (เปิดรับแทงตลอด 88 รอบ)
     if (item.isYeekee) {
       if (currentYeekeeRound) {
         const targetDate = new Date(currentYeekeeRound.closeMs);
         const diffMs = currentYeekeeRound.closeMs - now.getTime();
-        const isOpen = diffMs > 0;
         return {
           dateTimeStr: `รอบที่ ${currentYeekeeRound.n} (${formatFullDateTime(targetDate)})`,
           isOpen: true,
@@ -385,16 +409,13 @@ export default function LotteryList() {
       };
     }
 
-    const cfg = lotteryConfigs[item.name] || lotteryConfigs[item.id] || null;
-    const isManuallyClosed = cfg?.isOpen === false || cfg?.is_open === false;
-
-    // ถ้าแอดมินตั้งเวลาปิดรับในฐานข้อมูลหลังบ้าน
+    // 2. ถ้าแอดมินตั้งเวลาปิดรับในฐานข้อมูลหลังบ้าน
     if (cfg?.closingTime || cfg?.closeTime || cfg?.close_time) {
       const timeVal = cfg.closingTime || cfg.closeTime || cfg.close_time;
       const targetDate = new Date(timeVal);
       if (!isNaN(targetDate.getTime())) {
         const diffMs = targetDate.getTime() - now.getTime();
-        const isOpen = !isManuallyClosed && diffMs > 0;
+        const isOpen = diffMs > 0;
         return {
           dateTimeStr: formatFullDateTime(targetDate),
           isOpen,
@@ -403,43 +424,57 @@ export default function LotteryList() {
       }
     }
 
-    // กรณีหวยรัฐบาลไทย (ทุกวันที่ 1 และ 16)
+    // 3. กรณีหวยรัฐบาลไทย (เปิดรอบรับแทงล่วงหน้า พร้อมนับถอยหลังสู่งวดปัจจุบัน)
     if (item.isThaiGov || item.monthlyDays) {
       const targetDate = calculateMonthlyDraw(now, item.defaultCloseTime, item.monthlyDays || [1, 16]);
       const diffMs = targetDate.getTime() - now.getTime();
-      const isOpen = !isManuallyClosed && diffMs > 0 && isSameDay(now, targetDate);
       return {
         dateTimeStr: formatFullDateTime(targetDate),
-        isOpen,
+        isOpen: true,
         countdownText: formatCountdown(diffMs),
       };
     }
 
-    // กรณีหวยที่มีวันออกเฉพาะ (เช่น ลาว จันทร์/พุธ/ศุกร์)
+    // 4. กรณีหุ้นไทยเช้า (เปิดรับรอบเช้า ปิด 10:00 น.)
+    if (item.id === 'หุ้นไทยเช้า' || item.name === 'หุ้นไทยเช้า') {
+      const [h, m, s] = item.defaultCloseTime.split(':').map(Number);
+      const targetDate = new Date(now);
+      targetDate.setHours(h, m, s || 0, 0);
+      if (targetDate.getTime() <= now.getTime()) {
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
+      const diffMs = targetDate.getTime() - now.getTime();
+      return {
+        dateTimeStr: formatFullDateTime(targetDate),
+        isOpen: true,
+        countdownText: formatCountdown(diffMs),
+      };
+    }
+
+    // 5. กรณีหวยที่มีวันออกเฉพาะ
     if (item.drawDays && item.drawDays.length > 0) {
       const targetDate = calculateWeeklyDraw(now, item.defaultCloseTime, item.drawDays);
       const diffMs = targetDate.getTime() - now.getTime();
       const isTodayDraw = item.drawDays.includes(now.getDay());
-      const isOpen = !isManuallyClosed && diffMs > 0 && isTodayDraw;
+      const isOpen = isAllowed && diffMs > 0 && isTodayDraw;
       return {
         dateTimeStr: formatFullDateTime(targetDate),
         isOpen,
-        countdownText: formatCountdown(diffMs),
+        countdownText: isOpen ? formatCountdown(diffMs) : 'ปิดรับแทง',
       };
     }
 
-    // กรณีหวยรายวัน (ฮานอย, หุ้น VIP ฯลฯ)
+    // 6. กรณีหวยอื่นๆ
     const [h, m, s] = item.defaultCloseTime.split(':').map(Number);
     const targetDate = new Date(now);
     targetDate.setHours(h, m, s || 0, 0);
-
     const diffMs = targetDate.getTime() - now.getTime();
-    const isOpen = !isManuallyClosed && diffMs > 0;
+    const isOpen = isAllowed && diffMs > 0;
 
     return {
       dateTimeStr: formatFullDateTime(targetDate),
       isOpen,
-      countdownText: formatCountdown(diffMs),
+      countdownText: isOpen ? formatCountdown(diffMs) : 'ปิดรับแทง',
     };
   };
 
