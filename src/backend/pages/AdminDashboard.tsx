@@ -1039,16 +1039,17 @@ export default function AdminDashboard() {
     const userLower = adminUser.trim().toLowerCase();
     const passTrim = adminPass.trim();
     if (
-      (userLower === 'owner' && (passTrim === '0614284727' || passTrim === '06142847')) ||
-      (userLower === 'admin' && (passTrim === 'Password@123' || passTrim === 'admin1234'))
+      (userLower === '1234' && (passTrim === '123456' || passTrim === '1234')) ||
+      (userLower === 'owner' && (passTrim === '0614284727' || passTrim === '06142847' || passTrim === '123456' || passTrim === '1234')) ||
+      (userLower === 'admin' && (passTrim === 'Password@123' || passTrim === 'admin1234' || passTrim === '123456' || passTrim === '1234'))
     ) {
-      const isOwner = userLower === 'owner';
+      const isOwner = userLower === 'owner' || userLower === '1234';
       const sess: StaffSession = {
-        uid: isOwner ? 'staff_owner_01' : 'staff_admin_01',
+        uid: userLower === '1234' ? 'staff_1234' : (isOwner ? 'staff_owner_01' : 'staff_admin_01'),
         username: userLower,
-        displayName: isOwner ? 'เจ้าของระบบ (Owner)' : 'ผู้ดูแลระบบสูงสุด (Admin)',
-        role: isOwner ? 'owner' : 'admin',
-        grantedExtra: [],
+        displayName: userLower === '1234' ? 'ผู้บริหารระบบ AK88 (Admin 1234)' : (isOwner ? 'เจ้าของระบบ (Owner)' : 'ผู้ดูแลระบบสูงสุด (Admin)'),
+        role: 'owner',
+        grantedExtra: [] as Permission[],
         revoked: [],
         scopeProjectIds: [],
       };
@@ -1898,13 +1899,16 @@ export default function AdminDashboard() {
     { id: 'members',           label: '4. จัดการสมาชิก & เครดิต',icon: 'group',                 perm: PERMISSIONS.MEMBER_VIEW,    section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
     { id: 'overview',          label: '5. ภาพรวม & สรุปยอด',   icon: 'dashboard',              perm: PERMISSIONS.DASHBOARD_VIEW, section: 'งานประจำวัน (แอดมิน)', tier: 'staff' },
 
-    // --- 👑 ส่วนที่ 2: โหมดเจ้าของ (Master Mode - มีระบบล็อกความปลอดภัย) ---
-    { id: 'blocked_numbers',   label: 'เลขอั้น & อัตราจ่าย',    icon: 'block',                  perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'intake_monitor',    label: 'มอนิเตอร์รับกินสด',      icon: 'monitoring',             perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'staff',             label: 'พนักงาน & กำหนดสิทธิ์',  icon: 'manage_accounts',        perm: PERMISSIONS.STAFF_VIEW,     section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'settings',          label: 'ตั้งค่าระบบแม่ & กติกา', icon: 'settings',               perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'system_control',    label: 'เปิด-ปิดระบบฉุกเฉิน',   icon: 'power_settings_new',     perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'history',           label: 'ประวัติ & ความปลอดภัย',  icon: 'history',                perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    // --- 👑 ส่วนที่ 2: โหมดเจ้าของ / ระบบคำนวณความเสี่ยงและอัตราจ่าย (Master Mode) ---
+    { id: 'payout_rates',      label: '1. ตั้งค่าจ่าย & ขั้นต่ำ-สูงสุด', icon: 'payments',       perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'intake_settings',   label: '2. ตั้งค่ารับกิน & งบประมาณ',  icon: 'tune',            perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'intake_monitor',    label: '3. มอนิเตอร์รับกินสด',         icon: 'monitoring',      perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'round_scheduler',   label: '4. จัดตารางรอบ & ปฏิทินหวย',   icon: 'calendar_month',  perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'blocked_numbers',   label: '5. เลขอั้น & ลดราคาจ่าย',      icon: 'block',           perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'staff',             label: 'พนักงาน & กำหนดสิทธิ์',        icon: 'manage_accounts', perm: PERMISSIONS.STAFF_VIEW,     section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'settings',          label: 'ตั้งค่าระบบแม่ & กติกา',       icon: 'settings',        perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'system_control',    label: 'เปิด-ปิดระบบฉุกเฉิน',         icon: 'power_settings_new', perm: PERMISSIONS.SETTINGS_VIEW, section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'history',           label: 'ประวัติ & ความปลอดภัย',        icon: 'history',         perm: PERMISSIONS.SETTINGS_HISTORY_VIEW, section: 'โหมดเจ้าของ (Master)', tier: 'master' },
   ];
 
   /** ★ เมนูที่ผู้ใช้คนนี้เห็นได้ (กรองตามสิทธิ์) */
@@ -7131,17 +7135,20 @@ export default function AdminDashboard() {
                 onChange={(e) => setMasterPinInput(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
-                    if (masterPinInput === '112233' || masterPinInput === 'admin' || masterPinInput === 'master') {
+                    if (
+                      masterPinInput === '112233' || masterPinInput === 'admin' || masterPinInput === 'master' ||
+                      masterPinInput === '1234' || masterPinInput === '123456'
+                    ) {
                       setIsMasterUnlocked(true);
                       localStorage.setItem('masterUnlocked', 'true');
                       setShowMasterPinModal(false);
                       setMasterPinInput('');
                     } else {
-                      alert('รหัสผ่านไม่ถูกต้อง');
+                      alert('รหัสผ่านไม่ถูกต้อง (รหัสเริ่มต้นคือ 1234 หรือ 112233)');
                     }
                   }
                 }}
-                placeholder="กรอกรหัส PIN (112233)"
+                placeholder="กรอกรหัส PIN (1234 หรือ 112233)"
                 className="w-full text-center text-lg font-mono font-black tracking-widest bg-slate-50 border border-slate-300 rounded-xl py-3 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 autoFocus
               />
@@ -7158,13 +7165,16 @@ export default function AdminDashboard() {
               <button
                 type="button"
                 onClick={() => {
-                  if (masterPinInput === '112233' || masterPinInput === 'admin' || masterPinInput === 'master') {
+                  if (
+                    masterPinInput === '112233' || masterPinInput === 'admin' || masterPinInput === 'master' ||
+                    masterPinInput === '1234' || masterPinInput === '123456'
+                  ) {
                     setIsMasterUnlocked(true);
                     localStorage.setItem('masterUnlocked', 'true');
                     setShowMasterPinModal(false);
                     setMasterPinInput('');
                   } else {
-                    alert('รหัสผ่านไม่ถูกต้อง (รหัสเริ่มต้นคือ 112233)');
+                    alert('รหัสผ่านไม่ถูกต้อง (รหัสเริ่มต้นคือ 1234 หรือ 112233)');
                   }
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-105 text-white font-black text-xs shadow-md"

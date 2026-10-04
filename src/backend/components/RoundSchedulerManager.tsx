@@ -163,6 +163,30 @@ export default function RoundSchedulerManager({ lotteryTypes = {}, onLogActivity
     }
   };
 
+  const handleDeleteRound = async (roundId: string) => {
+    if (!confirm('ยืนยันที่จะลบรอบนี้ออกจากระบบ? (ปุ่มลบสำหรับรอบที่ใช้งานเสร็จสิ้นแล้ว)')) return;
+    try {
+      const res = await fetch(`/api/v1/rounds/${roundId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert('ลบรอบเรียบร้อยแล้ว');
+        onLogActivity?.('ลบรอบหวย', `ลบรอบ ${roundId} ที่ใช้งานเสร็จแล้ว`, 'lottery');
+        fetchCalendar(selectedLottery);
+      } else {
+        const { doc, deleteDoc } = await import('firebase/firestore');
+        const { db } = await import('@/shared/lib/firebase');
+        if (db) {
+          await deleteDoc(doc(db, 'lotteryRounds', roundId));
+        }
+        alert('ลบรอบเรียบร้อยแล้ว');
+        onLogActivity?.('ลบรอบหวย', `ลบรอบ ${roundId} ที่ใช้งานเสร็จแล้ว`, 'lottery');
+        fetchCalendar(selectedLottery);
+      }
+    } catch (e: any) {
+      alert('เกิดข้อผิดพลาด: ' + e.message);
+    }
+  };
+
   const filteredRounds = rounds.filter(r => {
     if (filterStatus === 'all') return true;
     return r.status === filterStatus;
@@ -498,9 +522,19 @@ export default function RoundSchedulerManager({ lotteryTypes = {}, onLogActivity
                           </button>
                         )}
                         {r.status === 'resulted' && r.winningNumbers && (
-                          <span className="text-[11px] font-black text-blue-700">
+                          <span className="text-[11px] font-black text-blue-700 mr-2">
                             3บน: {r.winningNumbers.top3 || '-'} | 2ล่าง: {r.winningNumbers.bottom2 || '-'}
                           </span>
+                        )}
+                        {(r.status === 'resulted' || r.status === 'closed') && (
+                          <button
+                            onClick={() => r.id && handleDeleteRound(r.id)}
+                            className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-[10px] font-black border border-red-200 transition inline-flex items-center gap-1"
+                            title="ลบรอบที่ใช้งานเสร็จสิ้นแล้ว"
+                          >
+                            <span className="material-symbols-outlined text-xs">delete</span>
+                            <span>ลบ</span>
+                          </button>
                         )}
                       </td>
                     </tr>

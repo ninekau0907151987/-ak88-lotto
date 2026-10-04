@@ -29,8 +29,44 @@ export default function Login() {
       const { collection, getDocs, query, where } = await import('firebase/firestore');
       const { db } = await import('@/shared/lib/firebase');
 
-      // 1) ตรวจสอบในตารางสมาชิก (users) ด้วย Username หรือ เบอร์โทรศัพท์ ก่อนเสมอ
+      // ★ 0) บัญชีทดสอบหน้าบ้านของผู้บริหาร (Frontend Test Account: 1234 / 123456789)
       const cleanLower = loginInput.toLowerCase();
+      if ((cleanLower === '1234' || cleanLower === 'user_1234') && (passInput === '123456789' || passInput === '123456' || passInput === '1234')) {
+        const testUser = {
+          userId: 'user_1234',
+          username: '1234',
+          name: 'ผู้ทดสอบระบบ (User 1234)',
+          phone: '0812345678',
+          balance: 50000.0,
+          role: 'user',
+          status: 'active',
+          updatedAt: new Date().toISOString()
+        };
+
+        if (db) {
+          try {
+            const { doc, setDoc } = await import('firebase/firestore');
+            await setDoc(doc(db, 'users', 'user_1234'), testUser, { merge: true });
+          } catch (dbErr) {
+            console.warn('[Login] Sync user_1234 to Firestore:', dbErr);
+          }
+        }
+
+        localStorage.setItem('isLoggedIn', 'true');
+        localStorage.setItem('userId', 'user_1234');
+        localStorage.setItem('username', '1234');
+        localStorage.setItem('userRole', 'user');
+        localStorage.removeItem('adminAuth');
+        localStorage.setItem('currentUser', JSON.stringify({
+          ...testUser,
+          loginAt: new Date().toISOString()
+        }));
+
+        navigate('/');
+        return;
+      }
+
+      // 1) ตรวจสอบในตารางสมาชิก (users) ด้วย Username หรือ เบอร์โทรศัพท์ ก่อนเสมอ
       let qUser = query(collection(db, 'users'), where('username', '==', cleanLower));
       let userSnapshot = await getDocs(qUser);
 

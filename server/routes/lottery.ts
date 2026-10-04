@@ -561,6 +561,16 @@ export function lotteryRoundRoutes(db: any) {
     }
   });
 
+  // DELETE /api/v1/rounds/:id — ลบรอบที่ใช้งานเสร็จแล้ว
+  r.delete('/:id', async (req, res) => {
+    try {
+      await deleteDoc(doc(db, 'lotteryRounds', req.params.id));
+      res.json({ status: 'success', message: 'ลบรอบเรียบร้อยแล้ว' });
+    } catch (e) {
+      res.status(500).json({ status: 'error', message: 'ลบรอบไม่สำเร็จ' });
+    }
+  });
+
   return r;
 }
 

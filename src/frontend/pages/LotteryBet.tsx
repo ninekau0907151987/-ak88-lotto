@@ -394,7 +394,7 @@ export default function LotteryBet() {
 
       const ph = YK.phaseOf(ykGameDay, yeekeeRoundNum, Date.now(), row);
       if (ph === 'processing') {
-        await YK.sweep(Date.now(), cfg);
+        await YK.sweep(Date.now());
       }
     } catch (e) {
       console.error('[YeekeeBet] reload error:', e);

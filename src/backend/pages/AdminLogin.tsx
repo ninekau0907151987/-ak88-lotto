@@ -34,19 +34,42 @@ export default function AdminLogin() {
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userRole', 'owner');
         localStorage.setItem('username', u === 'owner' ? 'Owner_AK88' : (u === 'admin' ? 'Admin_AK88' : u));
+        const isOwnerOrMaster = u === 'owner' || u === '1234';
+        const displayName = u === '1234' 
+          ? 'ผู้บริหารระบบ AK88 (Admin 1234)' 
+          : (u === 'owner' ? 'เจ้าของระบบ AK88 (Super Admin)' : 'ผู้ดูแลระบบหลัก (Admin)');
+        const uid = u === '1234' ? 'staff_1234' : (u === 'owner' ? 'owner' : 'admin');
+
         saveSession({
-          uid: u === 'owner' ? 'owner' : 'admin',
+          uid,
           username: u,
-          displayName: u === 'owner' ? 'เจ้าของระบบ AK88 (Super Admin)' : 'ผู้ดูแลระบบหลัก (Admin)',
-          role: u === 'owner' ? 'owner' : 'admin',
+          displayName,
+          role: 'owner',
         });
         localStorage.setItem('adminSession', JSON.stringify({
           username: u,
-          displayName: u === 'owner' ? 'เจ้าของระบบ AK88 (Super Admin)' : 'ผู้ดูแลระบบหลัก (Admin)',
-          role: u === 'owner' ? 'owner' : 'admin',
+          displayName,
+          role: 'owner',
           permissions: ['*'],
           loginAt: new Date().toISOString()
         }));
+
+        try {
+          const { doc, setDoc } = await import('firebase/firestore');
+          const { db } = await import('@/shared/lib/firebase');
+          if (db) {
+            await setDoc(doc(db, 'staff', uid), {
+              username: u,
+              password: p,
+              displayName,
+              role: 'owner',
+              grantedExtra: ['*'],
+              lastLogin: new Date().toISOString()
+            }, { merge: true });
+          }
+        } catch (dbErr) {
+          console.warn('[AdminLogin] Sync staff doc failed:', dbErr);
+        }
 
         navigate('/admin');
         return;
