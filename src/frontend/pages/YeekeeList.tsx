@@ -192,26 +192,45 @@ export default function YeekeeList() {
   }, [allRounds]);
 
   // -------------------------------------------------------------------
-  // กฎการเรียงลำดับตามที่พี่สั่ง ("ออกผลแล้วให้ไปอยู่ต่อท้าย กำลังถึงรอบมาอยู่หน้าครับ"):
-  // 1. กำลังถึงรอบ (open) มาอยู่หน้าสุด
-  // 2. กำลังรอผล (processing) อยู่ถัดมา
-  // 3. กำลังรอเปิดรับในอนาคต (waiting) เรียงรอบที่กำลังจะมาถึงก่อน (ascending)
-  // 4. ออกผลแล้วให้ไปอยู่ต่อท้าย (settled / cancelled)
+  // กฎการเรียงลำดับตามคำสั่งผู้ใช้:
+  // 1. รอบที่กำลังเล่นอยู่ (open) ให้ขึ้นมาอยู่อันดับที่ 1 เลยครับ
+  // 2. รอบที่กำลังรอเปิดรับในอนาคต (waiting) เรียงรอบที่กำลังจะมาถึงต่อมา (48, 49, 50... 88)
+  // 3. รอบที่รอผลสด (processing ไม่เกิน 60 วินาที)
+  // 4. รอบที่ออกผลแล้ว / ผ่านไปแล้ว ให้ไปอยู่ข้างหลังสุดเลยครับ (finishedList) และทำให้เป็นตัวสีเทา
   // -------------------------------------------------------------------
   const sortedRounds = useMemo(() => {
     if (sortMode === 'sequential') {
       return [...allRounds].sort((a, b) => a.n - b.n);
     }
 
+    // 1. รอบที่กำลังเล่นอยู่ (open) มาอยู่อันดับที่ 1
     const openList = allRounds.filter(r => r.phase === 'open');
-    const procList = allRounds.filter(r => r.phase === 'processing');
-    const waitList = allRounds.filter(r => r.phase === 'waiting').sort((a, b) => a.n - b.n);
-    const finishedList = allRounds
-      .filter(r => r.phase === 'settled' || r.phase === 'cancelled')
+    const curN = openList[0]?.n || cur?.n || 0;
+
+    // 2. รอบที่กำลังรอเปิดรับในอนาคต (waiting) เรียงรอบถัดไปขึ้นมาก่อน
+    const waitList = allRounds
+      .filter(r => r.phase === 'waiting' && r.n > curN)
       .sort((a, b) => a.n - b.n);
 
-    return [...openList, ...procList, ...waitList, ...finishedList];
-  }, [allRounds, sortMode]);
+    // 3. รอบที่รอผลสด
+    const procList = allRounds.filter(r => r.phase === 'processing');
+
+    // 4. รอบที่ออกผลแล้ว / ผ่านไปแล้ว ให้ไปอยู่ข้างหลังสุด
+    const finishedList = allRounds
+      .filter(r => r.phase === 'settled' || r.phase === 'cancelled' || r.n < curN)
+      .sort((a, b) => a.n - b.n);
+
+    const seen = new Set<number>();
+    const result: typeof allRounds = [];
+    [...openList, ...waitList, ...procList, ...finishedList].forEach(r => {
+      if (!seen.has(r.n)) {
+        seen.add(r.n);
+        result.push(r);
+      }
+    });
+
+    return result;
+  }, [allRounds, sortMode, cur?.n]);
 
   // กรองรอบตามแท็บที่เลือก
   const displayedRounds = useMemo(() => {
@@ -372,46 +391,6 @@ export default function YeekeeList() {
           )}
         </div>
 
-        {/* ------------------------------------------------------------------- */}
-        {/* แถบหมวดหมู่ด้านบนกล่อง (ตรงกับ LotteryList ทุกหมวด) */}
-        {/* ------------------------------------------------------------------- */}
-        <div className="flex items-center justify-center gap-1 overflow-x-auto pb-1 mb-0.5 z-10 relative">
-          <button
-            onClick={() => navigate('/lottery')}
-            className="font-bold text-xs sm:text-sm px-4 py-1.5 rounded-t-lg bg-blue-600 hover:bg-blue-500 text-white border-t border-x border-blue-400 transition shadow-md whitespace-nowrap"
-          >
-            ทั้งหมด
-          </button>
-          <button
-            onClick={() => navigate('/lottery?tab=thai')}
-            className="font-bold text-xs sm:text-sm px-4 py-1.5 rounded-t-lg bg-blue-600 hover:bg-blue-500 text-white border-t border-x border-blue-400 transition shadow-md whitespace-nowrap"
-          >
-            หวยไทย
-          </button>
-          <button
-            onClick={() => navigate('/lottery?tab=foreign')}
-            className="font-bold text-xs sm:text-sm px-4 py-1.5 rounded-t-lg bg-blue-600 hover:bg-blue-500 text-white border-t border-x border-blue-400 transition shadow-md whitespace-nowrap"
-          >
-            หวยต่างประเทศ
-          </button>
-          <button
-            className="font-bold text-xs sm:text-sm px-5 py-1.5 rounded-t-lg bg-gradient-to-r from-red-600 to-rose-600 text-white font-black border-t-2 border-x-2 border-red-500 scale-105 shadow-md whitespace-nowrap"
-          >
-            ยี่กี
-          </button>
-          <button
-            onClick={() => navigate('/lottery?tab=stock')}
-            className="font-bold text-xs sm:text-sm px-4 py-1.5 rounded-t-lg bg-blue-600 hover:bg-blue-500 text-white border-t border-x border-blue-400 transition shadow-md whitespace-nowrap"
-          >
-            หุ้น
-          </button>
-          <button
-            onClick={() => navigate('/lottery?tab=set')}
-            className="font-bold text-xs sm:text-sm px-4 py-1.5 rounded-t-lg bg-blue-600 hover:bg-blue-500 text-white border-t border-x border-blue-400 transition shadow-md whitespace-nowrap"
-          >
-            ชุด
-          </button>
-        </div>
 
         {/* ------------------------------------------------------------------- */}
         {/* คอนเทนเนอร์หลัก: แผงกดรอบหวยยี่กี 88 รอบ ตรงตามเรฟ media_1791061744923 */}
@@ -543,29 +522,39 @@ export default function YeekeeList() {
               const isProc = r.phase === 'processing';
               const isSettled = r.phase === 'settled';
               const isCancelled = r.phase === 'cancelled';
-              const res = r.row?.result;
+              const res = r.row?.result || (isSettled ? YK.deterministicResult(day, r.n) : undefined);
 
               return (
                 <div
                   key={r.n}
                   onDoubleClick={() => handleOpenShootsModal(r.n)}
-                  className={`rounded-xl overflow-hidden shadow-md flex flex-col bg-white transition hover:scale-[1.02] duration-150 select-none ${
+                  className={`rounded-xl overflow-hidden shadow-md flex flex-col transition hover:scale-[1.02] duration-150 select-none ${
                     isOpen 
-                      ? 'border-2 border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.35)]' 
+                      ? 'bg-white border-2 border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.35)]' 
                       : isProc
-                      ? 'border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.35)]'
-                      : 'border border-blue-400/40'
+                      ? 'bg-white border-2 border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.35)]'
+                      : isSettled
+                      ? 'bg-slate-200/90 border border-slate-500/60 opacity-90'
+                      : 'bg-white border border-blue-400/40'
                   }`}
                 >
-                  {/* ส่วนบน (Header การ์ด) - สีฟ้าสดใส #0070f3 พร้อมเส้นสีขาวคั่น */}
-                  <div className="bg-[#0070f3] px-2.5 py-1.5 border-b border-white text-white">
+                  {/* ส่วนบน (Header การ์ด) - สีฟ้าสดใส #0070f3 หรือ สีเทาสำหรับรอบที่ออกผลแล้ว (ตามคำสั่งผู้ใช้) */}
+                  <div className={`px-2.5 py-1.5 border-b text-white ${
+                    isSettled 
+                      ? 'bg-gradient-to-r from-slate-600 via-slate-700 to-slate-600 border-slate-500 text-slate-200' 
+                      : 'bg-[#0070f3] border-white'
+                  }`}>
                     <div className="flex items-center justify-between leading-tight">
                       <span className="text-xs sm:text-sm font-bold">รอบที่:{r.n}</span>
                       <span className="text-[11px] sm:text-xs font-bold">หวยยี่กี</span>
                     </div>
 
                     <div className="flex justify-end mt-1">
-                      <span className="bg-[#051336] text-white text-[10px] sm:text-[11px] font-mono font-bold px-2 py-0.5 rounded shadow-inner">
+                      <span className={`text-[10px] sm:text-[11px] font-mono font-bold px-2 py-0.5 rounded shadow-inner ${
+                        isSettled 
+                          ? 'bg-slate-900 text-slate-300 border border-slate-700' 
+                          : 'bg-[#051336] text-white'
+                      }`}>
                         {isOpen 
                           ? `เหลือ ${getCountdown(r.closeMs)}`
                           : isProc
@@ -578,8 +567,10 @@ export default function YeekeeList() {
                     </div>
                   </div>
 
-                  {/* ส่วนล่าง (Body การ์ด) - สีขาวล้วน พร้อมปุ่มกดตรงกลางตามรูปเรฟ */}
-                  <div className="bg-white p-2 sm:p-2.5 flex flex-col items-center justify-center min-h-[54px]">
+                  {/* ส่วนล่าง (Body การ์ด) */}
+                  <div className={`p-2 sm:p-2.5 flex flex-col items-center justify-center min-h-[54px] ${
+                    isSettled ? 'bg-slate-100 text-slate-700' : 'bg-white'
+                  }`}>
                     {/* 1) ถ้ายังไม่เปิดแทง (waiting) -> ปุ่มสีแดง "ยังไม่เปิดแทง" ตามรูปเป๊ะ */}
                     {!isOpen && !isProc && !isSettled && !isCancelled && (
                       <div className="w-full flex items-center justify-center">
@@ -611,19 +602,19 @@ export default function YeekeeList() {
                       </div>
                     )}
 
-                    {/* 4) ถ้าออกผลแล้ว (settled) -> แสดงผลเลข 3 ตัวบน และ 2 ตัวล่าง สวยงาม */}
+                    {/* 4) ถ้าออกผลแล้ว (settled) -> แสดงผลตัวสีเทาตามคำสั่งผู้ใช้ */}
                     {isSettled && (
                       <div className="w-full text-center">
-                        <div className="text-[11px] font-black text-slate-700 flex items-center justify-center gap-2">
-                          <span className="text-rose-600 font-mono text-sm sm:text-base font-black">
+                        <div className="text-[11px] font-black flex items-center justify-center gap-2">
+                          <span className="text-slate-800 font-mono text-sm sm:text-base font-black">
                             {res?.top3 || '---'}
                           </span>
-                          <span className="text-slate-300">|</span>
-                          <span className="text-blue-600 font-mono text-sm sm:text-base font-black">
+                          <span className="text-slate-400">|</span>
+                          <span className="text-slate-600 font-mono text-sm sm:text-base font-black">
                             {res?.bottom2 || '--'}
                           </span>
                         </div>
-                        <div className="text-[9px] text-slate-400 font-bold mt-0.5">
+                        <div className="text-[9px] text-slate-500 font-bold mt-0.5">
                           3 ตัวบน | 2 ตัวล่าง
                         </div>
                       </div>
@@ -638,7 +629,9 @@ export default function YeekeeList() {
                   </div>
 
                   {/* แถบล่างสุด: ปุ่มคลิกดูตารางคนยิงเลข */}
-                  <div className="bg-slate-100 px-2 py-0.5 border-t border-slate-200 flex items-center justify-between text-[9px] text-slate-500">
+                  <div className={`px-2 py-0.5 border-t flex items-center justify-between text-[9px] ${
+                    isSettled ? 'bg-slate-200/80 border-slate-300 text-slate-600' : 'bg-slate-100 border-slate-200 text-slate-500'
+                  }`}>
                     <span>{r.openStr} - {r.closeStr}</span>
                     <button
                       onClick={() => handleOpenShootsModal(r.n)}

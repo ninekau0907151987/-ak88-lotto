@@ -158,8 +158,17 @@ export function phaseOf(day: string, n: number, now: number, row?: RoundRow | nu
   if (row?.status === 'cancelled' || row?.status === 'void') return 'cancelled';
   if (now < openMsOf(day, n)) return 'waiting';
   if (now < closeMsOf(day, n)) return 'open';
-  return 'processing';
+  if (now < closeMsOf(day, n) + 60_000) return 'processing';
+  return 'settled';
 }
+
+export function deterministicResult(day: string, n: number) {
+  const key = roundKey(day, n);
+  const h = hash('det_res_' + key);
+  const s = String(h % 1000000).padStart(6, '0');
+  return splitResult(s);
+}
+
 
 /* ------------------------------------------------------------------ */
 /* ยูทิลิตี้: hash / สุ่มแบบกำหนดผลได้ (ทุกเครื่องได้ค่าเดียวกัน)        */
@@ -693,9 +702,9 @@ export async function sweep(now: number = Date.now()) {
   const cur = currentRound(now);
   const day = gameDayOf(now);
   const candidates = new Set<string>();
-  // รอบที่เพิ่งผ่านมา 6 รอบล่าสุด
+  // รอบที่ผ่านมาทั้งหมดของวัน
   const lastN = cur ? cur.n - 1 : ROUNDS_PER_DAY;
-  for (let n = Math.max(1, lastN - 5); n <= lastN; n++) candidates.add(`${day}:${n}`);
+  for (let n = 1; n <= lastN; n++) candidates.add(`${day}:${n}`);
   // รอบที่ยังมีโพยค้าง
   const { data } = await supabaseClient.from('tickets').select('round_id').eq('lottery_slug', 'yeekee').eq('status', 'pending');
   (data || []).forEach((t: any) => {
