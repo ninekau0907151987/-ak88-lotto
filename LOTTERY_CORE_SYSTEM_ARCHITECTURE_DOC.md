@@ -26,55 +26,74 @@
 
 ```mermaid
 flowchart TD
-    subgraph ClientLayer["1. ช่องทางเข้าใช้งาน (Client Layer)"]
-        UserApp["เว็บแอปสมาชิก (Member Web App)<br/>React 19 + PWA + 3D Receipt"]
-        AdminApp["ระบบควบคุมหลังบ้าน (Admin Backoffice)<br/>Role-Based Access + Realtime Monitor"]
+    subgraph Layer1["1. Admin & Risk Configuration (การตั้งค่าและการควบคุม)"]
+        A1["สร้างหวย / จัดหมวดหมู่<br/>(Catalog Management)"] --> A1_Switch["เปิด - ปิดประเภทหวยหลัก<br/>(Master Lottery Open-Close Switch)"]
+        A1_Switch --> A2["เปิดรอบ - ปิดรอบ / จัดตารางรอบ<br/>(Round Open-Close & Cutoff Scheduler)"]
+        A2 --> A3["ตั้งค่าจ่าย & สัดส่วนรับกิน<br/>(Base Rates & Intake Budget)"]
+        A3 --> A4["ตั้งค่าอั้น / ปิดรับ / ลดจ่าย<br/>(Blocked & Reduced Rules)"]
     end
 
-    subgraph ServiceLayer["2. เลเยอร์ประมวลผล (Application & Core Engine)"]
-        Router["Vite & React Router v6 Engine"]
-        BetValidator["Bet Queue & Rule Validator"]
-        RiskEngine["Risk & Exposure Matrix Engine"]
-        SettlementWorker["Settlement & Payout Engine"]
-        YeekeeSweep["Yeekee Dynamic Sweep Engine (88 Rounds)"]
+    subgraph Layer2["2. Betting & Transaction Pipeline (การแทง คิว และความปลอดภัย)"]
+        B1["สมาชิกเลือกเลข & รูปแบบแทง<br/>(Betting Form & Expansion)"] --> B2["ตรวจสอบเงื่อนไข & วงเงิน<br/>(Pre-flight Validation)"]
+        B2 --> B3["คิวบันทึก & ล็อคยอดหักเงิน<br/>(Atomic Balance Deduction)"]
+        B3 --> B4["ออกใบเสร็จโพย 3D & QR Verification<br/>(Idempotent Ticket Confirmation)"]
     end
 
-    subgraph DataLayer["3. ฐานข้อมูลและบัญชีแยกประเภท (Data & Ledger Layer)"]
-        DB_Users[("users<br/>(ยอดเงิน & สิทธิ์)")]
-        DB_Tickets[("tickets<br/>(โพยหวย & QR Code)")]
-        DB_Tx[("transactions<br/>(ประวัติการเงิน Atomic)")]
-        DB_Rounds[("lottery_rounds<br/>(รอบหวย & ผลรางวัล)")]
-        DB_Risk[("risk_intake_configs<br/>(งบรับกิน & เลขอั้น)")]
+    subgraph Layer3["3. Real-Time Risk & Monitoring (การมอนิเตอร์และคุมยอดเสี่ยง)"]
+        C1["คำนวณยอดแทงสะสมรายเลข<br/>(Live Intake Accumulation)"] --> C2["คำนวณยอดจ่ายสูงสุด<br/>(Worst-Case Liability Matrix)"]
+        C2 --> C3["แจ้งเตือน & ปรับลด/ปิดรับออโต้<br/>(Auto Capping / Instant Cutoff)"]
+        C4["ระบบยกเลิกโพย & คืนเงิน<br/>(Grace Period Cancel & Refund)"]
     end
 
-    ClientLayer --> ServiceLayer
-    ServiceLayer --> DataLayer
+    subgraph Layer4["4. Result Settlement & Reporting (การออกผล ตัดบิล และรายงาน)"]
+        D1["บันทึกผลรางวัล<br/>(Admin Draw / Yeekee Auto Engine)"] --> D2["Settlement Worker ประมวลผล<br/>(Batch Bet Matching & Tax Deduct)"]
+        D2 --> D3["โอนเงินรางวัล & อัปเดตสถานะบิล<br/>(Atomic Credit Win & Close Ticket)"]
+        D3 --> D4["สรุปรายงานได้-เสีย & ค้นหาเชิงลึก<br/>(Win/Loss Audit & Search Hub)"]
+    end
+
+    Layer1 --> Layer2
+    Layer2 --> Layer3
+    Layer3 --> Layer4
 ```
 
 ---
 
-## 2. ไดอาแกรมวงจรชีวิตหวยและการเปิดรอบ
+## 2. ไดอาแกรมวงจรชีวิตหวย: การเปิด-ปิดประเภทหวยหลัก สู่ การเปิดรอบ-ปิดรอบ (2-Tier Hierarchy)
 
-การจัดการรอบหวยรองรับทั้ง **รอบเดี่ยว (Single Round)**, **การจัดตารางล่วงหน้า (Multi-Round Batch)**, และ **ระบบยี่กี 88 รอบอัตโนมัติ (Dynamic Time Sweep Engine)** พร้อม **Guard System** ตรวจจับความปลอดภัย
+ตามหลักการทำงานจริงของระบบหวยสากล ขั้นตอนการเปิด-ปิดถูกแยกออกเป็น **2 ระดับชั้น (2 Tiers)** อย่างชัดเจน:
+
+1. **ระดับที่ 1 — เปิด - ปิดประเภทหวยหลัก (Master Lottery Open/Close Switch):**  
+   หลังจาก **"สร้างหวย / แค็ตตาล็อก"** เสร็จสิ้นแล้ว จะต้องผ่านสวิตช์เปิด-ปิดหลักของหวยชนิดนั้นก่อน เพื่อควบคุมว่าหวยชนิดนี้ *"เปิดให้บริการ (Active)"* หรือ *"ปิดพักระบบ/ปิดปรับปรุง (Closed/Disabled)"* หากหวยปิดอยู่ในระดับมาสเตอร์ ระบบหน้าบ้านจะไม่เปิดรับแทง และระบบหลังบ้านจะไม่สามารถเปิดรอบใหม่ได้
+2. **ระดับที่ 2 — เปิดรอบ และ ปิดรอบ (Round Open & Close Lifecycle):**  
+   เมื่อประเภทหวยหลักอยู่ในสถานะ **"เปิด"** แล้วเท่านั้น จึงจะสามารถ:
+   - **เปิดรอบ (Open Round):** กำหนดงวดวันที่, เวลาเปิดรับแทง, เวลาปิดรับแทง และเวลาออกผล (ทั้งแบบรอบเดี่ยว, ตาราง 5 งวดล่วงหน้า หรือยี่กี 88 รอบอัตโนมัติ)
+   - **ปิดรอบ (Close Round / Cutoff):** เมื่อหมดเวลานับถอยหลัง หรือแอดมินกดสั่งปิดรอบฉุกเฉิน ระบบจะตัดรอบทันที ห้ามส่งโพยเพิ่ม และเปลี่ยนสถานะรอบเป็น *"รอผลรางวัล (Pending Result)"*
 
 ```mermaid
 flowchart TD
-    Start(["เริ่มต้นจัดการหวย"]) --> CheckType{"ประเภทหวย"}
+    Step1["1. สร้างหวย / แค็ตตาล็อก<br/>(Catalog Management: ชื่อ, รหัส, ธงชาติ, หมวดหมู่)"] --> MasterSwitch{"2. สวิตช์ เปิด - ปิดประเภทหวยหลัก<br/>(Master Lottery Open-Close Switch)"}
 
-    CheckType -- "หวยยี่กี 88 รอบ" --> YK_Engine["Yeekee Dynamic Sweep Engine<br/>(คำนวณรอบ 1-88 ต่อวัน ทุก 15 นาที)"]
-    YK_Engine --> YK_Rounds["จัดลำดับอัตโนมัติ:<br/>1. รอบกำลังเล่นอยู่ (Active #1)<br/>2. รอบรอเปิดถัดไป (Upcoming)<br/>3. รอบออกผลแล้วไปหลังสุด (Settled สีเทา)"]
+    MasterSwitch -- "สถานะ: ปิด (Closed / Inactive)" --> MasterClosed["⛔ ปิดให้บริการหวยประเภทนี้ชั่วคราว<br/>• หน้าบ้านไม่เปิดรับแทง<br/>• แอดมินไม่สามารถเปิดรอบใหม่ได้"]
+    MasterSwitch -- "สถานะ: เปิด (Active / Enabled)" --> MasterOpen["✅ หวยเปิดพร้อมให้บริการ<br/>(อนุญาตให้เปิดรอบและรับแทงได้)"]
 
-    CheckType -- "หวยรัฐบาล/หุ้น/ต่างประเทศ" --> AdminAction{"รูปแบบการเปิดรอบ"}
-    
-    AdminAction -- "เปิดรอบเดี่ยว (Single)" --> SetSingle["กำหนด: งวดวันที่, เวลาเปิด, เวลาปิด, เวลาออกผล"]
-    AdminAction -- "เปิดตารางล่วงหน้า (Batch)" --> SetBatch["กรอกตารางล่วงหน้าสูงสุด 5 งวด"]
+    MasterOpen --> RoundScheduler{"3. การจัดการรอบหวย<br/>(Round Open - Close Scheduler)"}
 
-    SetSingle --> GuardCheck{"Guard System ตรวจสอบ"}
-    SetBatch --> GuardCheck
+    subgraph RoundLevel["วงจรการเปิดรอบ - ปิดรอบ (Round Level)"]
+        RoundScheduler -- "หวยยี่กี 88 รอบ" --> YK_Sweep["ยี่กี Dynamic Sweep Engine<br/>คำนวณรอบ 1-88 วนทุก 15 นาที"]
+        RoundScheduler -- "หวยรัฐบาล/หุ้น/ต่างประเทศ" --> SetRoundType{"รูปแบบการเปิดรอบ"}
+        
+        SetRoundType -- "เปิดรอบเดี่ยว (Single)" --> SetSingle["กำหนด: งวดวันที่, เวลาเปิด, เวลาปิด, เวลาออกผล"]
+        SetRoundType -- "เปิดตารางล่วงหน้า (Batch)" --> SetBatch["ตั้งตารางล่วงหน้าสูงสุด 5 งวด"]
 
-    GuardCheck -- "มีรอบเดิมที่ยังไม่ออกผลค้างอยู่" --> BlockOpen["❌ ระงับการเปิดรอบใหม่ชั่วคราว<br/>(ป้องกันข้อผิดพลาดการแทงทับงวด)"]
-    GuardCheck -- "รอบก่อนหน้าเสร็จสมบูรณ์" --> OpenSuccess["✅ เปิดรอบรับแทงสำเร็จ<br/>(สถานะ: Active / Betting Open)"]
-    OpenSuccess --> SyncFrontend["ส่งข้อมูลไปยังหน้าบ้าน<br/>(Countdown Timer เริ่มนับถอยหลัง)"]
+        SetSingle & SetBatch & YK_Sweep --> RoundGuard{"Guard System ตรวจสอบ"}
+        RoundGuard -- "มีรอบก่อนหน้าค้างไม่ออกผล" --> BlockRound["ระงับเปิดรอบใหม่ชั่วคราว"]
+        RoundGuard -- "รอบก่อนหน้าเสร็จสมบูรณ์" --> OpenRound["🟢 เปิดรอบรับแทง (Round Open)<br/>Countdown นับถอยหลัง / สมาชิกส่งโพยได้"]
+
+        OpenRound --> CheckCutoff{"ถึงเวลาปิดรับแทง (Cutoff Time)<br/>หรือ แอดมินสั่งปิดรอบทันที?"}
+        CheckCutoff -- "ถึงเวลาปิดรับแทง" --> CloseRound["🔴 ปิดรอบรับแทง (Round Closed / Cutoff)<br/>ห้ามส่งโพยเพิ่ม / เข้าสู่สถานะรอออกผล"]
+    end
+
+    CloseRound --> Step4["4. เข้าสู่การตั้งค่าจ่าย-กิน ความเสี่ยง และ ออกผลรางวัล"]
 ```
 
 ---
