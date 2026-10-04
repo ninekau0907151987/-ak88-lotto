@@ -1,24 +1,37 @@
 /**
  * src/backend/pages/StaffPermission.tsx
  * ------------------------------------------------------------------
- * ★ หน้าจัดการสิทธิ์พนักงาน (Staff & Permission Manager) ★
+ * ★ หน้าจัดการสิทธิ์และโครงสร้างความปลอดภัย (Staff, 5 Function Groups & 2FA) ★
  *
- * ผู้ใช้ขอ: "ทำระบบ จัดการสิทธิ์ฟังชั่น ด้วยเพื่อปิดสิทธิ์ให้พนักงานในเว็บนั้นๆ"
+ * สิทธิ์ 3 ระดับหลัก:
+ *   1. คนผลิต (Provider / Creator) — สิทธิ์ใหญ่สุด คุมสถาปัตยกรรม สวิตช์ระบบแม่ รี 2FA ได้ทุกคน
+ *   2. เจ้าของ (Owner / Operator) — เจ้าของร้าน ตั้งค่า 5 กลุ่มฟังก์ชัน จัดการพนักงาน รีเซ็ต 2FA พนักงาน
+ *   3. ลูกค้า (Customer / Member) — ผู้เล่นหน้าบ้าน
  *
- * หน้าจอนี้ทำ 4 อย่าง:
- *   1. รายชื่อพนักงาน + ตำแหน่ง + จำนวนสิทธิ์ที่ถืออยู่
- *   2. ★ ตั้งสิทธิ์รายคน — ติ๊กเปิด/ปิดได้ทีละฟังชั่น (40+ สิทธิ์)
- *   3. เทียบกับตำแหน่ง (แสดงว่าสิทธิ์นี้มาจาก role หรือ override)
- *   4. ประวัติการแก้สิทธิ์ทุกครั้ง
+ * 5 กลุ่มฟังก์ชันหลัก (เข้าทางเดียวกัน):
+ *   - 1. กลุ่มการเงิน & ฝาก-ถอน
+ *   - 2. กลุ่มควบคุมหวย & จัดตารางรอบ
+ *   - 3. กลุ่มคำนวณรับกิน & ลดความเสี่ยง
+ *   - 4. กลุ่มออกผลรางวัล & บัญชีรายงาน
+ *   - 5. กลุ่มสมาชิก & พนักงาน & ความปลอดภัย 2FA
+ *
+ * ระบบ 2FA และ เส้นทางการเข้าใช้งาน:
+ *   - ตรวจสอบสถานะ 2FA ของพนักงาน
+ *   - ปุ่มรีเซ็ต 2FA (Reset 2FA เป็น 123456)
+ *   - บันทึกและแสดงผลเส้นทางการเข้าใช้งาน (Access Route Audit Trail)
  * ================================================================== */
 import { useState, useEffect, useMemo } from 'react';
 import { db } from '@/shared/lib/firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, addDoc, query, orderBy } from 'firebase/firestore';
 import {
   PERMISSION_GROUPS, PERMISSION_META, ROLES, ROLE_LIST, ALL_PERMISSIONS,
+  FIVE_FUNCTION_GROUPS, type FunctionGroupDef,
   RISK_LABEL, effectivePermissions, describeChange,
   type Permission, type RoleKey, type StaffSession, type RiskLevel, type PermissionChange,
 } from '@/shared/lib/permissions';
+import {
+  resetStaffTwoFactor, getAccessPathLogs, type AccessLogEntry, type TwoFactorState
+} from '@/shared/lib/twoFactorAuth';
 import { fmtInt } from '@/shared/lib/betCount';
 import { exportCsv } from '@/shared/components/DataToolbar';
 import StatusBadge from '@/shared/components/StatusBadge';
@@ -36,6 +49,7 @@ interface StaffRow {
   scopeProjectIds?: string[];
   note?: string;
   password?: string;
+  twoFactor?: TwoFactorState;
   createdAt?: string;
   lastLogin?: string;
 }
@@ -43,13 +57,14 @@ interface StaffRow {
 export default function StaffPermission() {
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [logs, setLogs] = useState<(PermissionChange & { id: string; at: string })[]>([]);
+  const [accessLogs, setAccessLogs] = useState<AccessLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<StaffRow | null>(null);
 
   // ---- ตัวกรอง ----
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState<RoleKey[]>([]);
-  const [detailTab, setDetailTab] = useState<'perms' | 'history'>('perms');
+  const [detailTab, setDetailTab] = useState<'five_groups' | 'perms' | 'two_factor' | 'access_logs' | 'history'>('five_groups');
   const [permSearch, setPermSearch] = useState('');
   const [expandGroups, setExpandGroups] = useState<Record<string, boolean>>({});
 
@@ -58,7 +73,7 @@ export default function StaffPermission() {
   const [form, setForm] = useState<Partial<StaffRow>>({ role: 'staff', username: '', displayName: '', phone: '', note: '' });
   const [saving, setSaving] = useState(false);
 
-  /* ---- โหลดข้อมูล ---- */
+  /* ---- โหลดข้อมูลพนักงาน และ บันทึกกิจกรรม ---- */
   useEffect(() => {
     const unsubStaff = onSnapshot(
       query(collection(db, 'staff'), orderBy('createdAt', 'desc')),
@@ -73,6 +88,12 @@ export default function StaffPermission() {
       snap => setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() } as any))),
       err => console.warn('[permissionLogs] load failed:', err)
     );
+
+    // โหลดประวัติเส้นทางการเข้าใช้งาน
+    getAccessPathLogs(50).then(logsData => {
+      setAccessLogs(logsData);
+    });
+
     return () => { unsubStaff(); unsubLogs(); };
   }, []);
 
@@ -100,13 +121,11 @@ export default function StaffPermission() {
       active: staff.filter(s => s.status !== 'suspended').length,
       suspended: staff.filter(s => s.status === 'suspended').length,
       withOverride: staff.filter(s => (s.revoked?.length || 0) > 0 || (s.grantedExtra?.length || 0) > 0).length,
+      twoFactorEnabled: staff.filter(s => s.twoFactor?.enabled !== false).length,
       byRole,
     };
   }, [staff]);
 
-  /* ================================================================
-   * ★ บันทึกการแก้สิทธิ์
-   * ================================================================ */
   const writeLog = async (change: PermissionChange) => {
     try {
       await addDoc(collection(db, 'permissionLogs'), {
@@ -115,14 +134,14 @@ export default function StaffPermission() {
         summary: describeChange(change),
       });
     } catch (e) {
-      console.warn('[permissionLogs] write failed (ไม่กระทบการทำงาน):', e);
+      console.warn('[permissionLogs] write failed:', e);
     }
   };
 
-  /** ★ ติ๊ก/ถอด 1 สิทธิ์ */
+  /** ติ๊ก/ถอด 1 สิทธิ์ */
   const togglePermission = async (target: StaffRow, perm: Permission) => {
     const roleDef = ROLES[target.role];
-    const inRole = roleDef.perms.includes(perm);
+    const inRole = roleDef?.perms?.includes(perm) || false;
     const revoked = new Set(target.revoked || []);
     const extra = new Set(target.grantedExtra || []);
 
@@ -130,11 +149,9 @@ export default function StaffPermission() {
     const willHave = !currentlyHas;
 
     if (willHave) {
-      // เปิดสิทธิ์
       revoked.delete(perm);
       if (!inRole) extra.add(perm);
     } else {
-      // ★ ปิดสิทธิ์
       if (inRole) revoked.add(perm);
       extra.delete(perm);
     }
@@ -155,28 +172,25 @@ export default function StaffPermission() {
         action: willHave ? 'grant' : 'revoke',
         permission: perm,
       });
-    } catch (e) {
-      console.error('save permission failed:', e);
-      alert('บันทึกสิทธิ์ไม่สำเร็จ: ' + (e as Error).message);
+    } catch (e: any) {
+      alert('บันทึกสิทธิ์ไม่สำเร็จ: ' + e.message);
     }
   };
 
-  /** ★ ปิด/เปิดทั้งหมวด */
-  const toggleGroup = async (target: StaffRow, groupKey: string, turnOn: boolean) => {
-    const group = PERMISSION_GROUPS.find(g => g.key === groupKey);
-    if (!group) return;
+  /** ★ เปิด/ปิด สิทธิ์ทั้งกลุ่มฟังก์ชัน (จาก 5 กลุ่ม) ★ */
+  const toggleFiveGroup = async (target: StaffRow, group: FunctionGroupDef, turnOn: boolean) => {
     const roleDef = ROLES[target.role];
     const revoked = new Set(target.revoked || []);
     const extra = new Set(target.grantedExtra || []);
 
     group.perms.forEach(p => {
-      const inRole = roleDef.perms.includes(p.key);
+      const inRole = roleDef?.perms?.includes(p) || false;
       if (turnOn) {
-        revoked.delete(p.key);
-        if (!inRole) extra.add(p.key);
+        revoked.delete(p);
+        if (!inRole) extra.add(p);
       } else {
-        if (inRole) revoked.add(p.key);
-        extra.delete(p.key);
+        if (inRole) revoked.add(p);
+        extra.delete(p);
       }
     });
 
@@ -190,15 +204,64 @@ export default function StaffPermission() {
       }, { merge: true });
       await writeLog({
         targetUid: target.id, targetName: target.displayName || target.username,
-        actorName: 'ผู้ดูแลระบบ', action: turnOn ? 'grant' : 'revoke',
-        note: `${turnOn ? 'เปิด' : 'ปิด'}ทั้งหมวด "${group.label}" (${group.perms.length} สิทธิ์)`,
+        actorName: 'เจ้าของระบบ', action: turnOn ? 'grant' : 'revoke',
+        note: `${turnOn ? 'เปิด' : 'ปิด'}กลุ่มฟังก์ชัน "${group.name}" (${group.perms.length} สิทธิ์)`,
       });
-    } catch (e) {
-      alert('บันทึกไม่สำเร็จ: ' + (e as Error).message);
+    } catch (e: any) {
+      alert('บันทึกกลุ่มฟังก์ชันไม่สำเร็จ: ' + e.message);
     }
   };
 
-  /** ★ เปลี่ยนตำแหน่ง */
+  /** ★ รีเซ็ต 2FA ให้พนักงาน (สำหรับ คนผลิต หรือ เจ้าของ) ★ */
+  const handleReset2FA = async (target: StaffRow) => {
+    if (!confirm(`ยืนยันที่จะรีเซ็ต 2FA ให้กับ "${target.displayName || target.username}"?\n\nรหัสความปลอดภัยเริ่มต้นจะถูกตั้งเป็น 123456 และปลดล็อกบัญชี`)) return;
+    try {
+      const res = await resetStaffTwoFactor(target.id, 'owner', '123456');
+      if (res.success) {
+        alert(res.message);
+        const updated: StaffRow = {
+          ...target,
+          twoFactor: {
+            enabled: true,
+            status: 'pending',
+            pin: '123456',
+            failedAttempts: 0,
+            lastResetAt: new Date().toISOString(),
+          }
+        };
+        setSelected(updated);
+        setStaff(prev => prev.map(s => s.id === target.id ? updated : s));
+        const updatedAccess = await getAccessPathLogs(50);
+        setAccessLogs(updatedAccess);
+      } else {
+        alert(res.message);
+      }
+    } catch (e: any) {
+      alert('เกิดข้อผิดพลาดในการรีเซ็ต 2FA: ' + e.message);
+    }
+  };
+
+  /** สลับเปิด/ปิด 2FA รายพนักงาน */
+  const toggle2FAStatus = async (target: StaffRow, enabled: boolean) => {
+    try {
+      const next2FA: TwoFactorState = {
+        enabled,
+        status: enabled ? 'active' : 'disabled',
+        pin: target.twoFactor?.pin || '123456',
+        failedAttempts: 0,
+        lastResetAt: new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'staff', target.id), { twoFactor: next2FA }, { merge: true });
+      const updated = { ...target, twoFactor: next2FA };
+      setSelected(updated);
+      setStaff(prev => prev.map(s => s.id === target.id ? updated : s));
+      alert(`ตั้งค่า 2FA เป็น ${enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} เรียบร้อยแล้ว`);
+    } catch (e: any) {
+      alert('บันทึก 2FA ไม่สำเร็จ: ' + e.message);
+    }
+  };
+
+  /** เปลี่ยนตำแหน่ง */
   const changeRole = async (target: StaffRow, role: RoleKey) => {
     const from = target.role;
     if (from === role) return;
@@ -214,12 +277,12 @@ export default function StaffPermission() {
         targetUid: target.id, targetName: target.displayName || target.username,
         actorName: 'ผู้ดูแลระบบ', action: 'role_change', from, to: role,
       });
-    } catch (e) {
-      alert('เปลี่ยนตำแหน่งไม่สำเร็จ: ' + (e as Error).message);
+    } catch (e: any) {
+      alert('เปลี่ยนตำแหน่งไม่สำเร็จ: ' + e.message);
     }
   };
 
-  /** ★ ล้าง override ทั้งหมด → กลับไปใช้สิทธิ์ตามตำแหน่ง */
+  /** คืนสิทธิ์ตามตำแหน่ง */
   const resetToRole = async (target: StaffRow) => {
     if (!confirm(`คืนสิทธิ์ของ "${target.displayName || target.username}" กลับไปตามตำแหน่ง "${ROLES[target.role]?.label}"?\n\nการตั้งค่าเฉพาะบุคคลจะหายทั้งหมด`)) return;
     const updated = { ...target, grantedExtra: [], revoked: [] };
@@ -231,7 +294,7 @@ export default function StaffPermission() {
         targetUid: target.id, targetName: target.displayName || target.username,
         actorName: 'ผู้ดูแลระบบ', action: 'grant', note: 'คืนสิทธิ์กลับตามตำแหน่ง',
       });
-    } catch (e) { alert('ไม่สำเร็จ: ' + (e as Error).message); }
+    } catch (e: any) { alert('ไม่สำเร็จ: ' + e.message); }
   };
 
   /** ระงับ/ปลดระงับ */
@@ -247,7 +310,7 @@ export default function StaffPermission() {
         actorName: 'ผู้ดูแลระบบ', action: next === 'suspended' ? 'revoke' : 'grant',
         note: next === 'suspended' ? '★ ระงับบัญชี' : 'ปลดระงับบัญชี',
       });
-    } catch (e) { alert('ไม่สำเร็จ: ' + (e as Error).message); }
+    } catch (e: any) { alert('ไม่สำเร็จ: ' + e.message); }
   };
 
   /** ลบพนักงาน */
@@ -261,7 +324,7 @@ export default function StaffPermission() {
       });
       setStaff(prev => prev.filter(s => s.id !== target.id));
       if (selected?.id === target.id) setSelected(null);
-    } catch (e) { alert('ลบไม่สำเร็จ: ' + (e as Error).message); }
+    } catch (e: any) { alert('ลบไม่สำเร็จ: ' + e.message); }
   };
 
   /** บันทึกฟอร์มเพิ่ม/แก้ */
@@ -278,6 +341,12 @@ export default function StaffPermission() {
         role: form.role || 'staff',
         note: form.note || '',
         status: (form as any).status || 'active',
+        twoFactor: {
+          enabled: true,
+          status: 'active',
+          pin: '123456',
+          failedAttempts: 0
+        }
       };
       if (form.password) {
         payload.password = form.password;
@@ -298,147 +367,194 @@ export default function StaffPermission() {
         });
       }
       setShowForm(false);
-      setForm({ role: 'staff', username: '', displayName: '', phone: '', note: '' });
-    } catch (e) {
-      alert('บันทึกไม่สำเร็จ: ' + (e as Error).message);
-    } finally { setSaving(false); }
+    } catch (e: any) {
+      alert('บันทึกไม่สำเร็จ: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  /* ================================================================
-   * RENDER
-   * ================================================================ */
   return (
-    <div className="space-y-5">
-      {/* ---- การ์ดสรุป ---- */}
+    <div className="space-y-6">
+      {/* ================================================================
+       * ★ 3-Tier Hierarchy Banner (สิทธิ์ 3 ระดับหลัก: คนผลิต -> เจ้าของ -> ลูกค้า)
+       * ================================================================ */}
+      <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white p-6 rounded-3xl border border-indigo-900/50 shadow-xl relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-amber-400/10 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 text-xs font-black tracking-wide flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-sm">shield</span>
+                โครงสร้างสิทธิ์ 3 ชั้น & 5 กลุ่มฟังก์ชัน
+              </span>
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold">
+                2FA Active
+              </span>
+            </div>
+            <h2 className="text-2xl font-black text-white tracking-wide">
+              ศูนย์จัดการสิทธิ์บุคลากร & ความปลอดภัย 2 ชั้น (Access Control & 2FA)
+            </h2>
+            <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+              สิทธิ์หลักแบ่ง 3 ระดับ: <b>1. คนผลิต (ใหญ่สุด)</b> ➡️ <b>2. เจ้าของ (ตั้งค่า 5 กลุ่มฟังก์ชันเอง)</b> ➡️ <b>3. ลูกค้า (หน้าบ้าน)</b> พร้อมระบบตรวจสอบ 2FA ติดตามเส้นทางการเข้าใช้งานรายบุคคล
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setForm({ role: 'staff', username: '', displayName: '', phone: '', note: '' });
+                setShowForm(true);
+              }}
+              className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 hover:brightness-105 text-slate-950 font-black text-xs shadow-lg transition flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-sm font-black">person_add</span>
+              <span>เพิ่มพนักงานใหม่</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 3 Tiers Visual Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-6 pt-5 border-t border-white/10">
+          <div className="bg-white/5 border border-purple-500/30 rounded-2xl p-3.5 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center justify-center font-black text-xs">1</span>
+              <span className="font-black text-sm text-purple-200">คนผลิต (System Provider)</span>
+              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/30 text-purple-200">ใหญ่สุด</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2">
+              สิทธิ์ระดับสถาปัตยกรรม ควบคุมสวิตช์ระบบแม่ กู้คืนฐานข้อมูล และรีเซ็ต 2FA ได้ทุกระดับ
+            </p>
+          </div>
+
+          <div className="bg-white/5 border border-amber-500/30 rounded-2xl p-3.5 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center justify-center font-black text-xs">2</span>
+              <span className="font-black text-sm text-amber-200">เจ้าของระบบ (Owner)</span>
+              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/30 text-amber-200">ผู้บริหาร</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2">
+              บริหารร้าน ตั้งค่า 5 กลุ่มฟังก์ชัน คุมงบรับกิน อัตราจ่ายหวย และรีเซ็ต 2FA ให้พนักงาน
+            </p>
+          </div>
+
+          <div className="bg-white/5 border border-emerald-500/30 rounded-2xl p-3.5 backdrop-blur-sm">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center justify-center font-black text-xs">3</span>
+              <span className="font-black text-sm text-emerald-200">ลูกค้า / สมาชิก (Customer)</span>
+              <span className="ml-auto text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/30 text-emerald-200">หน้าบ้าน</span>
+            </div>
+            <p className="text-[11px] text-slate-400 mt-2">
+              สมาชิกผู้เล่นทั่วไป เข้าแทงหวย เติม-ถอนเงินออโต้ ตรวจสอบโพยผ่านหน้าเว็บหลัก
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Stats Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <MoneyCard label="พนักงานทั้งหมด" value={stats.total} currency={false} icon="badge" tone="blue" size="md" />
-        <MoneyCard label="ใช้งานอยู่" value={stats.active} currency={false} icon="check_circle" tone="green" size="md" />
-        <MoneyCard label="ถูกระงับ" value={stats.suspended} currency={false} icon="block" tone="red" size="md" />
-        <MoneyCard label="มีตั้งสิทธิ์เฉพาะ" value={stats.withOverride} currency={false} icon="tune" tone="gold" size="md" hint="คนที่มี override" />
+        <MoneyCard label="พนักงานทั้งหมด" value={stats.total} currency={false} tone="default" size="sm" icon="badge" />
+        <MoneyCard label="บัญชีที่เปิดใช้งาน" value={stats.active} currency={false} tone="green" size="sm" icon="check_circle" />
+        <MoneyCard label="เปิดระบบ 2FA ป้องกัน" value={stats.twoFactorEnabled} currency={false} tone="blue" size="sm" icon="verified_user" hint="ระบบความปลอดภัย 2 ชั้น" />
+        <MoneyCard label="มีสิทธิ์พิเศษเฉพาะบุคคล" value={stats.withOverride} currency={false} tone="gold" size="sm" icon="tune" hint="ปรับแยกจากตำแหน่ง" />
       </div>
 
-      {/* ---- แถบเครื่องมือ ---- */}
-      <div className="admin-card p-3 flex flex-wrap items-center gap-2">
-        <div className="flex-1 min-w-[200px] flex items-center gap-2 px-3 py-2 rounded-xl border" style={{ borderColor: 'var(--admin-border)', background: 'var(--admin-subtle)' }}>
-          <span className="material-symbols-outlined text-base" style={{ color: 'var(--admin-text-muted)' }}>search</span>
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="ค้นหา: ชื่อผู้ใช้, ชื่อจริง, เบอร์โทร..."
-            className="flex-1 bg-transparent outline-none text-xs font-medium"
-            style={{ color: 'var(--admin-text)' }}
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="material-symbols-outlined text-base" style={{ color: 'var(--admin-text-faint)' }}>close</button>
-          )}
+      {/* Table Section */}
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 max-w-md">
+            <span className="material-symbols-outlined text-slate-400 text-lg">search</span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="ค้นหาพนักงานด้วยชื่อ, เบอร์โทร..."
+              className="bg-transparent text-xs outline-none w-full font-medium"
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                getAccessPathLogs(50).then(logsData => setAccessLogs(logsData));
+              }}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition flex items-center gap-1.5"
+            >
+              <span className="material-symbols-outlined text-xs">history</span>
+              <span>ดูเส้นทางเข้าใช้งาน ({accessLogs.length})</span>
+            </button>
+          </div>
         </div>
 
-        {/* กรองตำแหน่ง */}
-        <div className="flex gap-1.5 flex-wrap">
-          {ROLE_LIST.map(r => {
-            const on = roleFilter.includes(r.key);
-            const n = stats.byRole[r.key] || 0;
-            return (
-              <button key={r.key}
-                onClick={() => setRoleFilter(prev => on ? prev.filter(x => x !== r.key) : [...prev, r.key])}
-                className="px-2.5 py-1.5 rounded-lg text-[11px] font-black border transition"
-                style={on
-                  ? { background: r.color, borderColor: r.color, color: '#fff' }
-                  : { background: '#fff', borderColor: 'var(--admin-border)', color: 'var(--admin-text-muted)' }}>
-                {r.label} {n > 0 && <span className="opacity-70">({n})</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <button onClick={() => exportCsv(filtered, [
-          { key: 'username', label: 'ชื่อผู้ใช้' },
-          { key: 'displayName', label: 'ชื่อที่แสดง' },
-          { key: 'phone', label: 'เบอร์โทร' },
-          { key: 'role', label: 'ตำแหน่ง' },
-          { key: 'status', label: 'สถานะ' },
-          { key: 'note', label: 'หมายเหตุ' },
-        ], 'staff')}
-          className="px-3 py-2 rounded-lg text-xs font-bold border flex items-center gap-1"
-          style={{ background: '#fff', borderColor: 'var(--admin-border)', color: 'var(--admin-text)' }}>
-          <span className="material-symbols-outlined text-base">download</span> ส่งออก
-        </button>
-
-        <button onClick={() => { setForm({ role: 'staff', username: '', displayName: '', phone: '', note: '' }); setShowForm(true); }}
-          className="px-3 py-2 rounded-lg text-xs font-black flex items-center gap-1 text-white"
-          style={{ background: 'var(--admin-accent)' }}>
-          <span className="material-symbols-outlined text-base">person_add</span> เพิ่มพนักงาน
-        </button>
-      </div>
-
-      {/* ---- ตารางรายชื่อ ---- */}
-      <div className="admin-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm border-collapse">
-            <thead className="admin-table border-b">
-              <tr>
-                <th className="p-3">พนักงาน</th>
-                <th className="p-3 text-center">ตำแหน่ง</th>
-                <th className="p-3 text-center">สิทธิ์ที่ถือ</th>
-                <th className="p-3 text-center">override</th>
-                <th className="p-3 text-center">สถานะ</th>
-                <th className="p-3 text-right">จัดการ</th>
+          <table className="w-full text-xs text-left">
+            <thead>
+              <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                <th className="p-3.5">ชื่อพนักงาน / บัญชี</th>
+                <th className="p-3.5 text-center">ตำแหน่ง</th>
+                <th className="p-3.5 text-center">สิทธิ์ที่เปิด</th>
+                <th className="p-3.5 text-center">สถานะ 2FA</th>
+                <th className="p-3.5 text-center">สถานะบัญชี</th>
+                <th className="p-3.5 text-right">การจัดการ</th>
               </tr>
             </thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={6} className="p-8 text-center font-bold italic" style={{ color: 'var(--admin-text-faint)' }}>กำลังโหลด...</td></tr>
-              )}
-              {!loading && filtered.length === 0 && (
-                <tr><td colSpan={6} className="p-8 text-center font-bold italic" style={{ color: 'var(--admin-text-faint)' }}>
-                  {staff.length === 0 ? 'ยังไม่มีพนักงานในระบบ — กด "เพิ่มพนักงาน" เพื่อเริ่ม' : 'ไม่พบพนักงานที่ตรงกับเงื่อนไข'}
-                </td></tr>
-              )}
+            <tbody className="divide-y divide-slate-100">
               {filtered.map(s => {
                 const roleDef = ROLES[s.role];
-                const eff = effectivePermissions({ uid: s.id, username: s.username, displayName: s.displayName || '', role: s.role, grantedExtra: s.grantedExtra, revoked: s.revoked });
-                const nRevoked = (s.revoked || []).length;
-                const nExtra = (s.grantedExtra || []).length;
+                const eff = effectivePermissions({
+                  uid: s.id, username: s.username, displayName: '',
+                  role: s.role, grantedExtra: s.grantedExtra, revoked: s.revoked
+                });
+                const is2FA = s.twoFactor?.enabled !== false;
+
                 return (
-                  <tr key={s.id} className="border-b transition cursor-pointer hover:bg-black/[0.02]"
-                      onClick={() => { setSelected(s); setDetailTab('perms'); setPermSearch(''); }}>
-                    <td className="p-3">
-                      <div className="font-black" style={{ color: 'var(--admin-text)' }}>{s.displayName || s.username}</div>
-                      <div className="text-[10px]" style={{ color: 'var(--admin-text-faint)' }}>
-                        @{s.username}{s.phone ? ` • ${s.phone}` : ''}
-                      </div>
+                  <tr key={s.id} onClick={() => { setSelected(s); setDetailTab('five_groups'); }} className="hover:bg-slate-50 cursor-pointer transition">
+                    <td className="p-3.5">
+                      <div className="font-black text-slate-900">{s.displayName || s.username}</div>
+                      <div className="text-[10px] text-slate-400">@{s.username} {s.phone ? `• ${s.phone}` : ''}</div>
                     </td>
-                    <td className="p-3 text-center">
-                      <span className="px-2 py-1 rounded-lg text-[10px] font-black text-white" style={{ background: roleDef?.color || '#666' }}>
+                    <td className="p-3.5 text-center">
+                      <span className="px-2.5 py-1 rounded-lg text-[10px] font-black text-white" style={{ background: roleDef?.color || '#64748b' }}>
                         {roleDef?.label || s.role}
                       </span>
                     </td>
-                    <td className="p-3 text-center font-black tabular-nums" style={{ color: 'var(--admin-accent)' }}>
-                      {eff.size}<span className="text-[10px] font-bold" style={{ color: 'var(--admin-text-faint)' }}>/{ALL_PERMISSIONS.length}</span>
+                    <td className="p-3.5 text-center font-black">
+                      <span className="text-blue-600">{eff.size}</span>
+                      <span className="text-slate-400 text-[10px]">/{ALL_PERMISSIONS.length}</span>
                     </td>
-                    <td className="p-3 text-center">
-                      {nRevoked > 0 && <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: '#fef2f2', color: '#b91c1c' }}>ปิด {nRevoked}</span>}
-                      {nExtra > 0 && <span className="text-[10px] font-black px-1.5 py-0.5 rounded ml-1" style={{ background: '#ecfdf5', color: '#047857' }}>เพิ่ม {nExtra}</span>}
-                      {nRevoked === 0 && nExtra === 0 && <span className="text-[10px]" style={{ color: 'var(--admin-text-faint)' }}>ตามตำแหน่ง</span>}
+                    <td className="p-3.5 text-center">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${
+                        is2FA ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-500 border-slate-200'
+                      }`}>
+                        <span className="material-symbols-outlined text-[11px]">{is2FA ? 'verified_user' : 'lock_open'}</span>
+                        <span>{is2FA ? 'เปิด 2FA' : 'ปิด'}</span>
+                      </span>
                     </td>
-                    <td className="p-3 text-center">
+                    <td className="p-3.5 text-center">
                       <StatusBadge status={s.status === 'suspended' ? 'blocked' : 'active'} />
                     </td>
-                    <td className="p-3 text-right">
-                      <div className="flex justify-end gap-1.5">
-                        <button onClick={e => { e.stopPropagation(); setSelected(s); setDetailTab('perms'); }}
-                          className="p-2 rounded-lg border" title="ตั้งสิทธิ์"
-                          style={{ background: 'var(--admin-subtle)', borderColor: 'var(--admin-border)', color: 'var(--admin-accent)' }}>
-                          <span className="material-symbols-outlined text-base">tune</span>
+                    <td className="p-3.5 text-right">
+                      <div className="flex justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => { setSelected(s); setDetailTab('five_groups'); }}
+                          className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-black border border-blue-200 transition"
+                          title="ตั้งค่า 5 กลุ่มฟังก์ชัน"
+                        >
+                          ตั้งสิทธิ์
                         </button>
-                        <button onClick={e => { e.stopPropagation(); toggleSuspend(s); }}
-                          className="p-2 rounded-lg border" title={s.status === 'suspended' ? 'ปลดระงับ' : 'ระงับ'}
-                          style={{ background: 'var(--admin-subtle)', borderColor: 'var(--admin-border)', color: s.status === 'suspended' ? '#047857' : '#c2410c' }}>
-                          <span className="material-symbols-outlined text-base">{s.status === 'suspended' ? 'lock_open' : 'lock'}</span>
+                        <button
+                          onClick={() => handleReset2FA(s)}
+                          className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-[11px] font-black border border-amber-200 transition"
+                          title="รีเซ็ต 2FA เป็น 123456"
+                        >
+                          รี 2FA
                         </button>
-                        <button onClick={e => { e.stopPropagation(); removeStaff(s); }}
-                          className="p-2 rounded-lg border" title="ลบ"
-                          style={{ background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' }}>
-                          <span className="material-symbols-outlined text-base">delete</span>
+                        <button
+                          onClick={() => removeStaff(s)}
+                          className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition"
+                          title="ลบพนักงาน"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
                         </button>
                       </div>
                     </td>
@@ -451,69 +567,237 @@ export default function StaffPermission() {
       </div>
 
       {/* ================================================================
-       * ★ แผงตั้งสิทธิ์ (รายคน)
+       * ★ Modal แผงตั้งสิทธิ์: 5 กลุ่มฟังก์ชัน / 2FA / สิทธิ์ละเอียด / เส้นทางเข้า
        * ================================================================ */}
       {selected && (
-        <div className="fixed inset-0 bg-black/60 z-[60] flex justify-end" onClick={() => setSelected(null)}>
-          <div className="bg-white w-full max-w-3xl h-full overflow-y-auto" onClick={e => e.stopPropagation()}>
-            {/* หัวแผง */}
-            <div className="sticky top-0 z-10 p-4 border-b-2 bg-white" style={{ borderColor: 'var(--admin-border)' }}>
+        <div className="fixed inset-0 bg-black/60 z-[70] flex justify-end" onClick={() => setSelected(null)}>
+          <div className="bg-white w-full max-w-3xl h-full overflow-y-auto animate-in slide-in-from-right duration-200" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="sticky top-0 z-20 bg-white border-b border-slate-200 p-5 shadow-sm">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <h2 className="font-black text-lg flex items-center gap-2" style={{ color: 'var(--admin-text)' }}>
-                    <span className="material-symbols-outlined" style={{ color: 'var(--admin-accent)' }}>manage_accounts</span>
-                    ตั้งสิทธิ์การใช้งาน
-                  </h2>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--admin-text-muted)' }}>
-                    {selected.displayName || selected.username} • @{selected.username}
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-amber-500">manage_accounts</span>
+                    <span>จัดการสิทธิ์ & ความปลอดภัย 2FA</span>
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    {selected.displayName || selected.username} (@{selected.username}) • {ROLES[selected.role]?.label}
                   </p>
                 </div>
-                <button onClick={() => setSelected(null)} className="p-2 rounded-xl border"
-                  style={{ background: 'var(--admin-subtle)', borderColor: 'var(--admin-border)' }}>
-                  <span className="material-symbols-outlined text-base">close</span>
+                <button onClick={() => setSelected(null)} className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition">
+                  <span className="material-symbols-outlined">close</span>
                 </button>
               </div>
 
-              {/* เลือกตำแหน่ง */}
-              <div className="mt-3">
-                <label className="text-[10px] font-black uppercase block mb-1.5" style={{ color: 'var(--admin-text-muted)' }}>ตำแหน่ง</label>
-                <div className="flex flex-wrap gap-1.5">
-                  {ROLE_LIST.filter(r => !r.locked).map(r => {
-                    const on = selected.role === r.key;
-                    return (
-                      <button key={r.key} onClick={() => changeRole(selected, r.key)}
-                        className="px-3 py-1.5 rounded-lg text-[11px] font-black border transition"
-                        style={on ? { background: r.color, borderColor: r.color, color: '#fff' } : { background: '#fff', borderColor: 'var(--admin-border)', color: 'var(--admin-text-muted)' }}>
-                        {r.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] mt-1.5" style={{ color: 'var(--admin-text-faint)' }}>
-                  {ROLES[selected.role]?.desc}
-                </p>
-              </div>
+              {/* Sub-tab Navigation */}
+              <div className="flex flex-wrap gap-1.5 mt-4 pt-3 border-t border-slate-100">
+                <button
+                  onClick={() => setDetailTab('five_groups')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+                    detailTab === 'five_groups' ? 'bg-slate-900 text-amber-300' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">widgets</span>
+                  <span>5 กลุ่มฟังก์ชัน</span>
+                </button>
 
-              {/* แท็บย่อย */}
-              <div className="flex gap-1.5 mt-3">
-                {([['perms', 'สิทธิ์การใช้งาน', 'tune'], ['history', 'ประวัติการแก้', 'history']] as const).map(([k, label, icon]) => (
-                  <button key={k} onClick={() => setDetailTab(k)}
-                    className="px-3 py-1.5 rounded-lg text-[11px] font-black flex items-center gap-1 border transition"
-                    style={detailTab === k
-                      ? { background: 'var(--admin-accent)', borderColor: 'var(--admin-accent)', color: '#fff' }
-                      : { background: '#fff', borderColor: 'var(--admin-border)', color: 'var(--admin-text-muted)' }}>
-                    <span className="material-symbols-outlined text-sm">{icon}</span> {label}
-                  </button>
-                ))}
-                <button onClick={() => resetToRole(selected)}
-                  className="px-3 py-1.5 rounded-lg text-[11px] font-black flex items-center gap-1 border ml-auto"
-                  style={{ background: '#fff7ed', borderColor: '#fed7aa', color: '#c2410c' }}>
-                  <span className="material-symbols-outlined text-sm">restart_alt</span> คืนตามตำแหน่ง
+                <button
+                  onClick={() => setDetailTab('two_factor')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+                    detailTab === 'two_factor' ? 'bg-slate-900 text-amber-300' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">verified_user</span>
+                  <span>ระบบ 2FA & รีเซ็ต</span>
+                </button>
+
+                <button
+                  onClick={() => setDetailTab('access_logs')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+                    detailTab === 'access_logs' ? 'bg-slate-900 text-amber-300' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">route</span>
+                  <span>เส้นทางเข้าใช้งาน</span>
+                </button>
+
+                <button
+                  onClick={() => setDetailTab('perms')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+                    detailTab === 'perms' ? 'bg-slate-900 text-amber-300' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">tune</span>
+                  <span>สิทธิ์ละเอียด ({ALL_PERMISSIONS.length})</span>
+                </button>
+
+                <button
+                  onClick={() => setDetailTab('history')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+                    detailTab === 'history' ? 'bg-slate-900 text-amber-300' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-sm">history</span>
+                  <span>ประวัติแก้สิทธิ์</span>
                 </button>
               </div>
             </div>
 
-            {/* ============ แท็บ: สิทธิ์ ============ */}
+            {/* TAB 1: 5 Functional Groups */}
+            {detailTab === 'five_groups' && (
+              <div className="p-6 space-y-4">
+                <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-4 text-xs text-amber-900">
+                  <div className="font-black flex items-center gap-1.5 mb-1">
+                    <span className="material-symbols-outlined text-sm">lightbulb</span>
+                    <span>ระบบตั้งค่า 5 กลุ่มฟังก์ชัน (เข้าทางเดียวกัน)</span>
+                  </div>
+                  <p>
+                    เจ้าของระบบสามารถคลิก <b>"เปิดทั้งกลุ่ม"</b> หรือ <b>"ปิดทั้งกลุ่ม"</b> เพื่อมอบหมายหน้าที่ให้พนักงานได้ทันที โดยไม่ต้องเลือกทีละสิทธิ์
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  {FIVE_FUNCTION_GROUPS.map((group) => {
+                    const eff = effectivePermissions({
+                      uid: selected.id, username: selected.username, displayName: '',
+                      role: selected.role, grantedExtra: selected.grantedExtra, revoked: selected.revoked
+                    });
+                    const activeCount = group.perms.filter(p => eff.has(p)).length;
+                    const isAllOn = activeCount === group.perms.length;
+
+                    return (
+                      <div key={group.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 transition hover:border-slate-300">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black shadow-sm" style={{ background: `${group.color}15`, color: group.color }}>
+                              <span className="material-symbols-outlined">{group.icon}</span>
+                            </div>
+                            <div>
+                              <div className="font-black text-slate-900 text-sm flex items-center gap-2">
+                                <span>{group.name}</span>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                                  isAllOn ? 'bg-emerald-100 text-emerald-800' : (activeCount > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-600')
+                                }`}>
+                                  เปิดอยู่ {activeCount}/{group.perms.length} สิทธิ์
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 mt-0.5">{group.desc}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <button
+                              onClick={() => toggleFiveGroup(selected, group, !isAllOn)}
+                              className={`w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-black transition shadow-sm ${
+                                isAllOn
+                                  ? 'bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100'
+                                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                              }`}
+                            >
+                              {isAllOn ? 'ปิดทั้งกลุ่ม' : 'เปิดทั้งกลุ่ม'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 2: Two-Factor Authentication & Reset */}
+            {detailTab === 'two_factor' && (
+              <div className="p-6 space-y-5">
+                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-black">
+                        <span className="material-symbols-outlined text-2xl">security</span>
+                      </div>
+                      <div>
+                        <h4 className="font-black text-sm text-slate-900">สถานะความปลอดภัย 2 ชั้น (2FA)</h4>
+                        <p className="text-xs text-slate-500">บังคับให้ใส่รหัส PIN หรือ Authenticator เมื่อเข้าสู่ระบบ</p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => toggle2FAStatus(selected, !(selected.twoFactor?.enabled !== false))}
+                      className={`px-4 py-2 rounded-xl text-xs font-black transition ${
+                        selected.twoFactor?.enabled !== false
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {selected.twoFactor?.enabled !== false ? 'เปิดใช้งานอยู่' : 'ปิดใช้งาน'}
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-bold">รหัส 2FA เริ่มต้นปัจจุบัน:</span>
+                      <span className="font-mono font-black text-blue-700">{selected.twoFactor?.pin || '123456'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-500 font-bold">รีเซ็ตล่าสุดเมื่อ:</span>
+                      <span className="text-slate-700">{selected.twoFactor?.lastResetAt ? new Date(selected.twoFactor.lastResetAt).toLocaleString('th-TH') : 'ไม่ระบุ'}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      onClick={() => handleReset2FA(selected)}
+                      className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-105 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-sm">lock_reset</span>
+                      <span>รีเซ็ตรหัส 2FA พนักงาน (ตั้งเป็น 123456 และปลดล็อก)</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: Access Route Audit Logs */}
+            {detailTab === 'access_logs' && (
+              <div className="p-6 space-y-4">
+                <div className="flex justify-between items-center mb-2">
+                  <h4 className="font-black text-sm text-slate-900">เส้นทางการเข้าใช้งานและประวัติความปลอดภัย</h4>
+                  <span className="text-xs text-slate-500 font-bold">{accessLogs.length} รายการล่าสุด</span>
+                </div>
+
+                <div className="space-y-2">
+                  {accessLogs.length === 0 ? (
+                    <div className="text-center p-8 text-xs text-slate-400 font-bold">ยังไม่มีบันทึกเส้นทางการเข้าใช้งาน</div>
+                  ) : (
+                    accessLogs.map((log, idx) => (
+                      <div key={idx} className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs flex items-center justify-between gap-3">
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2 font-bold text-slate-900">
+                            <span className="font-mono text-blue-600">{log.route}</span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 text-slate-700">{log.role}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">
+                            {log.ip} • {log.device.slice(0, 45)}...
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${
+                            log.twoFactorPassed ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                          }`}>
+                            {log.twoFactorPassed ? '✓ 2FA ผ่าน' : '✕ ไม่ผ่าน 2FA'}
+                          </span>
+                          <div className="text-[9px] text-slate-400 mt-1">
+                            {new Date(log.timestamp).toLocaleTimeString('th-TH')}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: Granular Permissions (40+) */}
             {detailTab === 'perms' && (() => {
               const roleDef = ROLES[selected.role];
               const revoked = new Set(selected.revoked || []);
@@ -523,96 +807,54 @@ export default function StaffPermission() {
 
               return (
                 <div className="p-4 space-y-3">
-                  {/* แถบสรุป */}
-                  <div className="rounded-xl border-2 p-3" style={{ borderColor: 'var(--admin-border)', background: 'var(--admin-subtle)' }}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-black" style={{ color: 'var(--admin-text)' }}>
-                        เปิดใช้งาน {eff.size} จาก {ALL_PERMISSIONS.length} สิทธิ์
-                      </span>
-                      {revoked.size > 0 && (
-                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full" style={{ background: '#fef2f2', color: '#b91c1c' }}>
-                          ★ ปิดไป {revoked.size} สิทธิ์
-                        </span>
-                      )}
-                    </div>
-                    <div className="h-2 rounded-full overflow-hidden bg-white border" style={{ borderColor: 'var(--admin-border)' }}>
-                      <div className="h-full transition-all" style={{ width: `${(eff.size / ALL_PERMISSIONS.length) * 100}%`, background: 'var(--admin-accent)' }} />
-                    </div>
-                  </div>
-
-                  {/* ค้นหาสิทธิ์ */}
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border" style={{ borderColor: 'var(--admin-border)', background: '#fff' }}>
-                    <span className="material-symbols-outlined text-base" style={{ color: 'var(--admin-text-muted)' }}>search</span>
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-white">
+                    <span className="material-symbols-outlined text-base text-slate-400">search</span>
                     <input value={permSearch} onChange={e => setPermSearch(e.target.value)}
                       placeholder="ค้นหาสิทธิ์ เช่น เครดิต, อนุมัติ, ลบ..."
                       className="flex-1 bg-transparent outline-none text-xs font-medium" />
                   </div>
 
-                  {/* รายการสิทธิ์ตามหมวด */}
                   {PERMISSION_GROUPS.map(g => {
                     const gPerms = q ? g.perms.filter(p => p.label.toLowerCase().includes(q) || p.key.includes(q)) : g.perms;
                     if (gPerms.length === 0) return null;
                     const gGranted = g.perms.filter(p => eff.has(p.key)).length;
                     const open = expandGroups[g.key] !== false;
-                    const allOn = gGranted === g.perms.length;
 
                     return (
-                      <div key={g.key} className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--admin-border)' }}>
-                        {/* หัวหมวด */}
-                        <div className="flex items-center gap-2 p-2.5" style={{ background: gGranted > 0 ? 'var(--admin-subtle)' : '#fff' }}>
-                          <button onClick={() => setExpandGroups(prev => ({ ...prev, [g.key]: !open }))}
-                            className="p-1 rounded" style={{ color: 'var(--admin-text-muted)' }}>
+                      <div key={g.key} className="rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="flex items-center gap-2 p-2.5 bg-slate-50">
+                          <button onClick={() => setExpandGroups(prev => ({ ...prev, [g.key]: !open }))} className="p-1 rounded text-slate-400">
                             <span className="material-symbols-outlined text-base">{open ? 'expand_less' : 'expand_more'}</span>
                           </button>
-                          <span className="material-symbols-outlined text-base" style={{ color: 'var(--admin-accent)' }}>{g.icon}</span>
-                          <span className="font-black text-xs flex-1" style={{ color: 'var(--admin-text)' }}>{g.label}</span>
-                          <span className="text-[10px] font-black tabular-nums" style={{ color: gGranted > 0 ? 'var(--admin-accent)' : 'var(--admin-text-faint)' }}>
-                            {gGranted}/{g.perms.length}
-                          </span>
-                          <button onClick={() => toggleGroup(selected, g.key, !allOn)}
-                            className="px-2 py-1 rounded text-[10px] font-black border"
-                            style={allOn
-                              ? { background: '#fef2f2', borderColor: '#fecaca', color: '#b91c1c' }
-                              : { background: '#ecfdf5', borderColor: '#a7f3d0', color: '#047857' }}>
-                            {allOn ? 'ปิดทั้งหมวด' : 'เปิดทั้งหมวด'}
-                          </button>
+                          <span className="material-symbols-outlined text-base text-blue-600">{g.icon}</span>
+                          <span className="font-black text-xs flex-1 text-slate-800">{g.label}</span>
+                          <span className="text-[10px] font-black tabular-nums text-blue-600">{gGranted}/{g.perms.length}</span>
                         </div>
 
-                        {/* รายการสิทธิ์ */}
                         {open && (
-                          <div className="divide-y" style={{ borderColor: 'var(--admin-border)' }}>
+                          <div className="divide-y divide-slate-100">
                             {gPerms.map(p => {
-                              const inRole = roleDef.perms.includes(p.key);
+                              const inRole = roleDef?.perms?.includes(p.key) || false;
                               const isOn = eff.has(p.key);
                               const isRevoked = revoked.has(p.key);
                               const isExtra = extra.has(p.key);
                               const risk = RISK_LABEL[(p.risk || 'low') as RiskLevel];
 
                               return (
-                                <label key={p.key}
-                                  className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-black/[0.02] transition">
+                                <label key={p.key} className="flex items-center gap-3 p-2.5 cursor-pointer hover:bg-slate-50 transition">
                                   <input type="checkbox" checked={isOn}
                                     onChange={() => togglePermission(selected, p.key)}
-                                    className="w-5 h-5 rounded cursor-pointer accent-[var(--admin-accent)]" />
+                                    className="w-4 h-4 rounded cursor-pointer accent-blue-600" />
                                   <div className="flex-1 min-w-0">
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      <span className="text-xs font-bold" style={{ color: isOn ? 'var(--admin-text)' : 'var(--admin-text-faint)' }}>
-                                        {p.label}
-                                      </span>
-                                      {isRevoked && (
-                                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: '#fef2f2', color: '#b91c1c' }}>ปิดเฉพาะคนนี้</span>
-                                      )}
-                                      {isExtra && (
-                                        <span className="text-[9px] font-black px-1.5 py-0.5 rounded" style={{ background: '#ecfdf5', color: '#047857' }}>ให้เพิ่ม</span>
-                                      )}
-                                      {inRole && !isRevoked && !isExtra && (
-                                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: 'var(--admin-subtle)', color: 'var(--admin-text-faint)' }}>ตามตำแหน่ง</span>
-                                      )}
+                                      <span className="text-xs font-bold text-slate-800">{p.label}</span>
+                                      {isRevoked && <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-rose-50 text-rose-600">ปิดเฉพาะคนนี้</span>}
+                                      {isExtra && <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700">ให้เพิ่ม</span>}
+                                      {inRole && !isRevoked && !isExtra && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">ตามตำแหน่ง</span>}
                                     </div>
-                                    <div className="text-[9px] font-mono mt-0.5" style={{ color: 'var(--admin-text-faint)' }}>{p.key}</div>
+                                    <div className="text-[9px] font-mono mt-0.5 text-slate-400">{p.key}</div>
                                   </div>
-                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded shrink-0"
-                                    style={{ background: risk.bg, color: risk.color }}>
+                                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded shrink-0" style={{ background: risk.bg, color: risk.color }}>
                                     {risk.label}
                                   </span>
                                 </label>
@@ -627,26 +869,21 @@ export default function StaffPermission() {
               );
             })()}
 
-            {/* ============ แท็บ: ประวัติ ============ */}
+            {/* TAB 5: History */}
             {detailTab === 'history' && (
               <div className="p-4 space-y-2">
                 {logs.filter(l => l.targetUid === selected.id).length === 0 && (
-                  <div className="text-center p-8 font-bold italic text-xs" style={{ color: 'var(--admin-text-faint)' }}>
-                    ยังไม่มีประวัติการแก้สิทธิ์ของพนักงานคนนี้
-                  </div>
+                  <div className="text-center p-8 font-bold italic text-xs text-slate-400">ยังไม่มีประวัติการแก้สิทธิ์ของพนักงานคนนี้</div>
                 )}
                 {logs.filter(l => l.targetUid === selected.id).map(l => (
-                  <div key={l.id} className="rounded-xl border p-3 flex items-start gap-2" style={{ borderColor: 'var(--admin-border)' }}>
-                    <span className="material-symbols-outlined text-base shrink-0"
-                      style={{ color: l.action === 'revoke' ? '#b91c1c' : l.action === 'delete' ? '#b91c1c' : '#047857' }}>
-                      {l.action === 'revoke' ? 'lock' : l.action === 'delete' ? 'delete' : l.action === 'role_change' ? 'swap_horiz' : 'check_circle'}
+                  <div key={l.id} className="rounded-xl border border-slate-200 p-3 flex items-start gap-2">
+                    <span className="material-symbols-outlined text-base shrink-0 text-blue-600">
+                      {l.action === 'revoke' ? 'lock' : l.action === 'delete' ? 'delete' : 'check_circle'}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-bold" style={{ color: 'var(--admin-text)' }}>{describeChange(l)}</div>
-                      {l.note && <div className="text-[10px] mt-0.5" style={{ color: 'var(--admin-text-muted)' }}>{l.note}</div>}
-                      <div className="text-[9px] mt-0.5" style={{ color: 'var(--admin-text-faint)' }}>
-                        {l.actorName} • {new Date(l.at).toLocaleString('th-TH')}
-                      </div>
+                      <div className="text-xs font-bold text-slate-800">{describeChange(l)}</div>
+                      {l.note && <div className="text-[10px] mt-0.5 text-slate-500">{l.note}</div>}
+                      <div className="text-[9px] mt-0.5 text-slate-400">{l.actorName} • {new Date(l.at).toLocaleString('th-TH')}</div>
                     </div>
                   </div>
                 ))}
@@ -656,60 +893,65 @@ export default function StaffPermission() {
         </div>
       )}
 
-      {/* ================================================================
-       * ฟอร์มเพิ่ม/แก้พนักงาน
-       * ================================================================ */}
+      {/* ฟอร์มเพิ่ม/แก้พนักงาน */}
       {showForm && (
-        <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
-          <div className="bg-white rounded-2xl w-full max-w-md p-5" onClick={e => e.stopPropagation()}>
-            <h3 className="font-black text-base mb-4 flex items-center gap-2" style={{ color: 'var(--admin-text)' }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--admin-accent)' }}>person_add</span>
-              {form.id ? 'แก้ไขพนักงาน' : 'เพิ่มพนักงานใหม่'}
+        <div className="fixed inset-0 bg-black/60 z-[80] flex items-center justify-center p-4" onClick={() => setShowForm(false)}>
+          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-black text-base mb-4 flex items-center gap-2 text-slate-900">
+              <span className="material-symbols-outlined text-amber-500">person_add</span>
+              {form.id ? 'แก้ไขข้อมูลพนักงาน' : 'เพิ่มพนักงานใหม่'}
             </h3>
 
             <div className="space-y-3">
               {[
-                { k: 'username', label: 'ชื่อผู้ใช้ (สำหรับล็อกอิน) *', ph: 'เช่น somchai' },
-                { k: 'password', label: 'รหัสผ่าน (Password) *', ph: 'อย่างน้อย 6 ตัวอักษร เช่น 123456' },
+                { k: 'username', label: 'ชื่อผู้ใช้ (สำหรับล็อกอิน) *', ph: 'เช่น staff01' },
+                { k: 'password', label: 'รหัสผ่าน (Password) *', ph: 'เช่น 123456' },
                 { k: 'displayName', label: 'ชื่อที่แสดง', ph: 'เช่น สมชาย ใจดี' },
                 { k: 'phone', label: 'เบอร์โทร', ph: '08x-xxx-xxxx' },
-                { k: 'note', label: 'หมายเหตุ', ph: 'เช่น พนักงานกะเช้า' },
+                { k: 'note', label: 'หมายเหตุ', ph: 'เช่น ดูแลกะเช้า' },
               ].map(f => (
                 <div key={f.k}>
-                  <label className="text-[10px] font-black uppercase block mb-1" style={{ color: 'var(--admin-text-muted)' }}>{f.label}</label>
-                  <input value={(form as any)[f.k] || ''} placeholder={f.ph}
+                  <label className="text-[10px] font-black uppercase block mb-1 text-slate-500">{f.label}</label>
+                  <input
+                    value={(form as any)[f.k] || ''}
+                    placeholder={f.ph}
                     onChange={e => setForm(prev => ({ ...prev, [f.k]: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border outline-none text-xs font-medium"
-                    style={{ borderColor: 'var(--admin-border)', background: 'var(--admin-subtle)' }} />
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 outline-none text-xs font-medium focus:border-amber-500 bg-slate-50"
+                  />
                 </div>
               ))}
 
               <div>
-                <label className="text-[10px] font-black uppercase block mb-1.5" style={{ color: 'var(--admin-text-muted)' }}>ตำแหน่งเริ่มต้น</label>
+                <label className="text-[10px] font-black uppercase block mb-1.5 text-slate-500">ตำแหน่งเริ่มต้น</label>
                 <div className="grid grid-cols-2 gap-1.5">
                   {ROLE_LIST.filter(r => !r.locked).map(r => (
-                    <button key={r.key} onClick={() => setForm(prev => ({ ...prev, role: r.key }))}
-                      className="px-3 py-2 rounded-xl text-[11px] font-black border text-left transition"
-                      style={form.role === r.key
-                        ? { background: r.color, borderColor: r.color, color: '#fff' }
-                        : { background: '#fff', borderColor: 'var(--admin-border)', color: 'var(--admin-text-muted)' }}>
+                    <button
+                      key={r.key}
+                      onClick={() => setForm(prev => ({ ...prev, role: r.key }))}
+                      className={`px-3 py-2 rounded-xl text-[11px] font-black border text-left transition ${
+                        form.role === r.key ? 'bg-slate-900 text-amber-300 border-slate-900' : 'bg-white text-slate-600 border-slate-200'
+                      }`}
+                    >
                       {r.label}
-                      <div className="text-[9px] font-normal opacity-80">{ROLES[r.key].perms.length} สิทธิ์</div>
+                      <div className="text-[9px] font-normal opacity-80">{ROLES[r.key]?.perms?.length || 0} สิทธิ์</div>
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            <div className="flex gap-2 mt-5">
-              <button onClick={() => setShowForm(false)}
-                className="flex-1 py-2.5 rounded-xl font-black text-xs border"
-                style={{ background: '#fff', borderColor: 'var(--admin-border)', color: 'var(--admin-text-muted)' }}>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setShowForm(false)}
+                className="flex-1 py-2.5 rounded-xl font-black text-xs border border-slate-200 text-slate-600 hover:bg-slate-50 transition"
+              >
                 ยกเลิก
               </button>
-              <button onClick={saveForm} disabled={saving}
-                className="flex-1 py-2.5 rounded-xl font-black text-xs text-white disabled:opacity-50"
-                style={{ background: 'var(--admin-accent)' }}>
+              <button
+                onClick={saveForm}
+                disabled={saving}
+                className="flex-1 py-2.5 rounded-xl font-black text-xs text-white bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-105 shadow transition disabled:opacity-50"
+              >
                 {saving ? 'กำลังบันทึก...' : 'บันทึก'}
               </button>
             </div>

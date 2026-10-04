@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import LotteryCategorySelector from './LotteryCategorySelector';
+import RiskProbabilityChart from './RiskProbabilityChart';
 import { useRoundCountdown } from '@/shared/lib/roundTimer';
 import { db } from '@/shared/lib/firebase';
 import { collection, getDocs, query, where, limit, addDoc } from 'firebase/firestore';
@@ -84,6 +85,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
   const [searchNumber, setSearchNumber] = useState<string>('');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [showRiskChart, setShowRiskChart] = useState(true);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -492,16 +494,31 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-900">
-              มอนิเตอร์รับกินสด (Live Risk Intake Monitor)
+              ศูนย์ตรวจจับรับกินสด & วิเคราะห์ความเสี่ยง (Live Risk Intake & Exposure)
             </h2>
             <p className="text-xs text-slate-500">
-              ตรวจเช็กยอดแทงสะสมรายตัวเลขแบบเรียลไทม์ พร้อมตัวนับเวลารอบหวย 3 สถานะสี
+              ตรวจเช็กยอดแทงสะสมรายตัวเลขแบบเรียลไทม์ พร้อมตัวนับเวลารอบหวย 3 สถานะสี และกราฟความเสี่ยง
             </p>
           </div>
         </div>
 
         {/* Controls & Filter Toggle */}
         <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+          {/* ปุ่มสลับดูกราฟความเสี่ยง 100% ➡️ 0% */}
+          <button
+            type="button"
+            onClick={() => setShowRiskChart(prev => !prev)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 border shadow-sm cursor-pointer ${
+              showRiskChart
+                ? 'bg-blue-700 text-white border-blue-700 shadow-blue-700/25'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+            }`}
+            title="แสดงหรือซ่อนกราฟวิเคราะห์ความเสี่ยงแบบเรียลไทม์"
+          >
+            <span className="material-symbols-outlined text-sm">show_chart</span>
+            <span>{showRiskChart ? 'ซ่อนกราฟความเสี่ยง' : 'ดูกราฟความเสี่ยง (100% ➡️ 0%)'}</span>
+          </button>
+
           {/* ตัวกรองเฉพาะหวยที่กำลังเปิดให้บริการเท่านั้น */}
           <button
             onClick={() => setShowOnlyOpen(!showOnlyOpen)}
@@ -545,7 +562,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
         selectedLottery={selectedLottery}
         onSelectLottery={setSelectedLottery}
         lotterySettings={lotteryTypes}
-        title="เลือกหมวดหมู่และประเภทหวยสำหรับมอนิเตอร์"
+        title="เลือกหมวดหมู่และประเภทหวยสำหรับตรวจจับความเสี่ยง"
       />
 
       {/* 3. กล่องแจ้งเตือนสถานะหวย & ตัวจับเวลานับถอยหลัง 3 สี (จะเปิด / กำลังเปิด / รอออกผล) */}
@@ -554,7 +571,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           <div className="flex items-center gap-3">
             <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5 whitespace-nowrap">
               <span className="material-symbols-outlined text-sm text-blue-600">event_available</span>
-              รอบที่มอนิเตอร์:
+              รอบที่กำลังตรวจจับ:
             </span>
             {loadingRounds ? (
               <span className="text-xs text-slate-400">กำลังโหลดรอบ...</span>
@@ -623,7 +640,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
         <div className="admin-card p-5 bg-white border border-slate-200 shadow-sm rounded-2xl">
           <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
             <span className="material-symbols-outlined text-sm text-blue-600">format_list_numbered</span>
-            ตัวเลขที่มอนิเตอร์ทั้งหมด
+            ตัวเลขที่กำลังติดตามทั้งหมด
           </div>
           <div className="text-2xl font-black text-slate-900 mt-2">
             {summaryData.totalItems} <span className="text-xs font-bold text-slate-400">รายการ</span>
@@ -664,6 +681,17 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           <p className="text-[10px] text-slate-400 mt-1">รวมยอดเดิมพันสะสมทุกตัวเลขในรอบนี้</p>
         </div>
       </div>
+
+      {/* 📊 กราฟวิเคราะห์ความเสี่ยงและเส้นทางรับกินสด (Risk Probability & Intake Curve) */}
+      {showRiskChart && (
+        <RiskProbabilityChart
+          selectedLottery={selectedLottery}
+          onSelectLottery={setSelectedLottery}
+          activeLotteries={displayLottoList}
+          currentIntakeTotal={exposureSummary.totalIntake}
+          maxLiability={exposureSummary.worstCasePayout || 270000}
+        />
+      )}
 
       {/* ========================================================================= */}
       {/* 4.5 ประเมินความเสี่ยงแพ้สูงสุด & ตัวบนเด่น (Worst-Case Exposure & 15s Auto Polling) */}

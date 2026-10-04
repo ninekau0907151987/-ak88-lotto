@@ -350,7 +350,7 @@ export const ALL_PERMISSIONS: Permission[] = PERMISSION_GROUPS.flatMap(g => g.pe
  *   เจ้าของร้านสามารถ override รายบุคคลได้
  * ================================================================== */
 
-export type RoleKey = 'owner' | 'master' | 'admin' | 'staff' | 'agent' | 'viewer';
+export type RoleKey = 'provider' | 'owner' | 'master' | 'admin' | 'staff' | 'agent' | 'viewer';
 
 export interface RoleDef {
   key: RoleKey;
@@ -359,7 +359,7 @@ export interface RoleDef {
   color: string;
   /** สิทธิ์ที่ได้จากตำแหน่ง */
   perms: Permission[];
-  /** ซ่อนจากหน้าจัดการพนักงานหรือไม่ (owner/master สร้างผ่านระบบไม่ได้) */
+  /** ซ่อนจากหน้าจัดการพนักงานหรือไม่ (provider/owner/master สร้างผ่านระบบไม่ได้) */
   locked?: boolean;
 }
 
@@ -367,16 +367,24 @@ const P = PERMISSIONS;
 const ALL = ALL_PERMISSIONS;
 
 export const ROLES: Record<RoleKey, RoleDef> = {
+  provider: {
+    key: 'provider',
+    label: 'คนผลิต (System Provider)',
+    desc: 'สิทธิ์ใหญ่สุดระดับผู้ผลิตระบบ คุมสถาปัตยกรรม สวิตช์แม่ และจัดการ 2FA ทุกบัญชี',
+    color: '#4c1d95',
+    perms: ALL,
+    locked: true,
+  },
   owner: {
-    key: 'owner', label: 'เจ้าของระบบ', desc: 'สิทธิ์สูงสุด ทำได้ทุกอย่าง ห้ามลบ',
+    key: 'owner', label: 'เจ้าของระบบ (Owner)', desc: 'เจ้าของร้าน/ผู้บริหารสูงสุด ดูแลความเสี่ยง ตั้งค่า 5 กลุ่มฟังก์ชัน และรีเซ็ต 2FA พนักงาน',
     color: '#7c2d12', perms: ALL, locked: true,
   },
   master: {
-    key: 'master', label: 'Master', desc: 'ดูแลทุกแบรนด์/โปรเจกต์ สิทธิ์เทียบเท่าเจ้าของ',
+    key: 'master', label: 'Master Admin', desc: 'ดูแลทุกแบรนด์/โปรเจกต์ สิทธิ์เทียบเท่าเจ้าของ',
     color: '#9a3412', perms: ALL, locked: true,
   },
   admin: {
-    key: 'admin', label: 'ผู้จัดการ', desc: 'ดูแลระบบประจำวันครบวงจร ยกเว้นตั้งสิทธิ์พนักงาน',
+    key: 'admin', label: 'ผู้จัดการ (Manager)', desc: 'ดูแลระบบประจำวันครบวงจร ยกเว้นตั้งสิทธิ์พนักงาน',
     color: '#1e5fa8', perms: ALL.filter(p =>
       p !== P.STAFF_SET_PERMISSION &&
       p !== P.STAFF_DELETE &&
@@ -422,7 +430,118 @@ export const ROLES: Record<RoleKey, RoleDef> = {
   },
 };
 
-export const ROLE_LIST: RoleDef[] = ['owner', 'master', 'admin', 'staff', 'agent', 'viewer'].map(k => ROLES[k as RoleKey]);
+export const ROLE_LIST: RoleDef[] = ['provider', 'owner', 'master', 'admin', 'staff', 'agent', 'viewer'].map(k => ROLES[k as RoleKey]);
+
+/* ==================================================================
+ * 3.5 ★ 5 กลุ่มฟังก์ชันหลัก (Five Functional Permission Groups)
+ * ------------------------------------------------------------------
+ * ผู้ใช้สั่ง: "ตั้งค่าฟังชั่นออกมา 5 กลุ่ม ขอให้เข้าทางเดียวกัน"
+ * ให้เจ้าของระบบเลือกเปิด/ปิดการเข้าถึงให้พนักงานได้แบบกลุ่ม หรือรายสิทธิ์
+ * ================================================================== */
+export interface FunctionGroupDef {
+  id: string;
+  name: string;
+  shortName: string;
+  icon: string;
+  color: string;
+  desc: string;
+  perms: Permission[];
+}
+
+export const FIVE_FUNCTION_GROUPS: FunctionGroupDef[] = [
+  {
+    id: 'group_finance',
+    name: '1. กลุ่มการเงิน & ฝาก-ถอน',
+    shortName: 'การเงิน',
+    icon: 'account_balance_wallet',
+    color: '#0284c7',
+    desc: 'จัดการเงินสด ตรวจสลิปออโต้ อนุมัติฝาก-ถอน ปรับเครดิต',
+    perms: [
+      PERMISSIONS.FINANCE_VIEW,
+      PERMISSIONS.FINANCE_DEPOSIT_APPROVE,
+      PERMISSIONS.FINANCE_WITHDRAW_APPROVE,
+      PERMISSIONS.FINANCE_WITHDRAW_PAY,
+      PERMISSIONS.FINANCE_REJECT,
+      PERMISSIONS.FINANCE_ADJUST,
+      PERMISSIONS.FINANCE_EXPORT,
+    ],
+  },
+  {
+    id: 'group_lottery_schedule',
+    name: '2. กลุ่มควบคุมหวย & จัดตารางรอบ',
+    shortName: 'หวย & รอบ',
+    icon: 'calendar_month',
+    color: '#16a34a',
+    desc: 'เปิด-ปิดรับแทง จัดตารางรอบล่วงหน้า ปฏิทิน 4 สถานะ ลบรอบที่ออกผลแล้ว',
+    perms: [
+      PERMISSIONS.LOTTERY_VIEW,
+      PERMISSIONS.LOTTERY_OPEN_CLOSE,
+      PERMISSIONS.LOTTERY_PAUSE,
+      PERMISSIONS.GAME20_CLOSE_ROUND,
+    ],
+  },
+  {
+    id: 'group_risk_intake',
+    name: '3. กลุ่มคำนวณรับกิน & ลดความเสี่ยง',
+    shortName: 'รับกิน & ลดเสี่ยง',
+    icon: 'tune',
+    color: '#d97706',
+    desc: 'ตั้งอัตราจ่าย สัดส่วนรับกิน ขยายงบลดเสี่ยง เลขอั้น/ลดจ่ายด่วน มอนิเตอร์สด',
+    perms: [
+      PERMISSIONS.LOTTERY_SET_LIMIT,
+      PERMISSIONS.NUMBERSET_VIEW,
+      PERMISSIONS.NUMBERSET_ADD,
+      PERMISSIONS.NUMBERSET_REMOVE,
+      PERMISSIONS.NUMBERSET_SET_LIMIT,
+      PERMISSIONS.MONITOR_VIEW,
+      PERMISSIONS.MONITOR_LIVE_BET,
+      PERMISSIONS.MONITOR_ALERT,
+    ],
+  },
+  {
+    id: 'group_results_reports',
+    name: '4. กลุ่มออกผลรางวัล & บัญชีรายงาน',
+    shortName: 'ผลรางวัล & บัญชี',
+    icon: 'assessment',
+    color: '#9333ea',
+    desc: 'ออกผลรางวัล Dry-run ตรวจผล ตัดสินจ่ายเงิน สรุปกำไรขาดทุน ส่งบิล',
+    perms: [
+      PERMISSIONS.LOTTERY_RESULT_ENTER,
+      PERMISSIONS.LOTTERY_RESULT_EDIT,
+      PERMISSIONS.LOTTERY_SETTLE,
+      PERMISSIONS.REPORT_VIEW,
+      PERMISSIONS.REPORT_PLAY,
+      PERMISSIONS.REPORT_FINANCE,
+      PERMISSIONS.REPORT_PROFIT,
+      PERMISSIONS.REPORT_EXPORT,
+      PERMISSIONS.BILLING_VIEW,
+      PERMISSIONS.BILLING_PRINT,
+      PERMISSIONS.BILLING_SEND,
+    ],
+  },
+  {
+    id: 'group_security_staff',
+    name: '5. กลุ่มสมาชิก & พนักงาน & ความปลอดภัย 2FA',
+    shortName: 'สมาชิก & 2FA',
+    icon: 'security',
+    color: '#dc2626',
+    desc: 'จัดการข้อมูลสมาชิก พนักงาน กำหนดสิทธิ์ 5 กลุ่ม บังคับ/รีเซ็ต 2FA ตรวจเส้นทางเข้าสู่ระบบ',
+    perms: [
+      PERMISSIONS.MEMBER_VIEW,
+      PERMISSIONS.MEMBER_CREATE,
+      PERMISSIONS.MEMBER_EDIT,
+      PERMISSIONS.MEMBER_BLOCK,
+      PERMISSIONS.MEMBER_RESET_PASSWORD,
+      PERMISSIONS.AGENT_VIEW,
+      PERMISSIONS.STAFF_VIEW,
+      PERMISSIONS.STAFF_CREATE,
+      PERMISSIONS.STAFF_EDIT,
+      PERMISSIONS.STAFF_SET_PERMISSION,
+      PERMISSIONS.SECURITY_VIEW,
+      PERMISSIONS.SECURITY_LOG_VIEW,
+    ],
+  },
+];
 
 /* ==================================================================
  * 4. Session — เก็บสิทธิ์ที่คำนวณแล้ว

@@ -29,6 +29,8 @@ import RiskIntakeSettings from '../components/RiskIntakeSettings';
 import RiskIntakeMonitor from '../components/RiskIntakeMonitor';
 import LotteryCategorySelector from '../components/LotteryCategorySelector';
 import BlockedNumbersManager from '../components/BlockedNumbersManager';
+import RiskProbabilityChart from '../components/RiskProbabilityChart';
+import TwoFactorModal from '../components/TwoFactorModal';
 
 type AdminTab =
   | 'overview'
@@ -57,9 +59,11 @@ export default function AdminDashboard() {
   });
   const [showMasterPinModal, setShowMasterPinModal] = useState<boolean>(false);
   const [masterPinInput, setMasterPinInput] = useState<string>('');
+  const [showTwoFactorModal, setShowTwoFactorModal] = useState<boolean>(false);
+  const [pendingSession, setPendingSession] = useState<StaffSession | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     'ภาพรวม & การเงิน': true,
-    'จัดการหวย & มอนิเตอร์': true,
+    'จัดการหวย & ตรวจจับความเสี่ยง': true,
     'จัดการเลขอั้น (เลขลด/ปิด)': true,
     'สมาชิก & บุคลากร': true,
     'การตั้งค่าระบบ & ประกาศ': true,
@@ -1024,11 +1028,9 @@ export default function AdminDashboard() {
           revoked: s.revoked || [],
           scopeProjectIds: s.scopeProjectIds || [],
         };
-        saveSession(sess);
-        setSession(sess);
-        setIsAdminLoggedIn(true);
-        await setDoc(doc(db, 'staff', s.id), { lastLogin: new Date().toISOString() }, { merge: true });
-        await logActivity('เข้าสู่ระบบ', `พนักงาน ${sess.displayName} (${ROLES[sess.role]?.label || sess.role})`, 'security');
+        // เรียกการยืนยันตัวตน 2 ชั้น (2FA)
+        setPendingSession(sess);
+        setShowTwoFactorModal(true);
         return;
       }
     } catch (e) {
@@ -1053,11 +1055,8 @@ export default function AdminDashboard() {
         revoked: [],
         scopeProjectIds: [],
       };
-      saveSession(sess);
-      setSession(sess);
-      setIsAdminLoggedIn(true);
 
-      // บันทึกลงตาราง staff ใน Supabase อัตโนมัติ เพื่อให้ระบบมีข้อมูลพนักงาน
+      // บันทึกลงตาราง staff ใน Firestore อัตโนมัติ เพื่อให้ระบบมีข้อมูลพนักงาน
       try {
         await setDoc(doc(db, 'staff', sess.uid), {
           username: sess.username,
@@ -1070,11 +1069,29 @@ export default function AdminDashboard() {
         }, { merge: true });
       } catch {}
 
-      await logActivity('เข้าสู่ระบบ', `ผู้ดูแลระบบ (${sess.displayName})`, 'security');
+      // เรียกการยืนยันตัวตน 2 ชั้น (2FA)
+      setPendingSession(sess);
+      setShowTwoFactorModal(true);
       return;
     }
 
     alert('Username หรือ รหัสผ่านไม่ถูกต้อง');
+  };
+
+  const handleTwoFactorSuccess = async () => {
+    if (pendingSession) {
+      saveSession(pendingSession);
+      setSession(pendingSession);
+      setIsAdminLoggedIn(true);
+      await logActivity('เข้าสู่ระบบ (ผ่าน 2FA)', `ผู้ดูแลระบบ (${pendingSession.displayName}) ยืนยันรหัส 2FA สำเร็จ`, 'security');
+    }
+    setShowTwoFactorModal(false);
+    setPendingSession(null);
+  };
+
+  const handleTwoFactorCancel = () => {
+    setShowTwoFactorModal(false);
+    setPendingSession(null);
   };
 
   const handleLogout = () => {
@@ -1902,7 +1919,7 @@ export default function AdminDashboard() {
     // --- 👑 ส่วนที่ 2: โหมดเจ้าของ / ระบบคำนวณความเสี่ยงและอัตราจ่าย (Master Mode) ---
     { id: 'payout_rates',      label: '1. ตั้งค่าจ่าย & ขั้นต่ำ-สูงสุด', icon: 'payments',       perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
     { id: 'intake_settings',   label: '2. ตั้งค่ารับกิน & งบประมาณ',  icon: 'tune',            perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
-    { id: 'intake_monitor',    label: '3. มอนิเตอร์รับกินสด',         icon: 'monitoring',      perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
+    { id: 'intake_monitor',    label: '3. ศูนย์ตรวจจับรับกินสด',      icon: 'monitoring',      perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
     { id: 'round_scheduler',   label: '4. จัดตารางรอบ & ปฏิทินหวย',   icon: 'calendar_month',  perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
     { id: 'blocked_numbers',   label: '5. เลขอั้น & ลดราคาจ่าย',      icon: 'block',           perm: PERMISSIONS.SETTINGS_VIEW,  section: 'โหมดเจ้าของ (Master)', tier: 'master' },
     { id: 'staff',             label: 'พนักงาน & กำหนดสิทธิ์',        icon: 'manage_accounts', perm: PERMISSIONS.STAFF_VIEW,     section: 'โหมดเจ้าของ (Master)', tier: 'master' },
@@ -1924,21 +1941,21 @@ export default function AdminDashboard() {
 
   if (!isAdminLoggedIn) {
     return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4 relative">
         <div className="admin-card bg-white p-8 rounded-2xl border border-slate-200/90 shadow-xl shadow-blue-900/10 w-full max-w-md space-y-6">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto rounded-2xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-sm mb-3">
               <span className="material-symbols-outlined text-3xl">admin_panel_settings</span>
             </div>
             <h1 className="text-2xl font-black text-slate-900">Admin Backoffice</h1>
-            <p className="text-slate-500 text-xs mt-1">ระบบบริหารจัดการหลังบ้านอย่างเป็นทางการ</p>
+            <p className="text-slate-500 text-xs mt-1">ระบบบริหารจัดการหลังบ้านอย่างเป็นทางการ (พร้อมระบบความปลอดภัย 2FA)</p>
           </div>
           <div className="space-y-4">
             <div>
               <label className="text-xs font-bold text-slate-600 mb-1 block">ชื่อผู้ใช้งาน (Username)</label>
               <input 
                 type="text" 
-                placeholder="ระบุ Username"
+                placeholder="ระบุ Username (เช่น 1234)"
                 value={adminUser}
                 onChange={(e) => setAdminUser(e.target.value)}
                 className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
@@ -1948,20 +1965,32 @@ export default function AdminDashboard() {
               <label className="text-xs font-bold text-slate-600 mb-1 block">รหัสผ่าน (Password)</label>
               <input 
                 type="password" 
-                placeholder="ระบุรหัสผ่าน"
+                placeholder="ระบุรหัสผ่าน (เช่น 123456)"
                 value={adminPass}
                 onChange={(e) => setAdminPass(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleAdminLogin(); }}
                 className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
               />
             </div>
             <button 
               onClick={handleAdminLogin}
-              className="w-full bg-blue-700 hover:bg-blue-800 text-white p-3.5 rounded-xl font-black shadow-md shadow-blue-700/25 transition active:scale-95"
+              className="w-full bg-blue-700 hover:bg-blue-800 text-white p-3.5 rounded-xl font-black shadow-md shadow-blue-700/25 transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
             >
-              เข้าสู่ระบบหลังบ้าน
+              <span className="material-symbols-outlined text-sm">lock_open</span>
+              <span>เข้าสู่ระบบหลังบ้าน</span>
             </button>
           </div>
         </div>
+
+        {/* โมดอลยืนยัน 2FA */}
+        <TwoFactorModal
+          isOpen={showTwoFactorModal}
+          username={pendingSession?.username || adminUser}
+          userId={pendingSession?.uid || 'staff_1234'}
+          role={pendingSession?.role || 'owner'}
+          onSuccess={handleTwoFactorSuccess}
+          onCancel={handleTwoFactorCancel}
+        />
       </div>
     );
   }
@@ -2380,23 +2409,32 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Monitor Highlights */}
+              {/* 📊 กราฟวิเคราะห์ความเสี่ยงและเส้นทางรับกินสด (Risk Probability & Intake Curve) */}
+              <div className="admin-card p-6">
+                <RiskProbabilityChart
+                  selectedLottery="หวยรัฐบาลไทย"
+                  currentIntakeTotal={tickets.reduce((sum, t) => sum + (t.totalAmount || 0), 0)}
+                  maxLiability={tickets.reduce((sum, t) => sum + (t.totalAmount || 0), 0) * 0.9}
+                />
+              </div>
+
+              {/* Live Intake Hub Highlights */}
               <div className="bg-[var(--navy-deep)] p-8 rounded-3xl shadow-2xl border border-white/5 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-[var(--gold-vibrant)] opacity-5 blur-[80px] -mr-32 -mt-32"></div>
                 <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
                   <div>
                     <h3 className="text-2xl font-black text-[var(--gold-vibrant)] mb-2 flex items-center gap-3">
                       <span className="material-symbols-outlined animate-pulse">radar</span>
-                      Live Monitoring Hub
+                      Live Intake & Exposure Hub
                     </h3>
-                    <p className="text-gray-400 text-sm max-w-lg">ดูรายการเดิมพันและสถานะระบบแบบ Real-time ได้ที่เมนูตั้งค่า หรือกดปุ่มด้านขวาเพื่อเปิดหน้าต่างมอนิเตอร์โดยเฉพาะ</p>
+                    <p className="text-gray-400 text-sm max-w-lg">ดูรายการเดิมพันและสถานะระบบแบบ Real-time ได้ที่เมนูศูนย์ตรวจจับรับกินสด หรือกดปุ่มด้านขวาเพื่อเปิดหน้าต่างตรวจจับรับกินสดโดยเฉพาะ</p>
                   </div>
                   <button 
-                    onClick={() => { setActiveTab('settings'); setActiveSettingsSubTab('monitor'); }}
-                    className="bg-[var(--gold-vibrant)] text-[var(--navy-deep)] px-8 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition active:scale-95 flex items-center gap-2"
+                    onClick={() => { setActiveTab('intake_monitor'); }}
+                    className="bg-[var(--gold-vibrant)] text-[var(--navy-deep)] px-8 py-4 rounded-2xl font-black shadow-xl hover:scale-105 transition active:scale-95 flex items-center gap-2 cursor-pointer"
                   >
                     <span className="material-symbols-outlined font-black">visibility</span>
-                    เปิดมอนิเตอร์สด
+                    เปิดศูนย์ตรวจจับสด
                   </button>
                 </div>
               </div>
@@ -2421,7 +2459,7 @@ export default function AdminDashboard() {
             />
           )}
 
-          {/* 3. มอนิเตอร์รับกิน (Live Intake Monitor Table with Rows & Columns) */}
+          {/* 3. ศูนย์ตรวจจับรับกินสด (Live Intake Table with Rows & Columns) */}
           {activeTab === 'intake_monitor' && (
             <RiskIntakeMonitor
               lotteryTypes={lotterySettings}
