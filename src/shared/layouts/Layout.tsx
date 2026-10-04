@@ -109,35 +109,7 @@ export default function Layout() {
             <span className="text-2xl font-black text-[#f5c518] drop-shadow">88</span>
           </Link>
 
-          {/* Quick Guide & Rules buttons */}
-          <div className="hidden sm:flex items-center gap-1.5 ml-2">
-            <button
-              onClick={() => window.dispatchEvent(new CustomEvent('open-ak88-tour'))}
-              className="flex items-center gap-1 bg-[#f5c518]/10 hover:bg-[#f5c518]/20 text-[#f5c518] border border-[#f5c518]/30 px-2.5 py-1 rounded-xl text-xs font-bold transition"
-              title="แนะนำฟังก์ชันการใช้งาน 5 ขั้นตอน"
-            >
-              <span className="material-symbols-outlined text-sm">explore</span>
-              <span>แนะนำระบบ</span>
-            </button>
-            <Link
-              to="/rules"
-              className="flex items-center gap-1 bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white border border-white/10 px-2.5 py-1 rounded-xl text-xs font-bold transition"
-              title="กติกาและวิธีการเล่น"
-            >
-              <span className="material-symbols-outlined text-sm">gavel</span>
-              <span>กติกา</span>
-            </Link>
-            {(localStorage.getItem('adminAuth') === 'true' || localStorage.getItem('userRole') === 'admin' || localStorage.getItem('userRole') === 'owner' || localStorage.getItem('userRole') === 'agent') && (
-              <Link
-                to="/admin"
-                className="flex items-center gap-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 hover:text-white border border-blue-400/40 px-2.5 py-1 rounded-xl text-xs font-bold transition"
-                title="ไปยังระบบจัดการหลังบ้าน (Backoffice)"
-              >
-                <span className="material-symbols-outlined text-sm">admin_panel_settings</span>
-                <span>จัดการหลังบ้าน</span>
-              </Link>
-            )}
-          </div>
+
         </div>
 
         {/* User Balance & Actions */}
