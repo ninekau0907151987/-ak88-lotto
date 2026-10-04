@@ -31,6 +31,8 @@ export interface AccessLogEntry {
 export interface TwoFactorState {
   enabled: boolean;
   status: 'active' | 'pending' | 'disabled' | 'locked';
+  allowBypass?: boolean; // ติ๊กให้สามารถข้ามได้เพื่อทดสอบ
+  enforceScan?: boolean; // บังคับให้สแกน QR Code (Authenticator App)
   pin?: string;
   secret?: string;
   backupCodes?: string[];

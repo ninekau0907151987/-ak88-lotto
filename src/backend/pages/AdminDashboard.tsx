@@ -60,6 +60,8 @@ export default function AdminDashboard() {
   const [showMasterPinModal, setShowMasterPinModal] = useState<boolean>(false);
   const [masterPinInput, setMasterPinInput] = useState<string>('');
   const [showTwoFactorModal, setShowTwoFactorModal] = useState<boolean>(false);
+  const [twoFactorAllowBypass, setTwoFactorAllowBypass] = useState<boolean>(true);
+  const [twoFactorEnforceScan, setTwoFactorEnforceScan] = useState<boolean>(false);
   const [pendingSession, setPendingSession] = useState<StaffSession | null>(null);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     'ภาพรวม & การเงิน': true,
@@ -1016,6 +1018,14 @@ export default function AdminDashboard() {
           scopeProjectIds: s.scopeProjectIds || [],
         };
         // เรียกการยืนยันตัวตน 2 ชั้น (2FA)
+        if (s.twoFactor?.enabled === false) {
+          saveSession(sess);
+          setSession(sess);
+          setIsAdminLoggedIn(true);
+          return;
+        }
+        setTwoFactorAllowBypass(s.twoFactor?.allowBypass !== false);
+        setTwoFactorEnforceScan(s.twoFactor?.enforceScan === true);
         setPendingSession(sess);
         setShowTwoFactorModal(true);
         return;
@@ -1024,13 +1034,13 @@ export default function AdminDashboard() {
       console.warn('[login] staff lookup failed, falling back:', e);
     }
 
-    // 2) บัญชีผู้ดูแลระบบหลักเริ่มต้น (Owner / Super Admin)
+    // 2) บัญชีผู้ดูแลระบบหลักเริ่มต้น (Owner / Super Admin: 1234 / 123456)
     const userLower = adminUser.trim().toLowerCase();
     const passTrim = adminPass.trim();
     if (
-      (userLower === '1234' && (passTrim === '123456' || passTrim === '1234')) ||
-      (userLower === 'owner' && (passTrim === '0614284727' || passTrim === '06142847' || passTrim === '123456' || passTrim === '1234')) ||
-      (userLower === 'admin' && (passTrim === 'Password@123' || passTrim === 'admin1234' || passTrim === '123456' || passTrim === '1234'))
+      (userLower === '1234' && passTrim === '123456') ||
+      (userLower === 'owner' && (passTrim === '123456' || passTrim === 'owner')) ||
+      (userLower === 'admin' && (passTrim === '123456' || passTrim === 'admin'))
     ) {
       const isOwner = userLower === 'owner' || userLower === '1234';
       const sess: StaffSession = {
@@ -1056,7 +1066,9 @@ export default function AdminDashboard() {
         }, { merge: true });
       } catch {}
 
-      // เรียกการยืนยันตัวตน 2 ชั้น (2FA)
+      // เรียกการยืนยันตัวตน 2 ชั้น (2FA) รองรับข้ามขั้นตอนเพื่อทดสอบ
+      setTwoFactorAllowBypass(true);
+      setTwoFactorEnforceScan(false);
       setPendingSession(sess);
       setShowTwoFactorModal(true);
       return;
@@ -1975,6 +1987,8 @@ export default function AdminDashboard() {
           username={pendingSession?.username || adminUser}
           userId={pendingSession?.uid || 'staff_1234'}
           role={pendingSession?.role || 'owner'}
+          allowBypass={twoFactorAllowBypass}
+          enforceScan={twoFactorEnforceScan}
           onSuccess={handleTwoFactorSuccess}
           onCancel={handleTwoFactorCancel}
         />

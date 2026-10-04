@@ -247,6 +247,8 @@ export default function StaffPermission() {
       const next2FA: TwoFactorState = {
         enabled,
         status: enabled ? 'active' : 'disabled',
+        allowBypass: target.twoFactor?.allowBypass !== undefined ? target.twoFactor.allowBypass : true,
+        enforceScan: target.twoFactor?.enforceScan || false,
         pin: target.twoFactor?.pin || '123456',
         failedAttempts: 0,
         lastResetAt: new Date().toISOString(),
@@ -255,9 +257,50 @@ export default function StaffPermission() {
       const updated = { ...target, twoFactor: next2FA };
       setSelected(updated);
       setStaff(prev => prev.map(s => s.id === target.id ? updated : s));
-      alert(`ตั้งค่า 2FA เป็น ${enabled ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} เรียบร้อยแล้ว`);
     } catch (e: any) {
       alert('บันทึก 2FA ไม่สำเร็จ: ' + e.message);
+    }
+  };
+
+  /** ผู้ใช้ขอ: สลับอนุญาตให้ข้ามได้เพื่อทดสอบ */
+  const toggle2FABypass = async (target: StaffRow, allowBypass: boolean) => {
+    try {
+      const next2FA: TwoFactorState = {
+        enabled: target.twoFactor?.enabled !== false,
+        status: target.twoFactor?.status || 'active',
+        allowBypass,
+        enforceScan: target.twoFactor?.enforceScan || false,
+        pin: target.twoFactor?.pin || '123456',
+        failedAttempts: target.twoFactor?.failedAttempts || 0,
+        lastResetAt: target.twoFactor?.lastResetAt || new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'staff', target.id), { twoFactor: next2FA }, { merge: true });
+      const updated = { ...target, twoFactor: next2FA };
+      setSelected(updated);
+      setStaff(prev => prev.map(s => s.id === target.id ? updated : s));
+    } catch (e: any) {
+      alert('บันทึกการตั้งค่าข้าม 2FA ไม่สำเร็จ: ' + e.message);
+    }
+  };
+
+  /** ผู้ใช้ขอ: สลับบังคับสแกน Authenticator */
+  const toggle2FAEnforceScan = async (target: StaffRow, enforceScan: boolean) => {
+    try {
+      const next2FA: TwoFactorState = {
+        enabled: target.twoFactor?.enabled !== false,
+        status: target.twoFactor?.status || 'active',
+        allowBypass: target.twoFactor?.allowBypass !== undefined ? target.twoFactor.allowBypass : true,
+        enforceScan,
+        pin: target.twoFactor?.pin || '123456',
+        failedAttempts: target.twoFactor?.failedAttempts || 0,
+        lastResetAt: target.twoFactor?.lastResetAt || new Date().toISOString(),
+      };
+      await setDoc(doc(db, 'staff', target.id), { twoFactor: next2FA }, { merge: true });
+      const updated = { ...target, twoFactor: next2FA };
+      setSelected(updated);
+      setStaff(prev => prev.map(s => s.id === target.id ? updated : s));
+    } catch (e: any) {
+      alert('บันทึกการบังคับสแกน 2FA ไม่สำเร็จ: ' + e.message);
     }
   };
 
@@ -707,52 +750,133 @@ export default function StaffPermission() {
 
             {/* TAB 2: Two-Factor Authentication & Reset */}
             {detailTab === 'two_factor' && (
-              <div className="p-6 space-y-5">
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 space-y-4 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-black">
-                        <span className="material-symbols-outlined text-2xl">security</span>
-                      </div>
-                      <div>
-                        <h4 className="font-black text-sm text-slate-900">สถานะความปลอดภัย 2 ชั้น (2FA)</h4>
-                        <p className="text-xs text-slate-500">บังคับให้ใส่รหัส PIN หรือ Authenticator เมื่อเข้าสู่ระบบ</p>
-                      </div>
+              <div className="p-6 space-y-4">
+                
+                {/* 1. สวิตช์ เปิด/ปิด 2FA */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black ${
+                      selected.twoFactor?.enabled !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      <span className="material-symbols-outlined text-2xl">verified_user</span>
                     </div>
-
-                    <button
-                      onClick={() => toggle2FAStatus(selected, !(selected.twoFactor?.enabled !== false))}
-                      className={`px-4 py-2 rounded-xl text-xs font-black transition ${
-                        selected.twoFactor?.enabled !== false
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-slate-200 text-slate-700'
-                      }`}
-                    >
-                      {selected.twoFactor?.enabled !== false ? 'เปิดใช้งานอยู่' : 'ปิดใช้งาน'}
-                    </button>
-                  </div>
-
-                  <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-bold">รหัส 2FA เริ่มต้นปัจจุบัน:</span>
-                      <span className="font-mono font-black text-blue-700">{selected.twoFactor?.pin || '123456'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-slate-500 font-bold">รีเซ็ตล่าสุดเมื่อ:</span>
-                      <span className="text-slate-700">{selected.twoFactor?.lastResetAt ? new Date(selected.twoFactor.lastResetAt).toLocaleString('th-TH') : 'ไม่ระบุ'}</span>
+                    <div>
+                      <h4 className="font-black text-sm text-slate-900">1. ระบบความปลอดภัย 2 ชั้น (2FA)</h4>
+                      <p className="text-xs text-slate-500">
+                        {selected.twoFactor?.enabled !== false
+                          ? 'เปิดใช้งาน: พนักงานต้องยืนยัน 2FA ก่อนเข้าหลังบ้าน'
+                          : 'ปิดใช้งาน: พนักงานล็อกอินชั้นเดียวผ่านได้ทันที'}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="pt-2">
+                  <button
+                    onClick={() => toggle2FAStatus(selected, !(selected.twoFactor?.enabled !== false))}
+                    className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+                      selected.twoFactor?.enabled !== false
+                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
+                        : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {selected.twoFactor?.enabled !== false ? 'check_circle' : 'cancel'}
+                    </span>
+                    <span>{selected.twoFactor?.enabled !== false ? 'เปิดใช้งานอยู่' : 'ปิดใช้งาน'}</span>
+                  </button>
+                </div>
+
+                {/* 2. สวิตช์ อนุญาตให้ข้ามได้ เพื่อทดสอบ (Bypass Mode) */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black ${
+                      selected.twoFactor?.allowBypass !== false ? 'bg-blue-50 text-blue-600' : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      <span className="material-symbols-outlined text-2xl">fast_forward</span>
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-slate-900">2. อนุญาตให้กดข้ามได้ (โหมดทดสอบ)</h4>
+                      <p className="text-xs text-slate-500">
+                        {selected.twoFactor?.allowBypass !== false
+                          ? 'อนุญาตให้ข้าม: มีปุ่ม "ข้ามขั้นตอน 2FA" ในหน้าป๊อปอัพ เหมาะสำหรับช่วงทดสอบ'
+                          : 'ไม่อนุญาตให้ข้าม: ต้องกรอกรหัส 2FA เท่านั้น ห้ามข้ามเด็ดขาด'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => toggle2FABypass(selected, !(selected.twoFactor?.allowBypass !== false))}
+                    className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+                      selected.twoFactor?.allowBypass !== false
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+                        : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {selected.twoFactor?.allowBypass !== false ? 'toggle_on' : 'toggle_off'}
+                    </span>
+                    <span>{selected.twoFactor?.allowBypass !== false ? 'อนุญาตให้ข้ามได้' : 'ต้องใส่รหัสเท่านั้น'}</span>
+                  </button>
+                </div>
+
+                {/* 3. สวิตช์ บังคับสแกน Authenticator */}
+                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black ${
+                      selected.twoFactor?.enforceScan ? 'bg-purple-50 text-purple-600' : 'bg-slate-100 text-slate-400'
+                    }`}>
+                      <span className="material-symbols-outlined text-2xl">qr_code_scanner</span>
+                    </div>
+                    <div>
+                      <h4 className="font-black text-sm text-slate-900">3. บังคับสแกน Authenticator (Google / MS)</h4>
+                      <p className="text-xs text-slate-500">
+                        {selected.twoFactor?.enforceScan
+                          ? 'เปิดใช้งาน: แสดงหน้าจอ QR Code บังคับสแกนด้วยแอปเป็นค่าเริ่มต้น'
+                          : 'โหมดปกติ: ให้เลือกกรอกรหัส PIN หรือสแกน QR Code ได้อย่างอิสระ'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => toggle2FAEnforceScan(selected, !selected.twoFactor?.enforceScan)}
+                    className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 ${
+                      selected.twoFactor?.enforceScan
+                        ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-sm'
+                        : 'bg-slate-200 text-slate-600 hover:bg-slate-300'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {selected.twoFactor?.enforceScan ? 'qr_code_2' : 'pin'}
+                    </span>
+                    <span>{selected.twoFactor?.enforceScan ? 'บังคับสแกน QR' : 'รหัส PIN ทั่วไป'}</span>
+                  </button>
+                </div>
+
+                {/* 4. กล่องข้อมูลรหัส PIN และปุ่มรีเซ็ต */}
+                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-4 space-y-3">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">รหัส PIN 2FA เริ่มต้นปัจจุบัน:</span>
+                    <span className="font-mono font-black text-blue-700 bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-sm">
+                      {selected.twoFactor?.pin || '123456'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-slate-500 font-bold">รีเซ็ตล่าสุดเมื่อ:</span>
+                    <span className="text-slate-700 font-mono">
+                      {selected.twoFactor?.lastResetAt ? new Date(selected.twoFactor.lastResetAt).toLocaleString('th-TH') : 'ยังไม่เคยรีเซ็ต'}
+                    </span>
+                  </div>
+
+                  <div className="pt-1">
                     <button
                       onClick={() => handleReset2FA(selected)}
                       className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-105 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
                     >
                       <span className="material-symbols-outlined text-sm">lock_reset</span>
-                      <span>รีเซ็ตรหัส 2FA พนักงาน (ตั้งเป็น 123456 และปลดล็อก)</span>
+                      <span>🔄 รีเซ็ตรหัส 2FA พนักงาน (ตั้งเป็น 123456 และปลดล็อกทันที)</span>
                     </button>
                   </div>
                 </div>
+
               </div>
             )}
 
