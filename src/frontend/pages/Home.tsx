@@ -38,7 +38,12 @@ export default function Home() {
   const balance = userData?.balance ?? 0;
   const formattedBalance = balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
-  const [now, setNow] = useState<Date>(new Date());
+  const getBalanceFontSize = (len: number) => {
+    if (len > 14) return 'text-xl sm:text-2xl md:text-3xl';
+    if (len > 10) return 'text-2xl sm:text-3xl md:text-4xl';
+    if (len > 7) return 'text-3xl sm:text-4xl md:text-5xl';
+    return 'text-4xl sm:text-5xl md:text-6xl';
+  };
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(timer);

@@ -50,6 +50,22 @@ export default function Login() {
         userSnapshot = await getDocs(qUser);
       }
 
+      // ถ้าผู้ใช้กรอกเป็น user_a123456 หรือ user_xxx
+      if (userSnapshot.empty && cleanLower.startsWith('user_')) {
+        const stripped = cleanLower.replace(/^user_/, '');
+        qUser = query(collection(db, 'users'), where('username', '==', stripped));
+        userSnapshot = await getDocs(qUser);
+      }
+
+      // ถ้าไม่พบ ให้ลองค้นหาผ่าน Document ID โดยตรง (เช่น doc id 'user_a123456')
+      if (userSnapshot.empty) {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const docSnap = await getDoc(doc(db, 'users', cleanLower));
+        if (docSnap.exists()) {
+          userSnapshot = { empty: false, docs: [docSnap] } as any;
+        }
+      }
+
       if (!userSnapshot.empty) {
         const userDoc = userSnapshot.docs[0];
         const userData = userDoc.data();
@@ -60,6 +76,7 @@ export default function Login() {
         // รายชื่อบัญชีทดสอบและผู้บริหาร (รองรับทั้ง 1234, 123456, เบอร์โทร, username, Password@123)
         const isMasterOrTestUser = 
           cleanLower === 'a123456' || 
+          cleanLower === 'user_a123456' ||
           cleanLower === 'user_test' || 
           cleanLower === '0812345678' || 
           cleanLower === '0899999999' ||
