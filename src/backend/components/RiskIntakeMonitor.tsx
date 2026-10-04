@@ -243,16 +243,123 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
     setCurrentPage(1);
   }, [selectedLottery]);
 
-  // Optional auto-refresh every 20 seconds
+  // 10 ประเภทความเสี่ยงที่ต้องมอนิเตอร์แบบแถวเดียวแนวนอน
+  const TARGET_ROW_TYPES = [
+    { key: '3 ตัวบน', label: '3 ตัวบน', defaultRate: 900, short: '3บน', isTop: true },
+    { key: '3 ตัวล่าง', label: '3 ตัวล่าง', defaultRate: 150, short: '3ล่าง' },
+    { key: '3 ตัวโต๊ด', label: '3 ตัวโต๊ด', defaultRate: 120, short: '3โต๊ด' },
+    { key: '2 ตัวบน', label: '2 ตัวบน', defaultRate: 92, short: '2บน', isTop: true },
+    { key: '2 ตัวล่าง', label: '2 ตัวล่าง', defaultRate: 92, short: '2ล่าง' },
+    { key: 'วิ่งบน', label: '1 บน (วิ่งบน)', defaultRate: 3.2, short: '1บน', isTop: true },
+    { key: 'วิ่งล่าง', label: '1 ล่าง (วิ่งล่าง)', defaultRate: 4.2, short: '1ล่าง' },
+    { key: '4 ตัวบน', label: '4 ตัวบน', defaultRate: 5000, short: '4บน', isTop: true },
+    { key: '4 ตัวโต๊ด', label: '4 ตัวโต๊ด', defaultRate: 200, short: '4โต๊ด' },
+    { key: '5 ตัวโต๊ด', label: '5 ตัวโต๊ด', defaultRate: 15, short: '5โต๊ด' },
+  ];
+
+  // Auto-refresh every 15 seconds with active countdown
+  const [countdownSec, setCountdownSec] = useState(15);
   useEffect(() => {
     if (!autoRefresh) return;
-    const interval = setInterval(() => {
-      fetchLiveIntake(selectedLottery);
-    }, 20000);
-    return () => clearInterval(interval);
+    const timer = setInterval(() => {
+      setCountdownSec(prev => {
+        if (prev <= 1) {
+          fetchLiveIntake(selectedLottery);
+          return 15;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
   }, [autoRefresh, selectedLottery]);
 
-  // Quick Action on monitored numbers (Close / Discount / Restore)
+  // ประวัติบันทึกการลดด่วน (Quick Cut History Log)
+  const [quickCutLogs, setQuickCutLogs] = useState<Array<{ id: string; type: string; number: string; oldRate: number; newRate: number; time: string }>>([
+    { id: '1', type: '3 ตัวบน', number: '600', oldRate: 900, newRate: 500, time: '14:30:22' }
+  ]);
+
+  // Modal / Inline Quick Cut State
+  const [editingBet, setEditingBet] = useState<{ type: string; number: string; currentRate: number } | null>(null);
+  const [newRateInput, setNewRateInput] = useState<string>('500');
+
+  // คำนวณความเสี่ยงและเลขเสี่ยงสูงสุดของแต่ละประเภท (10 ประเภท)
+  const typeRiskSummary = useMemo(() => {
+    return TARGET_ROW_TYPES.map(t => {
+      const typeBets = liveBets.filter(b => b.type === t.key || b.type.includes(t.short) || b.type.includes(t.key.replace('ตัว', '')));
+      const withLiability = typeBets.map(b => {
+        const rate = b.customRate || t.defaultRate;
+        const liability = b.intake * rate;
+        return { ...b, effectiveRate: rate, liability };
+      }).sort((a, b) => b.liability - a.liability);
+
+      const topBet = withLiability[0] || null;
+      const maxLiability = topBet ? topBet.liability : 0;
+      const totalTypeIntake = typeBets.reduce((sum, b) => sum + b.intake, 0);
+
+      return {
+        ...t,
+        bets: withLiability,
+        topBet,
+        maxLiability,
+        totalTypeIntake,
+        count: typeBets.length
+      };
+    });
+  }, [liveBets]);
+
+  // รวบรวมการจ่ายสูงสุด & โอกาสที่จะแพ้สูงสุด (Worst-Case Loss Exposure)
+  const exposureSummary = useMemo(() => {
+    const totalIntake = summaryData.totalIntakeAmount;
+    // ยอดจ่ายสูงสุดกรณีแพ้ทุกประเภท (รวม Max Liability ของแต่ละประเภท)
+    const worstCasePayout = typeRiskSummary.reduce((sum, t) => sum + t.maxLiability, 0);
+    // ผลขาดทุนสุทธิสูงสุด = Payout - Intake
+    const worstCaseNetLoss = Math.max(0, worstCasePayout - totalIntake);
+    // ตัวเลขตัวบนที่เสี่ยงสูงสุด
+    const top3Top = typeRiskSummary.find(t => t.key === '3 ตัวบน')?.topBet || null;
+
+    return {
+      totalIntake,
+      worstCasePayout,
+      worstCaseNetLoss,
+      top3Top
+    };
+  }, [summaryData, typeRiskSummary]);
+
+  // ฟังก์ชันบันทึกการลดราคาด่วน (Double Click Quick Cut)
+  const handleApplyQuickRate = async (type: string, number: string, newRate: number) => {
+    try {
+      await addDoc(collection(db, 'blocked_numbers'), {
+        lotteryType: selectedLottery,
+        betType: type,
+        number: number,
+        restrictionType: newRate === 0 ? 'blocked' : 'reduced',
+        customPayoutRate: newRate,
+        sourceMode: 'quick_cut',
+        createdAt: new Date().toISOString()
+      });
+      setQuickCutLogs(prev => [
+        {
+          id: String(Date.now()),
+          type,
+          number,
+          oldRate: 900,
+          newRate,
+          time: new Date().toLocaleTimeString('th-TH')
+        },
+        ...prev
+      ]);
+      setLiveBets(prev => prev.map(b => {
+        if (b.type === type && b.number === number) {
+          return { ...b, customRate: newRate, statusOverride: 'discounted' };
+        }
+        return b;
+      }));
+      setEditingBet(null);
+      setMessage({ text: `ปรับลดอัตราจ่าย ${type} เลข ${number} เหลือ ฿${newRate} เรียบร้อยแล้ว`, type: 'success' });
+    } catch (e: any) {
+      alert('เกิดข้อผิดพลาด: ' + e.message);
+    }
+  };
   const handleQuickAction = async (bet: LiveBetNumber, action: 'close' | 'discount' | 'restore') => {
     const key = `${bet.type}-${bet.number}`;
     setActionLoading(key);
@@ -557,6 +664,287 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
           <p className="text-[10px] text-slate-400 mt-1">รวมยอดเดิมพันสะสมทุกตัวเลขในรอบนี้</p>
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* 4.5 ประเมินความเสี่ยงแพ้สูงสุด & ตัวบนเด่น (Worst-Case Exposure & 15s Auto Polling) */}
+      {/* ========================================================================= */}
+      <div className="bg-gradient-to-r from-slate-900 via-rose-950 to-slate-900 text-white p-5 rounded-2xl border border-rose-900/60 shadow-xl space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-rose-800/40 pb-3">
+          <div className="flex items-center gap-2.5">
+            <span className="w-3 h-3 rounded-full bg-rose-500 animate-ping"></span>
+            <div>
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <span>ประเมินความเสี่ยงแพ้สูงสุด (Worst-Case Loss Exposure)</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/40 animate-pulse">
+                  ⚡ ดูดสดทุก 15 วินาที ({countdownSec}ว.)
+                </span>
+              </h3>
+              <p className="text-[10px] text-slate-400">คำนวณจากตัวเลขที่มียอดจ่ายสูงสุดในแต่ละประเภทกรณีลูกค้าถูกรางวัลทุกตัวพร้อมกัน</p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => fetchLiveIntake(selectedLottery)}
+            className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-rose-200 border border-rose-700/50 rounded-xl text-xs font-black transition flex items-center gap-1 active:scale-95"
+          >
+            <span className="material-symbols-outlined text-sm">refresh</span>
+            ดึงยอดสดทันที
+          </button>
+        </div>
+
+        {/* 4 KPI Metrics */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* 1. ตัวบนเสี่ยงสูงสุด */}
+          <div className="bg-black/30 border border-amber-500/40 rounded-xl p-3.5 flex flex-col justify-between">
+            <div className="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1">
+              <span>🚨 ตัวบนเสี่ยงสูงสุด (3 ตัวบน)</span>
+            </div>
+            {exposureSummary.top3Top ? (
+              <div className="mt-1">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl font-black font-mono text-amber-300">
+                    {exposureSummary.top3Top.number}
+                  </span>
+                  <span className="text-[11px] text-slate-300 font-bold">
+                    (แทง ฿{exposureSummary.top3Top.intake.toLocaleString()})
+                  </span>
+                </div>
+                <div className="text-[11px] font-bold text-rose-400 mt-0.5">
+                  จ่ายสูงสุด: ฿{exposureSummary.top3Top.liability.toLocaleString()}
+                </div>
+              </div>
+            ) : (
+              <div className="text-xs text-slate-400 font-bold mt-2">ยังไม่มียอดแทง 3 ตัวบน</div>
+            )}
+          </div>
+
+          {/* 2. ยอดจ่ายสูงสุดกรณีแพ้ทุกตัว */}
+          <div className="bg-black/30 border border-rose-500/40 rounded-xl p-3.5 flex flex-col justify-between">
+            <div className="text-[10px] font-black text-rose-300 uppercase tracking-wider">
+              💸 ยอดจ่ายสูงสุดกรณีแพ้ (Max Liability)
+            </div>
+            <div className="text-2xl font-black text-rose-400 mt-1">
+              ฿{exposureSummary.worstCasePayout.toLocaleString()}
+            </div>
+            <div className="text-[10px] text-slate-400">รวมภาระจ่ายสูงสุดทุกประเภท</div>
+          </div>
+
+          {/* 3. ยอดแทงรวมสะสม */}
+          <div className="bg-black/30 border border-emerald-500/40 rounded-xl p-3.5 flex flex-col justify-between">
+            <div className="text-[10px] font-black text-emerald-300 uppercase tracking-wider">
+              💰 ยอดแทงรวมสะสม (Total Intake)
+            </div>
+            <div className="text-2xl font-black text-emerald-400 mt-1">
+              ฿{exposureSummary.totalIntake.toLocaleString()}
+            </div>
+            <div className="text-[10px] text-slate-400">เงินที่ลูกค้าระดมแทงรอบนี้</div>
+          </div>
+
+          {/* 4. โอกาสที่จะแพ้สูงสุด */}
+          <div className="bg-black/30 border border-red-500/60 rounded-xl p-3.5 flex flex-col justify-between ring-1 ring-red-500/30">
+            <div className="text-[10px] font-black text-red-300 uppercase tracking-wider flex items-center gap-1">
+              <span>⚠️ โอกาสที่จะแพ้สูงสุด (Worst-Case Net Loss)</span>
+            </div>
+            <div className="text-2xl font-black text-red-400 mt-1">
+              ฿{exposureSummary.worstCaseNetLoss.toLocaleString()}
+            </div>
+            <div className="text-[10px] text-red-300/80">ความเสี่ยงขาดทุนสุทธิสูงสุด</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4.6 แถบเบียดแถวเดียว เลื่อนไปทางขวา (SINGLE-ROW HORIZONTAL RISK STRIP)      */}
+      {/* 10 ประเภท: 3บน 3ล่าง 3โต๊ด 2บน 2ล่าง 1บน 1ล่าง 4บน 4โต๊ด 5โต๊ด               */}
+      {/* ========================================================================= */}
+      <div className="admin-card p-5 bg-white border border-slate-200 rounded-2xl shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+              <span className="material-symbols-outlined text-blue-600 text-lg">view_carousel</span>
+              <span>มอนิเตอร์ตัวเลขด่วน 10 ประเภท (เบียดแถวเดียวเลื่อนไปทางขวา)</span>
+            </h3>
+            <p className="text-[11px] text-slate-500">
+              ดับเบิ้ลคลิกที่อัตราจ่าย (เช่น 900) เพื่อพิมพ์เปลี่ยนลดเหลือ 500 ได้ทันที
+            </p>
+          </div>
+
+          <div className="text-[11px] font-bold text-slate-400 flex items-center gap-1">
+            <span>เลื่อนขวาเพื่อดูประเภทอื่น</span>
+            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+          </div>
+        </div>
+
+        {/* แถบเลื่อนแนวนอนเบียดแถวเดียว (Overflow-X Auto) */}
+        <div className="overflow-x-auto pb-3 flex gap-3 scrollbar-thin">
+          {typeRiskSummary.map((t) => (
+            <div 
+              key={t.key}
+              className={`min-w-[240px] max-w-[250px] flex-shrink-0 rounded-2xl p-3.5 border transition ${
+                t.isTop 
+                  ? 'bg-blue-50/50 border-blue-200 shadow-sm' 
+                  : 'bg-slate-50/70 border-slate-200'
+              }`}
+            >
+              {/* Header การ์ด */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-black text-xs text-slate-900 flex items-center gap-1">
+                  {t.isTop && <span className="text-amber-500 text-xs">⭐</span>}
+                  {t.label}
+                </span>
+
+                <span 
+                  onDoubleClick={() => {
+                    if (t.topBet) {
+                      setEditingBet({ type: t.key, number: t.topBet.number, currentRate: t.topBet.effectiveRate });
+                      setNewRateInput('500');
+                    }
+                  }}
+                  title="ดับเบิ้ลคลิกเพื่อปรับลดอัตราจ่ายด่วน"
+                  className="cursor-pointer text-[10px] font-black px-2 py-0.5 rounded bg-white border border-slate-300 text-slate-700 hover:border-blue-500 hover:text-blue-600 transition"
+                >
+                  จ่าย ฿{t.topBet?.effectiveRate || t.defaultRate} ✎
+                </span>
+              </div>
+
+              {/* ข้อมูลเลขเสี่ยงสูงสุด */}
+              {t.topBet ? (
+                <div className="space-y-1.5 bg-white p-2.5 rounded-xl border border-slate-200/80">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-[10px] text-slate-400 font-bold">เลขเสี่ยงสูงสุด:</span>
+                    <span className="text-xl font-black font-mono text-red-600 tracking-wider">
+                      {t.topBet.number}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-bold">ยอดแทง:</span>
+                    <span className="font-black text-slate-800">฿{t.topBet.intake.toLocaleString()}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100">
+                    <span className="text-slate-500 font-bold">คำนวณจ่าย:</span>
+                    <span className="font-black text-rose-600">฿{t.topBet.liability.toLocaleString()}</span>
+                  </div>
+
+                  {/* ปุ่มกดลดด่วน */}
+                  <button
+                    onClick={() => {
+                      setEditingBet({ type: t.key, number: t.topBet.number, currentRate: t.topBet.effectiveRate });
+                      setNewRateInput('500');
+                    }}
+                    className="w-full mt-2 py-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-black transition flex items-center justify-center gap-1 active:scale-95"
+                  >
+                    <span className="material-symbols-outlined text-xs">trending_down</span>
+                    ดับเบิ้ลคลิก/ลดเหลือ ฿500
+                  </button>
+                </div>
+              ) : (
+                <div className="py-7 text-center text-slate-400 text-xs font-bold bg-white/60 rounded-xl border border-dashed border-slate-200">
+                  ยังไม่มียอดแทง
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* 4.7 ตารางประวัติบันทึกการลดด่วน (QUICK CUT HISTORY LOG)                     */}
+      {/* ========================================================================= */}
+      {quickCutLogs.length > 0 && (
+        <div className="bg-amber-50/60 border border-amber-200 rounded-2xl p-4 shadow-sm space-y-2.5">
+          <div className="flex justify-between items-center">
+            <h4 className="text-xs font-black text-amber-900 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-amber-700 text-sm">history</span>
+              ตารางประวัติบันทึกการลดรางวัลแบบด่วน (Quick Cut History)
+            </h4>
+            <span className="text-[10px] text-amber-700 font-bold">มีบันทึก {quickCutLogs.length} รายการ</span>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {quickCutLogs.map((log, idx) => (
+              <div key={log.id || idx} className="bg-white border border-amber-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 flex items-center gap-2 shadow-xs">
+                <span className="text-amber-800 font-black">ครั้งที่ {idx + 1}:</span>
+                <span className="text-slate-600">{log.type}</span>
+                <span className="font-mono font-black text-red-600">เลข {log.number}</span>
+                <span className="text-emerald-700 font-black">ลดเหลือ ฿{log.newRate}</span>
+                <span className="text-[10px] text-slate-400">({log.time})</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 4.8 ป๊อปอัปแก้ไขราคาลดด่วน (Quick Cut Modal / Prompt)                       */}
+      {/* ========================================================================= */}
+      {editingBet && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-rose-600 text-base">edit</span>
+                ปรับลดอัตราจ่ายด่วน
+              </h3>
+              <button onClick={() => setEditingBet(null)} className="text-slate-400 hover:text-slate-600 font-black">✕</button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="bg-slate-50 p-3 rounded-xl space-y-1">
+                <div className="text-slate-500 font-bold">ประเภท: <span className="font-black text-slate-900">{editingBet.type}</span></div>
+                <div className="text-slate-500 font-bold">หมายเลข: <span className="font-black text-red-600 font-mono text-base">{editingBet.number}</span></div>
+                <div className="text-slate-500 font-bold">อัตราจ่ายปัจจุบัน: <span className="font-black text-slate-700">฿{editingBet.currentRate}</span></div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-black text-slate-700 mb-1 block">ระบุอัตราจ่ายที่ต้องการลดเหลือ (บาท):</label>
+                <input
+                  type="number"
+                  value={newRateInput}
+                  onChange={(e) => setNewRateInput(e.target.value)}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-base font-black text-rose-600 outline-none focus:border-rose-500"
+                  placeholder="เช่น 500 หรือ 0 เพื่อปิดรับ"
+                />
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setNewRateInput('500')}
+                  className="flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-[11px] font-black border border-rose-200 transition"
+                >
+                  ลดเหลือ 500
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewRateInput('0')}
+                  className="flex-1 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-[11px] font-black border border-red-200 transition"
+                >
+                  ปิดรับ (0 บ.)
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingBet(null)}
+                className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black rounded-xl text-xs transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => handleApplyQuickRate(editingBet.type, editingBet.number, Number(newRateInput) || 0)}
+                className="flex-1 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-xl text-xs shadow-md transition"
+              >
+                ยืนยันลดราคา
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 5. ตารางมอนิเตอร์ข้อมูลแบบแถวและคอลัมน์ (DATA TABLE VIEW) */}
       <div className="admin-card bg-white overflow-hidden shadow-sm border border-slate-200 space-y-4 p-5 rounded-2xl">
