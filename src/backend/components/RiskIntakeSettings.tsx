@@ -33,31 +33,30 @@ interface Props {
   defaultTab?: 'rates' | 'intake';
 }
 
-// สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยไทย 14 ประเภท
+// สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยไทย 13 ประเภท (ตัด 2 ตัวโต๊ด และ 5 ตัวโต๊ด ออก)
 const DEFAULT_THAI_ALLOCATIONS: Record<string, number> = {
   '3 ตัวบน': 30,
   '3 ตัวล่าง': 15,
   '3 ตัวโต๊ด': 10,
+  '3 ตัวหน้า': 4,
   '2 ตัวบน': 20,
   '2 ตัวล่าง': 15,
-  '2 ตัวโต๊ด': 4,
   'วิ่งบน': 2,
   'วิ่งล่าง': 2,
   'ปักหลักร้อย': 0.5,
   'ปักหลักสิบ': 0.5,
   'ปักหลักหน่วย': 0.5,
   '4 ตัวบน': 0.3,
-  '4 ตัวโต๊ด': 0.1,
-  '5 ตัวโต๊ด': 0.1,
+  '4 ตัวโต๊ด': 0.2,
 };
 
-// สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยอื่น 12 ประเภท
+// สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยอื่น 11 ประเภท (ตัด 2 ตัวโต๊ด ออก)
 const DEFAULT_OTHER_ALLOCATIONS: Record<string, number> = {
   '3 ตัวบน': 35,
   '3 ตัวโต๊ด': 10,
-  '2 ตัวบน': 25,
+  '3 ตัวล่าง': 5,
+  '2 ตัวบน': 24,
   '2 ตัวล่าง': 20,
-  '2 ตัวโต๊ด': 4,
   'วิ่งบน': 2,
   'วิ่งล่าง': 2,
   'ปักหลักร้อย': 0.6,
@@ -180,7 +179,7 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
         } catch {}
       }
 
-      if (savedData) {
+      if (savedData && Array.isArray(savedData.subItems) && savedData.subItems.length > 0) {
         const subs = savedData.subItems || [];
         const isThaiLotto = lotId.includes('ไทย') || lotId.includes('รัฐบาล');
         const defaultMap = isThaiLotto ? DEFAULT_THAI_ALLOCATIONS : DEFAULT_OTHER_ALLOCATIONS;
@@ -209,6 +208,43 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity, d
             enabled: s.enabled !== false,
           };
         }));
+      } else {
+        // Fallback: Populate standard types matching lottery type
+        const isThaiLotto = lotId.includes('ไทย') || lotId.includes('รัฐบาล');
+        const defaultMap = isThaiLotto ? DEFAULT_THAI_ALLOCATIONS : DEFAULT_OTHER_ALLOCATIONS;
+        const defaultItems: IntakeItem[] = Object.keys(defaultMap).map((typeName, index) => {
+          const allocPct = defaultMap[typeName] ?? 2;
+          const is3Digit = typeName.includes('3 ตัว');
+          const is2Digit = typeName.includes('2 ตัว');
+          const isRun = typeName.includes('วิ่ง');
+          const isPin = typeName.includes('ปักหลัก');
+          const is4Digit = typeName.includes('4 ตัว');
+
+          const baseRate = is3Digit ? (typeName.includes('โต๊ด') ? 150 : typeName.includes('ล่าง') || typeName.includes('หน้า') ? 450 : 900)
+            : is2Digit ? 90
+            : isRun ? (typeName === 'วิ่งล่าง' ? 4.2 : 3.2)
+            : isPin ? 8
+            : is4Digit ? (typeName.includes('โต๊ด') ? 200 : 5000)
+            : 90;
+
+          const discountPct = is3Digit ? 30 : is2Digit ? 28 : 10;
+          const discountedRate = Math.round(baseRate * (1 - discountPct / 100) * 10) / 10;
+
+          return {
+            id: index + 1,
+            name: typeName,
+            baseRate,
+            discountPercent: discountPct,
+            discountedRate,
+            allocationPercent: allocPct,
+            maxIntakePerNumber: is3Digit ? 1000 : is2Digit ? 3000 : isRun ? 10000 : 2000,
+            totalTypeBudget: Math.round(200000 * (allocPct / 100)),
+            minBet: 1,
+            maxBet: isRun ? 10000 : 5000,
+            enabled: true,
+          };
+        });
+        setIntakeItems(defaultItems);
       }
     } catch (e: any) {
       console.warn('Fetch intake settings fallback:', e.message);

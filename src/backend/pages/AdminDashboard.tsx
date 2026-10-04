@@ -302,16 +302,18 @@ export default function AdminDashboard() {
   const defaultRates = {
     '3 ตัวบน': 900,
     '3 ตัวโต๊ด': 150,
-    '3 ตัวหน้า': 450,
     '3 ตัวล่าง': 450,
+    '3 ตัวหน้า': 450,
+    '3 ตัวกลับ': 900,
     '2 ตัวบน': 90,
     '2 ตัวล่าง': 90,
-    '2 ตัวโต๊ด': 12,
     'วิ่งบน': 3.2,
     'วิ่งล่าง': 4.2,
+    'ปักหลักหน่วย': 8,
+    'ปักหลักสิบ': 8,
+    'ปักหลักร้อย': 8,
     '4 ตัวบน': 5000,
-    '5 ตัวบน': 50000,
-    '6 ตัวบน': 500000
+    '4 ตัวโต๊ด': 200,
   };
 
   // Payout Config Modal State
@@ -2986,11 +2988,11 @@ export default function AdminDashboard() {
               {/* Sub-tab: ระบบต้านทานอัตราจ่าย (Payout Rate Resistance) */}
               {activeSettingsSubTab === 'resistance' && (() => {
                 const DIGIT_GROUPS = [
-                  { id: '3digits', label: '🏆 กลุ่มเลข 3 ตัว', icon: 'looks_3', types: ['3 ตัวบน', '3 ตัวโต๊ด', '3 ตัวหน้า', '3 ตัวล่าง', '3 ตัวกลับ'] },
-                  { id: '2digits', label: '🥈 กลุ่มเลข 2 ตัว', icon: 'looks_two', types: ['2 ตัวบน', '2 ตัวล่าง', '2 ตัวกลับ', '2 ตัวโต๊ด'] },
+                  { id: '3digits', label: '🏆 กลุ่มเลข 3 ตัว', icon: 'looks_3', types: ['3 ตัวบน', '3 ตัวโต๊ด', '3 ตัวล่าง', '3 ตัวหน้า', '3 ตัวกลับ'] },
+                  { id: '2digits', label: '🥈 กลุ่มเลข 2 ตัว', icon: 'looks_two', types: ['2 ตัวบน', '2 ตัวล่าง'] },
                   { id: 'running', label: '⚡ กลุ่มเลขวิ่ง / เลขรัน', icon: 'bolt', types: ['วิ่งบน', 'วิ่งล่าง'] },
                   { id: 'pinned',  label: '🎯 กลุ่มเลขปักหลัก', icon: 'pin_drop', types: ['ปักหลักหน่วย', 'ปักหลักสิบ', 'ปักหลักร้อย'] },
-                  { id: '4digits', label: '💎 กลุ่มเลข 4-5 ตัว', icon: 'diamond', types: ['4 ตัวบน', '4 ตัวโต๊ด', '5 ตัวโต๊ด'] },
+                  { id: '4digits', label: '💎 กลุ่มเลข 4 ตัว', icon: 'diamond', types: ['4 ตัวบน', '4 ตัวโต๊ด'] },
                 ];
 
                 const currentGroup = DIGIT_GROUPS.find(g => g.id === resistanceDigitGroup) || DIGIT_GROUPS[0];

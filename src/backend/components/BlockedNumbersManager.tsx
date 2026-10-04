@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { db } from '@/shared/lib/firebase';
 import { collection, addDoc, deleteDoc, doc } from 'firebase/firestore';
 import type { StaffSession } from '@/shared/lib/permissions';
@@ -11,7 +11,9 @@ interface Props {
   session?: StaffSession | null;
 }
 
-const BET_TYPES = [
+// Master Standard Bet Types: Ordered strictly according to user specification (1 to 5, etc.)
+// Strictly EXCLUDES: '2 ตัวโต๊ด', '2 ตัวกลับ', '5 ตัวบน', '6 ตัวบน'
+export const STANDARD_BET_TYPES_THAI = [
   '3 ตัวบน',
   '3 ตัวโต๊ด',
   '3 ตัวล่าง',
@@ -19,18 +21,57 @@ const BET_TYPES = [
   '3 ตัวกลับ',
   '2 ตัวบน',
   '2 ตัวล่าง',
-  '2 ตัวโต๊ด',
-  '2 ตัวกลับ',
   'วิ่งบน',
   'วิ่งล่าง',
   'ปักหลักหน่วย',
   'ปักหลักสิบ',
   'ปักหลักร้อย',
   '4 ตัวบน',
-  '4 ตัวโต๊ด',
-  '5 ตัวบน',
-  '6 ตัวบน'
+  '4 ตัวโต๊ด'
 ];
+
+export const STANDARD_BET_TYPES_OTHER = [
+  '3 ตัวบน',
+  '3 ตัวโต๊ด',
+  '3 ตัวล่าง',
+  '3 ตัวกลับ',
+  '2 ตัวบน',
+  '2 ตัวล่าง',
+  'วิ่งบน',
+  'วิ่งล่าง',
+  'ปักหลักหน่วย',
+  'ปักหลักสิบ',
+  'ปักหลักร้อย',
+  '4 ตัวบน',
+  '4 ตัวโต๊ด'
+];
+
+export function getAvailableBetTypes(
+  lotteryName: string,
+  lotterySettings?: Record<string, any>
+): string[] {
+  const isAll = !lotteryName || lotteryName === 'all';
+  const isThai = isAll || lotteryName.includes('ไทย') || lotteryName.includes('รัฐบาล');
+  const baseTemplate = isThai ? STANDARD_BET_TYPES_THAI : STANDARD_BET_TYPES_OTHER;
+
+  if (!isAll && lotterySettings && lotterySettings[lotteryName]) {
+    const data = lotterySettings[lotteryName];
+    const rates = data.rates || data.customRates;
+    if (rates && typeof rates === 'object') {
+      const activeKeys = Object.keys(rates).filter(k =>
+        !['2 ตัวโต๊ด', '2 ตัวกลับ', '5 ตัวบน', '6 ตัวบน'].includes(k)
+      );
+      if (activeKeys.length > 0) {
+        const filtered = baseTemplate.filter(t =>
+          activeKeys.includes(t) || (t === '3 ตัวกลับ' && activeKeys.includes('3 ตัวบน'))
+        );
+        if (filtered.length > 0) return filtered;
+      }
+    }
+  }
+
+  return baseTemplate;
+}
 
 export default function BlockedNumbersManager({
   lotterySettings = {},
@@ -66,6 +107,32 @@ export default function BlockedNumbersManager({
   const [filterLottery, setFilterLottery] = useState('all');
   const [filterType, setFilterType] = useState<'all' | 'blocked' | 'reduced'>('all');
   const [filterBetType, setFilterBetType] = useState('all');
+
+  // Dynamic Bet Types strictly synced with lottery type and settings
+  const closedBetTypes = useMemo(() => {
+    return getAvailableBetTypes(closedLottery, lotterySettings);
+  }, [closedLottery, lotterySettings]);
+
+  const reducedBetTypes = useMemo(() => {
+    return getAvailableBetTypes(reducedLottery, lotterySettings);
+  }, [reducedLottery, lotterySettings]);
+
+  const filterBetTypes = useMemo(() => {
+    return getAvailableBetTypes(filterLottery, lotterySettings);
+  }, [filterLottery, lotterySettings]);
+
+  // Keep selected bet type valid when lottery changes
+  useEffect(() => {
+    if (closedBetTypes.length > 0 && !closedBetTypes.includes(closedBetType)) {
+      setClosedBetType(closedBetTypes[0]);
+    }
+  }, [closedBetTypes, closedBetType]);
+
+  useEffect(() => {
+    if (reducedBetTypes.length > 0 && !reducedBetTypes.includes(reducedBetType)) {
+      setReducedBetType(reducedBetTypes[0]);
+    }
+  }, [reducedBetTypes, reducedBetType]);
 
   // Available lotteries list
   const lotteryList = useMemo(() => {
@@ -216,8 +283,9 @@ export default function BlockedNumbersManager({
       for (let i = 0; i < 100; i++) universe.push(String(i).padStart(2, '0'));
     } else if (is1Digit) {
       for (let i = 0; i < 10; i++) universe.push(String(i));
+    } else if (reducedBetType.includes('4 ตัว')) {
+      for (let i = 0; i < 10000; i++) universe.push(String(i).padStart(4, '0'));
     } else {
-      // 4 digits or default
       for (let i = 0; i < 1000; i++) universe.push(String(i).padStart(3, '0'));
     }
 
@@ -549,8 +617,10 @@ export default function BlockedNumbersManager({
                   onChange={(e) => setClosedBetType(e.target.value)}
                   className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3 text-xs font-bold text-slate-800 outline-none focus:border-red-500 focus:bg-white transition"
                 >
-                  {BET_TYPES.map(type => (
-                    <option key={type} value={type}>{type}</option>
+                  {closedBetTypes.map((type, idx) => (
+                    <option key={type} value={type}>
+                      {idx < 5 ? `${idx + 1}. ` : ''}{type}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -772,8 +842,10 @@ export default function BlockedNumbersManager({
                       onChange={(e) => setReducedBetType(e.target.value)}
                       className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3 text-xs font-bold text-slate-800 outline-none focus:border-amber-500 focus:bg-white transition"
                     >
-                      {BET_TYPES.map(type => (
-                        <option key={type} value={type}>{type}</option>
+                      {reducedBetTypes.map((type, idx) => (
+                        <option key={type} value={type}>
+                          {idx < 5 ? `${idx + 1}. ` : ''}{type}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -1031,8 +1103,10 @@ export default function BlockedNumbersManager({
                 className="border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
               >
                 <option value="all">ทุกรูปแบบการแทง</option>
-                {BET_TYPES.map(t => (
-                  <option key={t} value={t}>{t}</option>
+                {filterBetTypes.map((t, idx) => (
+                  <option key={t} value={t}>
+                    {idx < 5 ? `${idx + 1}. ` : ''}{t}
+                  </option>
                 ))}
               </select>
             </div>
