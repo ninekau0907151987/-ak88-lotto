@@ -25,11 +25,13 @@ export default function AdminLogin() {
     setLoading(true);
 
     try {
-      // 1) สิทธิ์ระดับ Master / Super Admin (Default credentials)
-      if (
-        (u === 'admin' || u === 'owner' || u === '1234' || u === 'a123456' || u === '0812345678') && 
-        (p === '1234' || p === '123456' || p === 'admin' || p === 'admin1234' || p === '0614284727' || p === 'Password@123' || p === '0812345678' || p === 'a123456')
-      ) {
+      // 1) สิทธิ์ระดับ Master / Super Admin (Default credentials: 1234 / 123456 เท่านั้น)
+      const isMasterAdmin = 
+        (u === '1234' && p === '123456') ||
+        (u === 'admin' && (p === '123456' || p === 'admin')) ||
+        (u === 'owner' && (p === '123456' || p === 'owner'));
+
+      if (isMasterAdmin) {
         localStorage.setItem('adminAuth', 'true');
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('userRole', 'owner');
@@ -114,32 +116,6 @@ export default function AdminLogin() {
         }
       } catch (staffErr) {
         console.warn('Staff table check failed:', staffErr);
-      }
-
-      // 3) ตรวจสอบจากตาราง agents
-      const qAgent = query(collection(db, 'agents'), where('username', '==', u), where('password', '==', p));
-      const agentSnapshot = await getDocs(qAgent);
-
-      if (!agentSnapshot.empty) {
-        const agentDoc = agentSnapshot.docs[0];
-        const agentData = agentDoc.data();
-
-        localStorage.setItem('adminAuth', 'true');
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('userRole', 'agent');
-        localStorage.setItem('agentId', agentDoc.id);
-        localStorage.setItem('username', agentData.name || u);
-        localStorage.setItem('adminSession', JSON.stringify({
-          username: u,
-          displayName: agentData.name || u,
-          role: 'agent',
-          agentId: agentDoc.id,
-          permissions: ['dashboard.view', 'reports.view', 'members.view'],
-          loginAt: new Date().toISOString()
-        }));
-
-        navigate('/admin');
-        return;
       }
 
       setError('รหัสผู้ดูแล หรือรหัสผ่านไม่ถูกต้อง');

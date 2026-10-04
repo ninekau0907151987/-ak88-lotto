@@ -29,14 +29,21 @@ export default function Login() {
       const { collection, getDocs, query, where } = await import('firebase/firestore');
       const { db } = await import('@/shared/lib/firebase');
 
-      // ★ 0) บัญชีทดสอบหน้าบ้านของผู้บริหาร (Frontend Test Account: 1234 / 123456789)
+      // ★ 0) บัญชีทดสอบหน้าบ้านของผู้บริหาร (Frontend Test Account: 1234 / 123456789 เท่านั้น)
       const cleanLower = loginInput.toLowerCase();
-      if ((cleanLower === '1234' || cleanLower === 'user_1234') && (passInput === '123456789' || passInput === '123456' || passInput === '1234')) {
+      if (cleanLower === '1234' || cleanLower === 'user_1234') {
+        if (passInput !== '123456789') {
+          setError('รหัสผ่านไม่ถูกต้อง (สำหรับหน้าบ้านต้องใช้ 123456789)');
+          setLoading(false);
+          return;
+        }
+
         const testUser = {
           userId: 'user_1234',
           username: '1234',
           name: 'ผู้ทดสอบระบบ (User 1234)',
           phone: '0812345678',
+          password: '123456789',
           balance: 50000.0,
           role: 'user',
           status: 'active',
@@ -109,35 +116,15 @@ export default function Login() {
         // ตรวจสอบความถูกต้องของรหัสผ่าน
         const storedPassword = userData.password || userData.passwordHash || userData.password_hash;
         
-        // รายชื่อบัญชีทดสอบและผู้บริหาร (รองรับทั้ง 1234, 123456, เบอร์โทร, username, Password@123)
-        const isMasterOrTestUser = 
-          cleanLower === 'a123456' || 
-          cleanLower === 'user_a123456' ||
-          cleanLower === 'user_test' || 
-          cleanLower === '0812345678' || 
-          cleanLower === '0899999999' ||
-          userData.username === 'a123456' ||
-          userData.phone === '0812345678' ||
-          userData.role === 'owner';
-
-        const isAcceptedPassword = 
-          passInput === '1234' || 
-          passInput === '123456' || 
-          passInput === '0812345678' || 
-          passInput === 'a123456' || 
-          passInput === 'Password@123' ||
-          passInput === 'User1234!' ||
-          passInput === 'admin' ||
-          passInput === 'admin1234';
-
-        const isValidPassword = 
-          (isMasterOrTestUser && isAcceptedPassword) || 
-          (storedPassword && (
-            storedPassword === passInput || 
-            (storedPassword === '123456' && passInput === '1234') ||
-            (storedPassword === '1234' && passInput === '123456')
-          )) ||
-          (!storedPassword && isAcceptedPassword);
+        let isValidPassword = false;
+        if (userData.username === '1234' || userDoc.id === 'user_1234' || cleanLower === '1234') {
+          // สมาชิก 1234 บนหน้าบ้าน ต้องใช้รหัส 123456789 เท่านั้น
+          isValidPassword = (passInput === '123456789');
+        } else if (storedPassword) {
+          isValidPassword = (storedPassword === passInput);
+        } else {
+          isValidPassword = false;
+        }
 
         if (!isValidPassword) {
           setError('รหัสผ่านไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง');
@@ -185,36 +172,10 @@ export default function Login() {
         return;
       }
 
-      // 2) ตรวจสอบในตารางเอเย่นต์ (agents)
-      const qAgent = query(collection(db, 'agents'), where('username', '==', loginInput), where('password', '==', passInput));
-      const agentSnapshot = await getDocs(qAgent);
-      if (!agentSnapshot.empty) {
-        const agentDoc = agentSnapshot.docs[0];
-        const agentData = agentDoc.data();
-        localStorage.setItem('isLoggedIn', 'true');
-        localStorage.setItem('adminAuth', 'true');
-        localStorage.setItem('userRole', 'agent');
-        localStorage.setItem('agentId', agentDoc.id);
-        localStorage.setItem('userId', agentDoc.id);
-        localStorage.setItem('username', agentData.name || loginInput);
-        localStorage.setItem('currentUser', JSON.stringify({
-          userId: agentDoc.id,
-          username: loginInput,
-          name: agentData.name || loginInput,
-          balance: agentData.credit ?? 0,
-          role: 'agent',
-          loginAt: new Date().toISOString()
-        }));
-
-        // เข้าสู่ระบบหน้าบ้านสำเร็จ
-        navigate('/');
-        return;
-      }
-
-      // 3) Fallback สิทธิ์ผู้ดูแลระบบหลัก (Master Admin / Owner) ที่ล็อกอินด้วยชื่อ admin / owner
+      // 2) Fallback สิทธิ์ผู้ดูแลระบบหลัก (Master Admin / Owner) ที่ล็อกอินด้วยชื่อ admin / owner
       if (
         (loginInput === 'admin' || loginInput === 'owner') && 
-        (passInput === '1234' || passInput === 'admin' || passInput === 'admin1234' || passInput === '0614284727' || passInput === 'Password@123')
+        (passInput === '123456' || passInput === 'admin')
       ) {
         localStorage.setItem('isLoggedIn', 'true');
         localStorage.setItem('adminAuth', 'true');
