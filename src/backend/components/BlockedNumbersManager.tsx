@@ -12,38 +12,38 @@ interface Props {
 }
 
 // Master Standard Bet Types: Ordered strictly according to user specification (1 to 5, etc.)
-// Strictly EXCLUDES: '2 ตัวโต๊ด', '2 ตัวกลับ', '5 ตัวบน', '6 ตัวบน'
+// รายการประเภทการแทงมาตรฐาน 14 ชนิด (ตามสเปกและรูปเรฟ media_1791239149158.png)
 export const STANDARD_BET_TYPES_THAI = [
+  '2 ตัวบน',
   '3 ตัวบน',
   '3 ตัวโต๊ด',
-  '3 ตัวล่าง',
-  '3 ตัวหน้า',
-  '3 ตัวกลับ',
-  '2 ตัวบน',
-  '2 ตัวล่าง',
+  '2 ตัวโต๊ด',
   'วิ่งบน',
   'วิ่งล่าง',
+  '2 ตัวล่าง',
+  '3 ตัวล่าง',
+  '4 ตัวบน',
+  '4 ตัวโต๊ด',
+  '5 ตัวโต๊ด',
   'ปักหลักหน่วย',
   'ปักหลักสิบ',
   'ปักหลักร้อย',
-  '4 ตัวบน',
-  '4 ตัวโต๊ด'
 ];
 
+// หวยอื่นๆ ไม่มี '3 ตัวล่าง' และ '5 ตัวโต๊ด' (เหลือ 12 ชนิด)
 export const STANDARD_BET_TYPES_OTHER = [
+  '2 ตัวบน',
   '3 ตัวบน',
   '3 ตัวโต๊ด',
-  '3 ตัวล่าง',
-  '3 ตัวกลับ',
-  '2 ตัวบน',
-  '2 ตัวล่าง',
+  '2 ตัวโต๊ด',
   'วิ่งบน',
   'วิ่งล่าง',
+  '2 ตัวล่าง',
+  '4 ตัวบน',
+  '4 ตัวโต๊ด',
   'ปักหลักหน่วย',
   'ปักหลักสิบ',
   'ปักหลักร้อย',
-  '4 ตัวบน',
-  '4 ตัวโต๊ด'
 ];
 
 export function getAvailableBetTypes(
@@ -51,7 +51,8 @@ export function getAvailableBetTypes(
   lotterySettings?: Record<string, any>
 ): string[] {
   const isAll = !lotteryName || lotteryName === 'all';
-  const isThai = isAll || lotteryName.includes('ไทย') || lotteryName.includes('รัฐบาล');
+  const lower = (lotteryName || '').toLowerCase();
+  const isThai = isAll || lower.includes('ไทย') || lower.includes('รัฐบาล') || lower.includes('ยี่กี') || lower.includes('yeekee');
   const baseTemplate = isThai ? STANDARD_BET_TYPES_THAI : STANDARD_BET_TYPES_OTHER;
 
   if (!isAll && lotterySettings && lotterySettings[lotteryName]) {
@@ -59,7 +60,7 @@ export function getAvailableBetTypes(
     const rates = data.rates || data.customRates;
     if (rates && typeof rates === 'object') {
       const activeKeys = Object.keys(rates).filter(k =>
-        !['2 ตัวโต๊ด', '2 ตัวกลับ', '5 ตัวบน', '6 ตัวบน'].includes(k)
+        !['5 ตัวบน', '6 ตัวบน'].includes(k)
       );
       if (activeKeys.length > 0) {
         const filtered = baseTemplate.filter(t =>

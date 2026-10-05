@@ -11,6 +11,13 @@ import ActionConfirmModal from '@/frontend/components/ActionConfirmModal';
 import CompactTicketList from '@/frontend/components/CompactTicketList';
 import * as YK from '@/shared/lib/yeekeeEngine';
 import { isAllowedOpenLottery } from '@/shared/lib/lotteryCatalog';
+import {
+  DEFAULT_MASTER_RATES,
+  DEFAULT_MASTER_DISCOUNTS,
+  isThaiOrYeekee,
+  calculateNetBetAmount,
+  getAvailableBetTypesForLottery,
+} from '@/shared/lib/lotteryRates';
 
 interface BetItem {
   id: string;
@@ -18,6 +25,8 @@ interface BetItem {
   amount: number;
   type: string;
   payoutRate?: number;
+  discount?: number;
+  netAmount?: number;
   isSpecial?: boolean;
   isReduced?: boolean;
 }
@@ -47,27 +56,7 @@ const getPermutations = (str: string): string[] => {
 };
 
 export const DEFAULT_RATES: Record<string, number> = {
-  '3 ตัวบน': 850.00,
-  '3 ตัวโต๊ด': 120.00,
-  '3 ตัวล่าง': 450.00,
-  '3 ตัวกลับ': 850.00,
-  '2 ตัวบน': 92.00,
-  '2 ตัวล่าง': 92.00,
-  '2 ตัวบนกลับ': 92.00,
-  '2 ตัวล่างกลับ': 92.00,
-  '2 ตัวโต๊ด': 13.00,
-  'วิ่งบน': 3.20,
-  'วิ่งล่าง': 4.20,
-  '4 ตัวบน': 5000.00,
-  '4 ตัวโต๊ด': 200.00,
-  '5 ตัวตรง': 30000.00,
-  '4-5 ตัว': 4000.00,
-  '2 ตัวกลับ': 92.00,
-  '5 ตัวโต๊ด': 15.00,
-  'ปักหลักหน่วย': 8.00,
-  'ปักหลักสิบ': 8.00,
-  'ปักหลักร้อย': 8.00,
-  'เลขปัก': 8.00
+  ...DEFAULT_MASTER_RATES,
 };
 
 export default function LotteryBet() {
@@ -1842,9 +1831,9 @@ export default function LotteryBet() {
                 {/* Row 1: 3 Digits (Red) */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { key: '3 ตัวบน', rate: ykConfig.rates?.['3 ตัวบน'] || 850 },
-                    { key: '3 ตัวโต๊ด', rate: ykConfig.rates?.['3 ตัวโต๊ด'] || 120 },
-                    { key: '3 ตัวล่าง', rate: ykConfig.rates?.['3 ตัวล่าง'] || 450 },
+                    { key: '3 ตัวบน', rate: ykConfig?.rates?.['3 ตัวบน'] || 900 },
+                    { key: '3 ตัวโต๊ด', rate: ykConfig?.rates?.['3 ตัวโต๊ด'] || 150 },
+                    { key: '3 ตัวล่าง', rate: ykConfig?.rates?.['3 ตัวล่าง'] || 450 },
                   ].map(t => (
                     <button
                       key={t.key}
@@ -1864,10 +1853,10 @@ export default function LotteryBet() {
                 {/* Row 2: 2 Digits (Purple) */}
                 <div className="grid grid-cols-4 gap-1.5">
                   {[
-                    { key: '2 ตัวบน', rate: ykConfig.rates?.['2 ตัวบน'] || 92 },
-                    { key: '2 ตัวล่าง', rate: ykConfig.rates?.['2 ตัวล่าง'] || 92 },
-                    { key: '2 ตัวบนกลับ', rate: ykConfig.rates?.['2 ตัวบนกลับ'] || 92 },
-                    { key: '2 ตัวล่างกลับ', rate: ykConfig.rates?.['2 ตัวล่างกลับ'] || 92 },
+                    { key: '2 ตัวบน', rate: ykConfig?.rates?.['2 ตัวบน'] || 90 },
+                    { key: '2 ตัวล่าง', rate: ykConfig?.rates?.['2 ตัวล่าง'] || 90 },
+                    { key: '2 ตัวบนกลับ', rate: ykConfig?.rates?.['2 ตัวบนกลับ'] || 90 },
+                    { key: '2 ตัวล่างกลับ', rate: ykConfig?.rates?.['2 ตัวล่างกลับ'] || 90 },
                   ].map(t => (
                     <button
                       key={t.key}
@@ -1887,8 +1876,8 @@ export default function LotteryBet() {
                 {/* Row 3: Running & Tong (Blue / Gold) */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { key: 'วิ่งบน', rate: ykConfig.rates?.['วิ่งบน'] || 3.2 },
-                    { key: 'วิ่งล่าง', rate: ykConfig.rates?.['วิ่งล่าง'] || 4.2 },
+                    { key: 'วิ่งบน', rate: ykConfig?.rates?.['วิ่งบน'] || 3.2 },
+                    { key: 'วิ่งล่าง', rate: ykConfig?.rates?.['วิ่งล่าง'] || 4.2 },
                   ].map(t => (
                     <button
                       key={t.key}
@@ -1918,9 +1907,9 @@ export default function LotteryBet() {
                 {/* Row 4: 4 & 5 Digits (Orange/Gold) */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { key: '4 ตัวบน', rate: ykConfig.rates?.['4 ตัวบน'] || 5000 },
-                    { key: '4 ตัวโต๊ด', rate: ykConfig.rates?.['4 ตัวโต๊ด'] || 200 },
-                    { key: '5 ตัวตรง', rate: ykConfig.rates?.['5 ตัวตรง'] || 30000 },
+                    { key: '4 ตัวบน', rate: ykConfig?.rates?.['4 ตัวบน'] || 4000 },
+                    { key: '4 ตัวโต๊ด', rate: ykConfig?.rates?.['4 ตัวโต๊ด'] || 25 },
+                    { key: '5 ตัวโต๊ด', rate: ykConfig?.rates?.['5 ตัวโต๊ด'] || 15 },
                   ].map(t => (
                     <button
                       key={t.key}
@@ -2255,7 +2244,7 @@ export default function LotteryBet() {
             {activeBetTypes.some(t => t.includes('4') || t.includes('5')) && (
               <div className="mt-2 text-center">
                 <div className="text-xs text-gray-700 mb-1">รายการเพิ่มเติม 4-5 ตัว</div>
-                <div className="grid grid-cols-3 gap-1 mb-1">
+                <div className={`grid ${isThaiLottery ? 'grid-cols-3' : 'grid-cols-2'} gap-1 mb-1`}>
                   <button 
                     onClick={() => toggleBetType('4 ตัวบน')}
                     className={`text-xs font-bold py-2 border transition ${activeBetTypes.includes('4 ตัวบน') ? 'bg-[#f57c00] text-white border-[#f57c00] ring-2 ring-offset-1 ring-black border-dashed' : 'bg-[#f57c00] text-white border-[#f57c00]'}`}
@@ -2268,12 +2257,14 @@ export default function LotteryBet() {
                   >
                     4 ตัวโต๊ด
                   </button>
-                  <button 
-                    onClick={() => toggleBetType('5 ตัวโต๊ด')}
-                    className={`text-xs font-bold py-2 border transition ${activeBetTypes.includes('5 ตัวโต๊ด') ? 'bg-[#f57c00] text-white border-[#f57c00] ring-2 ring-offset-1 ring-black border-dashed' : 'bg-[#f57c00] text-white border-[#f57c00]'}`}
-                  >
-                    5 ตัวโต๊ด
-                  </button>
+                  {isThaiLottery && (
+                    <button 
+                      onClick={() => toggleBetType('5 ตัวโต๊ด')}
+                      className={`text-xs font-bold py-2 border transition ${activeBetTypes.includes('5 ตัวโต๊ด') ? 'bg-[#f57c00] text-white border-[#f57c00] ring-2 ring-offset-1 ring-black border-dashed' : 'bg-[#f57c00] text-white border-[#f57c00]'}`}
+                    >
+                      5 ตัวโต๊ด
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -2615,7 +2606,9 @@ export default function LotteryBet() {
                  <span className="material-symbols-outlined font-black text-xl">payments</span>
                  <span className="text-lg font-black tracking-wide">ราคาจ่าย</span>
              </div>
-             <div className="bg-red-800 text-white text-[10px] px-2 py-1 rounded-sm font-bold shadow-sm whitespace-nowrap">หวยรัฐบาล</div>
+             <div className="bg-red-800 text-white text-[10px] px-2 py-1 rounded-sm font-bold shadow-sm whitespace-nowrap">
+               {lotteryConfig?.name || (isThaiLottery ? 'หวยรัฐบาลไทย' : (isYeekee ? 'หวยยี่กี 88 รอบ' : 'หวย'))}
+             </div>
           </div>
           <div className="bg-white p-1">
              <div className="grid grid-cols-12 bg-gray-200 text-black py-2 font-bold border-b border-gray-400 px-1 text-[11px]">
@@ -2627,37 +2620,18 @@ export default function LotteryBet() {
              
              <div className="bg-gray-100 pb-2">
                {(() => {
-                 const defaultRates = [
-                   { type: '2 ตัวบน', rate: 98.00 },
-                   { type: '3 ตัวบน', rate: 980.00 },
-                   { type: '3 ตัวโต๊ด', rate: 150.00 },
-                   { type: '2 ตัวโต๊ด', rate: 13.00 },
-                   { type: 'วิ่งบน', rate: 3.20 },
-                   { type: 'วิ่งล่าง', rate: 4.20 },
-                   { type: '2 ตัวล่าง', rate: 98.00 },
-                   { type: '3 ตัวล่าง', rate: 150.00 },
-                   { type: '4 ตัวบน', rate: 4000.00 },
-                   { type: '4 ตัวโต๊ด', rate: 25.00 },
-                   { type: '5 ตัวโต๊ด', rate: 15.00 },
-                   { type: 'ปักหลักหน่วย', rate: 8.00 },
-                   { type: 'ปักหลักสิบ', rate: 8.00 },
-                   { type: 'ปักหลักร้อย', rate: 8.00 },
-                 ];
-
-                  const typesToShow = isYeekee
-                    ? YK.BET_TYPES.map(t => ({ type: t.key, rate: ykConfig?.rates?.[t.key] || t.rate }))
-                    : isThaiLottery 
-                    ? defaultRates 
-                    : defaultRates.filter(r => r.type !== '3 ตัวล่าง' && !r.type.startsWith('4 ตัว') && !r.type.startsWith('5 ตัว'));
+                 const currentLotteryName = lotteryConfig?.name || (isThaiLottery ? 'หวยรัฐบาลไทย' : (isYeekee ? 'หวยยี่กี' : type));
+                 const typesToShow = getAvailableBetTypesForLottery(currentLotteryName);
 
                  return typesToShow.map((item, index) => {
-                   const rate = (isYeekee ? (ykConfig?.rates?.[item.type] ?? item.rate) : null) || lotteryConfig?.rates?.[item.type] || item.rate;
+                   const rate = (isYeekee ? (ykConfig?.rates?.[item.key] ?? item.rate) : null) || lotteryConfig?.rates?.[item.key] || item.rate;
+                   const discount = (isYeekee ? (ykConfig?.discounts?.[item.key] ?? item.discount) : null) || lotteryConfig?.discounts?.[item.key] || item.discount || 0;
                    return (
-                     <div key={item.type} className={`grid grid-cols-12 border-b border-gray-300 py-1.5 px-1 ${index % 2 === 1 ? 'bg-gray-200' : 'bg-white'}`}>
+                     <div key={item.key} className={`grid grid-cols-12 border-b border-gray-300 py-1.5 px-1 ${index % 2 === 1 ? 'bg-gray-200' : 'bg-white'}`}>
                        <div className="col-span-2 text-center font-bold text-gray-600 text-[11px] flex items-center justify-center">{index + 1}.</div>
-                       <div className="col-span-4 text-center font-bold text-[11px] flex items-center justify-center">{item.type}</div>
+                       <div className="col-span-4 text-center font-bold text-[11px] flex items-center justify-center">{item.key}</div>
                        <div className="col-span-3 text-center font-black text-blue-700 text-[11px] flex items-center justify-center">{Number(rate).toFixed(2)}</div>
-                       <div className="col-span-3 text-center font-bold text-red-600 text-[11px] flex items-center justify-center">0</div>
+                       <div className="col-span-3 text-center font-bold text-red-600 text-[11px] flex items-center justify-center">{discount > 0 ? `${discount}%` : '0'}</div>
                      </div>
                    );
                  });

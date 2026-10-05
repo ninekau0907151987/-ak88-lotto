@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
+import { DEFAULT_MASTER_RATES } from '@/shared/lib/lotteryRates';
 
 export interface BetItem {
   id: string;
@@ -126,17 +127,7 @@ export default function BillDetailModal({
   }, {});
 
   const DEFAULT_RATES: Record<string, number> = {
-    '3 ตัวบน': 900,
-    '3 ตัวโต๊ด': 150,
-    '2 ตัวบน': 90,
-    '2 ตัวล่าง': 90,
-    '3 ตัวล่าง': 450,
-    '3 ตัวหน้า': 450,
-    '2 ตัวโต๊ด': 13,
-    'วิ่งบน': 3.2,
-    'วิ่งล่าง': 4.2,
-    '4 ตัวบน': 7000,
-    '4 ตัวโต๊ด': 250,
+    ...DEFAULT_MASTER_RATES,
   };
 
   const totalPotentialWin = (ticket.bets || []).reduce((sum, b) => {

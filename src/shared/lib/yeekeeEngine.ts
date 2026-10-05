@@ -28,18 +28,20 @@ export interface YkBetType { key: string; digits: number; hint: string; rate: nu
 
 /** เลขผล 5 หลัก N = d1d2d3d4d5 */
 export const BET_TYPES: YkBetType[] = [
-  { key: '3 ตัวบน',     digits: 3, hint: 'd3 d4 d5 (3 ตัวท้าย)',      rate: 850 },
-  { key: '3 ตัวโต๊ด',    digits: 3, hint: 'สลับ 3 ตัวท้าย',            rate: 120 },
-  { key: '3 ตัวล่าง',    digits: 3, hint: 'd1 d2 d3 (3 ตัวหน้า)',      rate: 450 },
-  { key: '2 ตัวบน',     digits: 2, hint: 'd4 d5 (2 ตัวท้าย)',         rate: 92 },
-  { key: '2 ตัวล่าง',    digits: 2, hint: 'd1 d2 (2 ตัวหน้า)',         rate: 92 },
-  { key: '2 ตัวบนกลับ',  digits: 2, hint: 'กลับ 2 ตัวท้าย',            rate: 92 },
-  { key: '2 ตัวล่างกลับ', digits: 2, hint: 'กลับ 2 ตัวหน้า',            rate: 92 },
-  { key: 'วิ่งบน',       digits: 1, hint: 'มีเลขนี้ใน 3 ตัวบน',        rate: 3.2 },
-  { key: 'วิ่งล่าง',      digits: 1, hint: 'มีเลขนี้ใน 2 ตัวล่าง',       rate: 4.2 },
-  { key: '4 ตัวบน',     digits: 4, hint: 'd2-d5 (4 ตัวท้าย)',         rate: 5000 },
-  { key: '4 ตัวโต๊ด',    digits: 4, hint: 'สลับ 4 ตัวท้าย',            rate: 200 },
-  { key: '5 ตัวตรง',     digits: 5, hint: 'ตรงทั้ง 5 หลัก',            rate: 30000 },
+  { key: '2 ตัวบน',     digits: 2, hint: '2 ตัวท้าย',                 rate: 90.00 },
+  { key: '3 ตัวบน',     digits: 3, hint: '3 ตัวท้าย',                 rate: 900.00 },
+  { key: '3 ตัวโต๊ด',    digits: 3, hint: 'สลับ 3 ตัวท้าย',            rate: 150.00 },
+  { key: '2 ตัวโต๊ด',    digits: 2, hint: 'สลับ 2 ตัว',                rate: 13.00 },
+  { key: 'วิ่งบน',       digits: 1, hint: 'มีเลขนี้ใน 3 ตัวบน',        rate: 3.20 },
+  { key: 'วิ่งล่าง',      digits: 1, hint: 'มีเลขนี้ใน 2 ตัวล่าง',       rate: 4.20 },
+  { key: '2 ตัวล่าง',    digits: 2, hint: '2 ตัวหน้า',                 rate: 90.00 },
+  { key: '3 ตัวล่าง',    digits: 3, hint: '3 ตัวหน้า',                 rate: 450.00 },
+  { key: '4 ตัวบน',     digits: 4, hint: '4 ตัวท้าย',                 rate: 4000.00 },
+  { key: '4 ตัวโต๊ด',    digits: 4, hint: 'สลับ 4 ตัวท้าย',            rate: 25.00 },
+  { key: '5 ตัวโต๊ด',    digits: 5, hint: 'สลับ 5 ตัว',                rate: 15.00 },
+  { key: 'ปักหลักหน่วย',  digits: 1, hint: 'ตรงหลักหน่วย 3 ตัวบน',      rate: 8.00 },
+  { key: 'ปักหลักสิบ',   digits: 1, hint: 'ตรงหลักสิบ 3 ตัวบน',       rate: 8.00 },
+  { key: 'ปักหลักร้อย',   digits: 1, hint: 'ตรงหลักร้อย 3 ตัวบน',       rate: 8.00 },
 ];
 
 export const DEFAULT_RATES: Record<string, number> =

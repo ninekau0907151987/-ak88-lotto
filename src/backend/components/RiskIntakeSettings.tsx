@@ -3,12 +3,19 @@ import LotteryCategorySelector from './LotteryCategorySelector';
 import { useRoundCountdown } from '@/shared/lib/roundTimer';
 import { db } from '@/shared/lib/firebase';
 import { doc, getDoc, setDoc, getDocs, collection, query, where, limit } from 'firebase/firestore';
+import {
+  MASTER_BET_TYPES,
+  DEFAULT_MASTER_RATES,
+  DEFAULT_MASTER_DISCOUNTS,
+  isThaiOrYeekee,
+  getAvailableBetTypesForLottery,
+} from '@/shared/lib/lotteryRates';
 
 interface IntakeItem {
   id: number;
   name: string;
   baseRate: number;            // อัตราจ่ายเต็ม (บาท)
-  discountPercent: number;     // ส่วนลด % (ล็อค 10%)
+  discountPercent: number;     // ส่วนลด % (เริ่มต้น 0%)
   discountedRate: number;      // อัตราจ่ายเมื่อมีส่วนลด (บาท)
   allocationPercent: number;   // สัดส่วนรับกิน % (รวมกันได้ 100%)
   maxIntakePerNumber: number;  // กินตัวละเท่าไหร่ (บาท)
@@ -34,37 +41,38 @@ interface Props {
   defaultTab?: 'rates' | 'intake';
 }
 
-// สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยไทย 13 ประเภท (ตัด 2 ตัวโต๊ด และ 5 ตัวโต๊ด ออก)
+// สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยไทย & ยี่กี ครบ 14 ประเภท
 const DEFAULT_THAI_ALLOCATIONS: Record<string, number> = {
-  '3 ตัวบน': 30,
-  '3 ตัวล่าง': 15,
-  '3 ตัวโต๊ด': 10,
-  '3 ตัวหน้า': 4,
   '2 ตัวบน': 20,
-  '2 ตัวล่าง': 15,
+  '3 ตัวบน': 30,
+  '3 ตัวโต๊ด': 10,
+  '2 ตัวโต๊ด': 2,
   'วิ่งบน': 2,
   'วิ่งล่าง': 2,
-  'ปักหลักร้อย': 0.5,
-  'ปักหลักสิบ': 0.5,
+  '2 ตัวล่าง': 15,
+  '3 ตัวล่าง': 15,
+  '4 ตัวบน': 1,
+  '4 ตัวโต๊ด': 1,
+  '5 ตัวโต๊ด': 0.5,
   'ปักหลักหน่วย': 0.5,
-  '4 ตัวบน': 0.3,
-  '4 ตัวโต๊ด': 0.2,
+  'ปักหลักสิบ': 0.5,
+  'ปักหลักร้อย': 0.5,
 };
 
-// สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยอื่น 11 ประเภท (ตัด 2 ตัวโต๊ด ออก)
+// สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยอื่น 12 ประเภท (ไม่มี 3 ตัวล่าง และ 5 ตัวโต๊ด)
 const DEFAULT_OTHER_ALLOCATIONS: Record<string, number> = {
+  '2 ตัวบน': 25,
   '3 ตัวบน': 35,
-  '3 ตัวโต๊ด': 10,
-  '3 ตัวล่าง': 5,
-  '2 ตัวบน': 24,
-  '2 ตัวล่าง': 20,
+  '3 ตัวโต๊ด': 15,
+  '2 ตัวโต๊ด': 3,
   'วิ่งบน': 2,
   'วิ่งล่าง': 2,
-  'ปักหลักร้อย': 0.6,
-  'ปักหลักสิบ': 0.7,
-  'ปักหลักหน่วย': 0.7,
-  '4 ตัวบน': 0.5,
-  '4 ตัวโต๊ด': 0.5,
+  '2 ตัวล่าง': 15,
+  '4 ตัวบน': 1,
+  '4 ตัวโต๊ด': 1,
+  'ปักหลักหน่วย': 0.4,
+  'ปักหลักสิบ': 0.3,
+  'ปักหลักร้อย': 0.3,
 };
 
 export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }: Props) {
@@ -170,79 +178,50 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
           const snap = await getDoc(doc(db, 'risk_intake_configs', lotId));
           if (snap.exists()) {
             savedData = snap.data();
+          } else {
+            const lotSnap = await getDoc(doc(db, 'lotteryTypes', lotId));
+            if (lotSnap.exists()) {
+              savedData = lotSnap.data();
+            }
           }
         } catch {}
       }
 
-      if (savedData && Array.isArray(savedData.subItems) && savedData.subItems.length > 0) {
-        const subs = savedData.subItems || [];
-        const isThaiLotto = lotId.includes('ไทย') || lotId.includes('รัฐบาล');
-        const defaultMap = isThaiLotto ? DEFAULT_THAI_ALLOCATIONS : DEFAULT_OTHER_ALLOCATIONS;
+      const isThaiLotto = isThaiOrYeekee(lotId);
+      const availableMaster = getAvailableBetTypesForLottery(lotId);
+      const defaultMap = isThaiLotto ? DEFAULT_THAI_ALLOCATIONS : DEFAULT_OTHER_ALLOCATIONS;
+      const gBudget = Number(savedData?.totalRiskBudget) || 200000;
+      setGlobalRiskBudget(gBudget);
+      setMaxUserLimit(Number(savedData?.maxUserLimit) || 50000);
 
-        const gBudget = Number(savedData.totalRiskBudget) || 200000;
-        setGlobalRiskBudget(gBudget);
-        setMaxUserLimit(Number(savedData.maxUserLimit) || 50000);
+      const items: IntakeItem[] = availableMaster.map((m, index) => {
+        const existingSub = Array.isArray(savedData?.subItems)
+          ? savedData.subItems.find((s: any) => s.name === m.key)
+          : null;
 
-        setIntakeItems(subs.map((s: any) => {
-          const allocPct = s.allocationPercent != null 
-            ? Number(s.allocationPercent) 
-            : (defaultMap[s.name] ?? (s.name.includes('3 ตัว') ? 25 : s.name.includes('2 ตัว') ? 20 : 2));
-          const calculatedTypeBudget = Number(s.totalTypeBudget) || Math.round(gBudget * (allocPct / 100));
-          const is3 = s.name.includes('3 ตัว');
-          const is2 = s.name.includes('2 ตัว');
-          const baseRate = Number(s.baseRate) || (is3 ? 900 : is2 ? 92 : 3.2);
+        const baseRate = Number(savedData?.rates?.[m.key]) || Number(existingSub?.baseRate) || m.rate;
+        const discountPercent = Number(savedData?.discounts?.[m.key]) ?? Number(existingSub?.discountPercent) ?? m.discount ?? 0;
+        const allocPct = Number(existingSub?.allocationPercent) || defaultMap[m.key] || 2;
+        const calculatedTypeBudget = Number(existingSub?.totalTypeBudget) || Math.round(gBudget * (allocPct / 100));
+        const autoDiscountedRate = Math.round(baseRate * (1 - discountPercent / 100) * 100) / 100;
 
-          return {
-            id: s.id,
-            name: s.name,
-            baseRate,
-            discountPercent: 10,       // ล็อคส่วนลด 10% คงที่ตามคำขอ
-            discountedRate: baseRate,  // จ่ายเต็ม 100% (ไม่มีหักลดทอน)
-            allocationPercent: allocPct,
-            maxIntakePerNumber: Number(s.maxIntakePerNumber) || (is3 ? 1000 : is2 ? 3000 : 10000),
-            totalTypeBudget: calculatedTypeBudget,
-            minBet: Number(s.minBet) || 1,
-            maxBet: Number(s.maxBet) || 5000,
-            maxBetPerUser: Number(s.maxBetPerUser) || (is3 ? 20000 : is2 ? 50000 : 100000),
-            enabled: s.enabled !== false,
-          };
-        }));
-      } else {
-        // Fallback: Populate standard types matching lottery type
-        const isThaiLotto = lotId.includes('ไทย') || lotId.includes('รัฐบาล');
-        const defaultMap = isThaiLotto ? DEFAULT_THAI_ALLOCATIONS : DEFAULT_OTHER_ALLOCATIONS;
-        const defaultItems: IntakeItem[] = Object.keys(defaultMap).map((typeName, index) => {
-          const allocPct = defaultMap[typeName] ?? 2;
-          const is3Digit = typeName.includes('3 ตัว');
-          const is2Digit = typeName.includes('2 ตัว');
-          const isRun = typeName.includes('วิ่ง');
-          const isPin = typeName.includes('ปักหลัก');
-          const is4Digit = typeName.includes('4 ตัว');
+        return {
+          id: index + 1,
+          name: m.key,
+          baseRate,
+          discountPercent,
+          discountedRate: autoDiscountedRate,
+          allocationPercent: allocPct,
+          maxIntakePerNumber: Number(existingSub?.maxIntakePerNumber) || (m.digits >= 3 ? 1000 : 3000),
+          totalTypeBudget: calculatedTypeBudget,
+          minBet: Number(savedData?.minBets?.[m.key]) || Number(existingSub?.minBet) || 1,
+          maxBet: Number(savedData?.maxBets?.[m.key]) || Number(existingSub?.maxBet) || (m.digits === 1 ? 10000 : 5000),
+          maxBetPerUser: Number(savedData?.maxPerUsers?.[m.key]) || Number(existingSub?.maxBetPerUser) || (m.digits >= 3 ? 20000 : 50000),
+          enabled: existingSub ? existingSub.enabled !== false : true,
+        };
+      });
 
-          const baseRate = is3Digit ? (typeName.includes('โต๊ด') ? 150 : typeName.includes('ล่าง') || typeName.includes('หน้า') ? 450 : 900)
-            : is2Digit ? 92
-            : isRun ? (typeName === 'วิ่งล่าง' ? 4.2 : 3.2)
-            : isPin ? 8
-            : is4Digit ? (typeName.includes('โต๊ด') ? 200 : 5000)
-            : 92;
-
-          return {
-            id: index + 1,
-            name: typeName,
-            baseRate,
-            discountPercent: 10,       // ล็อคส่วนลด 10%
-            discountedRate: baseRate,  // จ่ายเต็ม 100%
-            allocationPercent: allocPct,
-            maxIntakePerNumber: is3Digit ? 1000 : is2Digit ? 3000 : isRun ? 10000 : 2000,
-            totalTypeBudget: Math.round(200000 * (allocPct / 100)),
-            minBet: 1,
-            maxBet: isRun ? 10000 : 5000,
-            maxBetPerUser: is3Digit ? 20000 : is2Digit ? 50000 : isRun ? 100000 : 30000,
-            enabled: true,
-          };
-        });
-        setIntakeItems(defaultItems);
-      }
+      setIntakeItems(items);
     } catch (e: any) {
       console.warn('Fetch intake settings fallback:', e.message);
     } finally {
@@ -294,15 +273,15 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
     });
   };
 
-  // ปรับส่วนลด % พร้อมคำนวณอัตราจ่ายหลังหักส่วนลดอัตโนมัติ
+  // ปรับส่วนลด % พร้อมคำนวณอัตราจ่ายหลังหักส่วนลดอัตโนมัติจากการคำนวณจริง
   const handleDiscountChange = (idx: number, newDiscount: number) => {
     const safeDiscount = Math.max(0, Math.min(100, Number(newDiscount) || 0));
     setIntakeItems(prev => {
       const updated = [...prev];
       const item = updated[idx];
-      const autoDiscountedRate = Math.round(item.baseRate * (1 - safeDiscount / 100) * 10) / 10;
+      const autoDiscountedRate = Math.round(item.baseRate * (1 - safeDiscount / 100) * 100) / 100;
       updated[idx] = {
-        ...updated[idx],
+        ...item,
         discountPercent: safeDiscount,
         discountedRate: autoDiscountedRate,
       };
@@ -310,15 +289,17 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
     });
   };
 
-  // ปรับอัตราจ่ายเต็ม (Base Rate) - สมาชิกรับ 100% เต็มตามที่ตั้งไว้
+  // ปรับอัตราจ่ายเต็ม (Base Rate) พร้อมคำนวณอัตราจ่ายหลังหักส่วนลดจริง
   const handleBaseRateChange = (idx: number, newRate: number) => {
+    const safeRate = Math.max(0, Number(newRate) || 0);
     setIntakeItems(prev => {
       const updated = [...prev];
+      const item = updated[idx];
+      const autoDiscountedRate = Math.round(safeRate * (1 - (item.discountPercent || 0) / 100) * 100) / 100;
       updated[idx] = {
-        ...updated[idx],
-        baseRate: newRate,
-        discountPercent: 10,
-        discountedRate: newRate, // จ่ายเต็ม 100%
+        ...item,
+        baseRate: safeRate,
+        discountedRate: autoDiscountedRate,
       };
       return updated;
     });
@@ -335,7 +316,8 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
 
   // ปุ่มกดจัดสรร 100% มาตรฐานอัตโนมัติ
   const handleAutoBalance100 = () => {
-    const defaultMap = isThai ? DEFAULT_THAI_ALLOCATIONS : DEFAULT_OTHER_ALLOCATIONS;
+    const isThaiLotto = isThaiOrYeekee(selectedLottery);
+    const defaultMap = isThaiLotto ? DEFAULT_THAI_ALLOCATIONS : DEFAULT_OTHER_ALLOCATIONS;
     setIntakeItems(prev => prev.map(item => {
       const allocPct = defaultMap[item.name] ?? 2;
       return {
@@ -347,11 +329,43 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
     setMessage({ text: 'จัดสรรสัดส่วนเปอร์เซ็นต์รวม 100% เรียบร้อยแล้ว', type: 'success' });
   };
 
-  // บันทึกการตั้งค่า (รองรับการผูกกับรอบหวยที่เลือก)
+  // บันทึกการตั้งค่า (รองรับการผูกกับรอบหวยที่เลือก และซิงค์หน้าบ้าน-หลังบ้าน)
   const handleSave = async (_tabName?: string) => {
     setSaving(true);
     setMessage(null);
     try {
+      const flatRates: Record<string, number> = {};
+      const flatDiscounts: Record<string, number> = {};
+      const minBets: Record<string, number> = {};
+      const maxBets: Record<string, number> = {};
+      const maxPerUsers: Record<string, number> = {};
+
+      intakeItems.forEach(item => {
+        flatRates[item.name] = Number(item.baseRate) || 0;
+        flatDiscounts[item.name] = Number(item.discountPercent) || 0;
+        minBets[item.name] = Number(item.minBet) || 1;
+        maxBets[item.name] = Number(item.maxBet) || 5000;
+        maxPerUsers[item.name] = Number(item.maxBetPerUser) || 50000;
+      });
+
+      // ซิงค์ชื่อพ้อง / ตัวช่วย (Aliases) ให้ตรงกันอัตโนมัติ
+      if (flatRates['3 ตัวบน']) {
+        flatRates['3 ตัวกลับ'] = flatRates['3 ตัวบน'];
+        flatDiscounts['3 ตัวกลับ'] = flatDiscounts['3 ตัวบน'] || 0;
+      }
+      if (flatRates['2 ตัวบน']) {
+        flatRates['2 ตัวกลับ'] = flatRates['2 ตัวบน'];
+        flatDiscounts['2 ตัวกลับ'] = flatDiscounts['2 ตัวบน'] || 0;
+      }
+      if (flatRates['3 ตัวล่าง']) {
+        flatRates['3 ตัวหน้า'] = flatRates['3 ตัวล่าง'];
+        flatDiscounts['3 ตัวหน้า'] = flatDiscounts['3 ตัวล่าง'] || 0;
+      }
+      if (flatRates['ปักหลักสิบ']) {
+        flatRates['เลขปัก'] = flatRates['ปักหลักสิบ'];
+        flatDiscounts['เลขปัก'] = flatDiscounts['ปักหลักสิบ'] || 0;
+      }
+
       const payload = {
         lotteryId: selectedLottery,
         lotteryType: selectedLottery,
@@ -360,8 +374,12 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
         minBet: 1,
         maxBet: 5000,
         maxUserLimit,
-        discountPercent: 10,
         totalRiskBudget: globalRiskBudget,
+        rates: flatRates,
+        discounts: flatDiscounts,
+        minBets,
+        maxBets,
+        maxPerUsers,
         subItems: intakeItems,
         updatedAt: new Date().toISOString(),
       };
@@ -379,28 +397,18 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
       await setDoc(doc(db, 'risk_intake_configs', selectedLottery), payload, { merge: true });
 
       // 3. ซิงค์อัตราจ่าย และเพดานเดิมพัน เข้า lotteryTypes เพื่อให้หน้าแทงใช้งานได้ทันที
-      const flatRates: Record<string, number> = {};
-      const minBets: Record<string, number> = {};
-      const maxBets: Record<string, number> = {};
-      const maxPerUsers: Record<string, number> = {};
-      intakeItems.forEach(item => {
-        flatRates[item.name] = Number(item.baseRate) || 0;
-        minBets[item.name] = Number(item.minBet) || 1;
-        maxBets[item.name] = Number(item.maxBet) || 5000;
-        maxPerUsers[item.name] = Number(item.maxBetPerUser) || 50000;
-      });
       await setDoc(doc(db, 'lotteryTypes', selectedLottery), {
         rates: flatRates,
+        discounts: flatDiscounts,
         minBets,
         maxBets,
         maxPerUsers,
         subItems: intakeItems,
-        discountPercent: 10,
         updatedAt: new Date().toISOString(),
       }, { merge: true });
 
-      setMessage({ text: `บันทึกการตั้งค่าสำหรับ ${selectedLottery} สำเร็จแล้ว (จ่ายเต็ม 100% / ล็อคส่วนลด 10%)`, type: 'success' });
-      onLogActivity?.('ตั้งค่าหวย & อัตราจ่าย', `บันทึกอัตราจ่ายและเพดานเดิมพันของ ${selectedLottery}`, 'settings');
+      setMessage({ text: `บันทึกอัตราจ่ายและส่วนลดสำหรับ ${selectedLottery} สำเร็จแล้ว (หน้าบ้านซิงค์ใช้งานทันที)`, type: 'success' });
+      onLogActivity?.('ตั้งค่าหวย & อัตราจ่าย', `บันทึกอัตราจ่ายและส่วนลดของ ${selectedLottery}`, 'settings');
     } catch (err: any) {
       setMessage({ text: 'เกิดข้อผิดพลาดในการบันทึก: ' + err.message, type: 'error' });
     } finally {
@@ -515,57 +523,79 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
             </button>
           </div>
 
-          {/* ป้ายแจ้งเตือนระบบส่วนลดล็อคคงที่ 10% จ่ายเต็ม 100% */}
-          <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border border-emerald-200 p-3.5 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-2xs">
+          {/* ป้ายแจ้งเตือนระบบอัตราจ่ายและส่วนลด (การคำนวณจริง) */}
+          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 p-3.5 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-emerald-600 text-xl">lock</span>
+              <span className="material-symbols-outlined text-blue-600 text-xl">calculate</span>
               <div>
-                <span className="text-xs font-black text-emerald-950">
-                  ระบบส่วนลดถูกล็อคคงที่ 10% • อัตราจ่าย 100% เต็ม (เช่น 3 ตัวบน ฿{intakeItems.find(i => i.name === '3 ตัวบน')?.baseRate || 900} / 2 ตัวบน ฿{intakeItems.find(i => i.name === '2 ตัวบน')?.baseRate || 92} จ่ายเต็ม ไม่มีหักลดทอน)
+                <span className="text-xs font-black text-blue-950">
+                  ตารางราคาจ่าย & ส่วนลดมาตรฐาน (คำนวณเงินจริง) • หวยไทยและยี่กีครบ 14 ประเภท • หวยอื่นๆ ไม่มี 3 ตัวล่าง และ 5 ตัวโต๊ด (12 ประเภท)
                 </span>
-                <p className="text-[11px] text-emerald-700">
-                  ตั้งอัตราจ่ายเท่าไหร่ สมาชิกได้รับรางวัลเต็มจำนวน 100% ตามที่กำหนด
+                <p className="text-[11px] text-blue-700">
+                  แอดมินสามารถเพิ่ม/ลด "จ่าย" (บาทละ) และ "ลด" (%) ได้อิสระ ระบบหน้าบ้านจะคำนวณยอดแทงสุทธิและเงินรางวัลตามค่าที่ตั้งไว้ทันที
                 </p>
               </div>
             </div>
-            <span className="px-3 py-1 bg-emerald-600 text-white rounded-lg text-[10px] font-black tracking-wide whitespace-nowrap shadow-sm">
-              🔒 จ่ายเต็ม 100%
+            <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-black tracking-wide whitespace-nowrap shadow-sm">
+              ✨ ซิงค์หน้าบ้าน-หลังบ้าน
             </span>
           </div>
 
-          {/* ตารางอัตราจ่ายและเพดานเดิมพัน */}
-          <div className="overflow-x-auto border border-slate-200 rounded-xl">
+          {/* ตารางอัตราจ่ายและส่วนลดตามภาพเรฟ media_1791239149158.png เป๊ะ 100% */}
+          <div className="overflow-x-auto border border-slate-200 rounded-xl shadow-xs">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-50 text-slate-600 border-b border-slate-200 uppercase font-black">
-                  <th className="py-3 px-4">ประเภทเดิมพัน</th>
-                  <th className="py-3 px-4 text-center">อัตราจ่ายเต็ม (บาท)</th>
+                <tr className="bg-slate-100 text-slate-700 border-b border-slate-200 uppercase font-black">
+                  <th className="py-3 px-3 text-center w-12">ลำดับ</th>
+                  <th className="py-3 px-4">ชนิด</th>
+                  <th className="py-3 px-4 text-center bg-amber-50 text-amber-900 border-x border-amber-200">จ่าย (บาท)</th>
+                  <th className="py-3 px-4 text-center bg-blue-50 text-blue-900 border-r border-blue-200">ลด (%)</th>
+                  <th className="py-3 px-4 text-center">จ่ายสุทธิหลังหักลด (บาท)</th>
                   <th className="py-3 px-4 text-center">แทงขั้นต่ำ (บาท)</th>
-                  <th className="py-3 px-4 text-center">แทงสูงสุดต่อบิล (บาท)</th>
-                  <th className="py-3 px-4 text-center bg-blue-50/70 text-blue-900 border-x border-blue-100">
-                    แทงสูงสุดต่อยูส (บาท)
-                  </th>
+                  <th className="py-3 px-4 text-center">แทงสูงสุด (บาท)</th>
                   <th className="py-3 px-4 text-center">สถานะ</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-800 font-bold">
                 {intakeItems.map((item, idx) => (
                   <tr key={item.id} className="hover:bg-blue-50/40 transition">
+                    <td className="py-3 px-3 text-center text-slate-500 font-mono font-bold">
+                      {idx + 1}.
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                        <span className="font-black text-slate-900">{item.name}</span>
+                        <span className="font-black text-slate-900 text-sm">{item.name}</span>
+                        {(item.name === '3 ตัวล่าง' || item.name === '5 ตัวโต๊ด') && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300">
+                            หวยไทย / ยี่กี
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-2.5 px-4 text-center bg-amber-50/40 border-x border-amber-200">
                       <input
                         type="number"
+                        step="0.01"
                         value={item.baseRate}
                         onChange={(e) => handleBaseRateChange(idx, Number(e.target.value) || 0)}
-                        className="w-24 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-black text-blue-700 outline-none focus:border-blue-500 focus:bg-white"
+                        className="w-24 text-center py-1.5 px-2 bg-white border border-amber-300 rounded-lg text-xs font-black text-amber-700 outline-none focus:ring-2 focus:ring-amber-400 shadow-inner"
                       />
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-2.5 px-4 text-center bg-blue-50/40 border-r border-blue-200">
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value={item.discountPercent}
+                        onChange={(e) => handleDiscountChange(idx, Number(e.target.value) || 0)}
+                        className="w-20 text-center py-1.5 px-2 bg-white border border-blue-300 rounded-lg text-xs font-black text-blue-700 outline-none focus:ring-2 focus:ring-blue-400 shadow-inner"
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-center font-mono font-black text-emerald-600">
+                      ฿{item.discountedRate.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-2.5 px-4 text-center">
                       <input
                         type="number"
                         value={item.minBet}
@@ -573,20 +603,12 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
                         className="w-20 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-blue-500"
                       />
                     </td>
-                    <td className="py-3 px-4 text-center">
+                    <td className="py-2.5 px-4 text-center">
                       <input
                         type="number"
                         value={item.maxBet}
                         onChange={(e) => handleItemFieldChange(idx, 'maxBet', Number(e.target.value) || 5000)}
                         className="w-24 text-center py-1.5 px-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 outline-none focus:border-blue-500"
-                      />
-                    </td>
-                    <td className="py-3 px-4 text-center bg-blue-50/30 border-x border-blue-100">
-                      <input
-                        type="number"
-                        value={item.maxBetPerUser ?? 50000}
-                        onChange={(e) => handleItemFieldChange(idx, 'maxBetPerUser', Number(e.target.value) || 0)}
-                        className="w-28 text-center py-1.5 px-2 bg-white border border-blue-300 rounded-lg text-xs font-black text-blue-800 outline-none focus:border-blue-600 shadow-2xs"
                       />
                     </td>
                     <td className="py-3 px-4 text-center">

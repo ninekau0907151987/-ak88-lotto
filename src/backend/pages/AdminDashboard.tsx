@@ -31,6 +31,11 @@ import LotteryCategorySelector from '../components/LotteryCategorySelector';
 import BlockedNumbersManager from '../components/BlockedNumbersManager';
 import RiskProbabilityChart from '../components/RiskProbabilityChart';
 import TwoFactorModal from '../components/TwoFactorModal';
+import {
+  DEFAULT_MASTER_RATES,
+  DEFAULT_MASTER_DISCOUNTS,
+  checkBetWin,
+} from '@/shared/lib/lotteryRates';
 
 type AdminTab =
   | 'overview'
@@ -320,20 +325,7 @@ export default function AdminDashboard() {
   const [currentTime, setCurrentTime] = useState(Date.now());
 
   const defaultRates = {
-    '3 ตัวบน': 900,
-    '3 ตัวโต๊ด': 150,
-    '3 ตัวล่าง': 450,
-    '3 ตัวหน้า': 450,
-    '3 ตัวกลับ': 900,
-    '2 ตัวบน': 90,
-    '2 ตัวล่าง': 90,
-    'วิ่งบน': 3.2,
-    'วิ่งล่าง': 4.2,
-    'ปักหลักหน่วย': 8,
-    'ปักหลักสิบ': 8,
-    'ปักหลักร้อย': 8,
-    '4 ตัวบน': 5000,
-    '4 ตัวโต๊ด': 200,
+    ...DEFAULT_MASTER_RATES,
   };
 
   // Payout Config Modal State
@@ -1541,7 +1533,7 @@ export default function AdminDashboard() {
       '2 ตัวบน':   { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
       '2 ตัวล่าง': { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
       '2 ตัวกลับ': { baseRate: 90,  resistanceRate: 80,  maxExposure: 50000 },
-      '2 ตัวโต๊ด': { baseRate: 12,  resistanceRate: 10,  maxExposure: 60000 },
+      '2 ตัวโต๊ด': { baseRate: 13,  resistanceRate: 10,  maxExposure: 60000 },
 
       'วิ่งบน':    { baseRate: 3.2, resistanceRate: 2.8, maxExposure: 100000 },
       'วิ่งล่าง':  { baseRate: 4.2, resistanceRate: 3.8, maxExposure: 100000 },
@@ -1550,7 +1542,7 @@ export default function AdminDashboard() {
       'ปักหลักสิบ':   { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
       'ปักหลักร้อย':  { baseRate: 8.0, resistanceRate: 7.0, maxExposure: 50000 },
 
-      '4 ตัวบน':   { baseRate: 5000, resistanceRate: 4000, maxExposure: 10000 },
+      '4 ตัวบน':   { baseRate: 4000, resistanceRate: 3500, maxExposure: 10000 },
       '4 ตัวโต๊ด': { baseRate: 25,   resistanceRate: 20,   maxExposure: 50000 },
       '5 ตัวโต๊ด': { baseRate: 15,   resistanceRate: 12,   maxExposure: 50000 },
     });
@@ -1836,34 +1828,19 @@ export default function AdminDashboard() {
       const winningBets: any[] = [];
 
       ticket.bets?.forEach((bet: any) => {
-        let isWin = false;
-        
-        // Determine if bet wins based on bet.type
-        if (bet.type === '3 ตัวบน') {
-          isWin = bet.number === result3Top;
-        } else if (bet.type === '3 ตัวโต๊ด') {
-          const sortedBet = bet.number.split('').sort().join('');
-          const sortedResult = result3Top.split('').sort().join('');
-          isWin = sortedBet === sortedResult && bet.number !== result3Top;
-        } else if (bet.type === '2 ตัวบน') {
-          isWin = bet.number === result3Top.slice(-2);
-        } else if (bet.type === '2 ตัวล่าง') {
-          isWin = bet.number === result2Bottom;
-        } else if (bet.type === 'วิ่งบน') {
-          isWin = result3Top.includes(bet.number);
-        } else if (bet.type === 'วิ่งล่าง') {
-          isWin = result2Bottom.includes(bet.number);
-        } else if (bet.type === '3 ตัวล่าง') {
-          // result3Bottom can be multiple comma separated values
-          isWin = result3Bottom.split(',').map(s => s.trim()).includes(bet.number);
-        } else if (bet.type === '3 ตัวหน้า') {
-          // result3Front can be multiple comma separated values
-          isWin = result3Front.split(',').map(s => s.trim()).includes(bet.number);
-        } else {
-          // Fallback for simple digit matching if type is missing or unknown
-          if (bet.number.length === 3 && bet.number === result3Top) {
+        // ตรวจผลรางวัล 14 ประเภทตรงตามมาตรฐานกลาง
+        let isWin = checkBetWin(bet.type, bet.number, {
+          result3Top,
+          result2Bottom,
+          result3Bottom,
+          result3Front,
+        });
+
+        // Fallback สำหรับกรณีไม่มีระบุประเภท
+        if (!isWin && !bet.type) {
+          if (bet.number?.length === 3 && bet.number === result3Top) {
             isWin = true;
-          } else if (bet.number.length === 2 && bet.number === result2Bottom) {
+          } else if (bet.number?.length === 2 && bet.number === result2Bottom) {
             isWin = true;
           }
         }
