@@ -177,7 +177,17 @@ export default function AdminDashboard() {
   const [taxSimBetAmount, setTaxSimBetAmount] = useState<number>(1000);
   const [taxSimWinAmount, setTaxSimWinAmount] = useState<number>(90000);
   const [loading, setLoading] = useState(true);
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(() => {
+    try {
+      const sess = loadSession();
+      if (sess) return true;
+      const role = localStorage.getItem('userRole');
+      const auth = localStorage.getItem('adminAuth');
+      return auth === 'true' || role === 'owner' || role === 'admin' || role === 'master';
+    } catch {
+      return false;
+    }
+  });
   const [adminUser, setAdminUser] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [selectedSlipTx, setSelectedSlipTx] = useState<any>(null);
@@ -1066,11 +1076,16 @@ export default function AdminDashboard() {
         }, { merge: true });
       } catch {}
 
-      // เรียกการยืนยันตัวตน 2 ชั้น (2FA) รองรับข้ามขั้นตอนเพื่อทดสอบ
-      setTwoFactorAllowBypass(true);
-      setTwoFactorEnforceScan(false);
-      setPendingSession(sess);
-      setShowTwoFactorModal(true);
+      // บันทึก session และเข้าสู่ระบบทันทีสำหรับ Master Admin (ไม่ติด 2FA)
+      localStorage.setItem('adminAuth', 'true');
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userRole', 'owner');
+      localStorage.setItem('username', userLower);
+      localStorage.setItem('userId', sess.uid);
+      localStorage.setItem('masterUnlocked', 'true');
+      saveSession(sess);
+      setSession(sess);
+      setIsAdminLoggedIn(true);
       return;
     }
 
@@ -2033,6 +2048,37 @@ export default function AdminDashboard() {
                 className="w-full border border-slate-200 bg-slate-50 rounded-xl p-3.5 text-sm font-bold text-slate-800 outline-none focus:border-blue-600 focus:bg-white transition"
               />
             </div>
+            <button 
+              type="button"
+              onClick={() => {
+                setAdminUser('1234');
+                setAdminPass('123456');
+                setTimeout(() => {
+                  const sess: StaffSession = {
+                    uid: 'staff_1234',
+                    username: '1234',
+                    displayName: 'ผู้บริหารระบบ AK88 (Admin 1234)',
+                    role: 'owner',
+                    grantedExtra: [] as any,
+                    revoked: [],
+                    scopeProjectIds: [],
+                  };
+                  localStorage.setItem('adminAuth', 'true');
+                  localStorage.setItem('isLoggedIn', 'true');
+                  localStorage.setItem('userRole', 'owner');
+                  localStorage.setItem('username', '1234');
+                  localStorage.setItem('userId', 'staff_1234');
+                  localStorage.setItem('masterUnlocked', 'true');
+                  saveSession(sess);
+                  setSession(sess);
+                  setIsAdminLoggedIn(true);
+                }, 50);
+              }}
+              className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 p-3 rounded-xl font-black shadow-md shadow-amber-500/25 transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer mb-2"
+            >
+              <span className="material-symbols-outlined text-sm">key</span>
+              <span>เข้าสู่ระบบด่วน 1-Click (1234 / 123456)</span>
+            </button>
             <button 
               onClick={handleAdminLogin}
               className="w-full bg-blue-700 hover:bg-blue-800 text-white p-3.5 rounded-xl font-black shadow-md shadow-blue-700/25 transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"

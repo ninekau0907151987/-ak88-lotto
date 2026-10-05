@@ -70,7 +70,9 @@ export default function App() {
 
         {/* ================= หลังบ้าน (ไม่มี bottom-nav หน้าบ้าน) ================= */}
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path="/admin/login/*" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/" element={<AdminDashboard />} />
         <Route path="/admin/api" element={<DeveloperApi />} />
         <Route path="/admin/api/docs" element={<ApiDocs />} />
         <Route path="/master" element={<MasterDashboard />} />

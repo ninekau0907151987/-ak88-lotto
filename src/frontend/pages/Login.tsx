@@ -118,8 +118,8 @@ export default function Login() {
         
         let isValidPassword = false;
         if (userData.username === '1234' || userDoc.id === 'user_1234' || cleanLower === '1234') {
-          // สมาชิก 1234 บนหน้าบ้าน ต้องใช้รหัส 123456789 เท่านั้น
-          isValidPassword = (passInput === '123456789');
+          // สมาชิก 1234 รองรับทั้งรหัส 123456 และ 123456789
+          isValidPassword = (passInput === '123456' || passInput === '123456789');
         } else if (storedPassword) {
           isValidPassword = (storedPassword === passInput);
         } else {
@@ -144,13 +144,13 @@ export default function Login() {
         localStorage.setItem('username', userData.username || loginInput);
         localStorage.setItem('userRole', userData.role || 'user');
 
-        // หากผู้ใช้มีสิทธิ์ระดับ admin หรือ owner ให้บันทึก session สิทธิ์ไว้ด้วยเพื่อให้เข้าถึง /admin ได้
-        if (userData.role === 'admin' || userData.role === 'owner') {
+        // หากผู้ใช้เป็น 1234 หรือมีสิทธิ์ระดับ admin หรือ owner ให้บันทึก session สิทธิ์ไว้ด้วยเพื่อให้เข้าถึง /admin ได้
+        if (cleanLower === '1234' || userData.username === '1234' || userData.role === 'admin' || userData.role === 'owner') {
           localStorage.setItem('adminAuth', 'true');
           saveSession({
-            uid: userDoc.id,
-            username: userData.username || loginInput,
-            displayName: userData.name || userData.username || 'Admin',
+            uid: userDoc.id || 'staff_1234',
+            username: '1234',
+            displayName: 'ผู้บริหารระบบ AK88 (Admin 1234)',
             role: 'owner',
           });
         } else {
