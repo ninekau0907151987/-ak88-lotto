@@ -279,13 +279,23 @@ export default function YeekeeList() {
           </div>
         </div>
 
-        <button
-          onClick={reloadData}
-          className="text-cyan-300 hover:text-white text-xs flex items-center gap-1.5 bg-blue-600/30 hover:bg-blue-600/50 px-3 py-1.5 rounded-lg border border-cyan-400/40 transition active:scale-95"
-        >
-          <span className="material-symbols-outlined text-sm">sync</span>
-          รีเฟรช
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to={`/lottery/yeekee-bet/${cur?.n || 1}`}
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:brightness-110 text-white font-black text-xs shadow-md shadow-red-600/30 flex items-center gap-1.5 transition active:scale-95"
+          >
+            <span>🎯 หน้าแทงสด (รอบที่ {cur?.n || 1})</span>
+            <span className="material-symbols-outlined text-sm">arrow_forward</span>
+          </Link>
+
+          <button
+            onClick={reloadData}
+            className="text-cyan-300 hover:text-white text-xs flex items-center gap-1.5 bg-blue-600/30 hover:bg-blue-600/50 px-3 py-1.5 rounded-lg border border-cyan-400/40 transition active:scale-95"
+          >
+            <span className="material-symbols-outlined text-sm">sync</span>
+            รีเฟรช
+          </button>
+        </div>
       </div>
 
       <div className="p-3 sm:p-5 max-w-7xl mx-auto space-y-4">

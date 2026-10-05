@@ -23,6 +23,7 @@ import LotteryList from '@/frontend/pages/LotteryList';
 import LotteryBet from '@/frontend/pages/LotteryBet';
 import StockLotteryList from '@/frontend/pages/StockLotteryList';
 import YeekeeList from '@/frontend/pages/YeekeeList';
+import YeekeeBet from '@/frontend/pages/YeekeeBet';
 import Deposit from '@/frontend/pages/Deposit';
 import Login from '@/frontend/pages/Login';
 import Register from '@/frontend/pages/Register';
@@ -100,7 +101,14 @@ export default function App() {
           <Route path="lottery/set/:type" element={<LotterySetBet />} />
           <Route path="lottery/stock" element={<Navigate to="/lottery?tab=stock" replace />} />
           <Route path="lottery/stock/:type" element={<LotteryBet />} />
-          <Route path="lottery/yeekee" element={<YeekeeList />} />
+          {/* ★ หวยยี่กี 88 รอบ: หน้าแทงสดตามแบบเรฟเป๊ะ + ตาราง 88 รอบ */}
+          <Route path="lottery/yeekee" element={<YeekeeBet />} />
+          <Route path="lottery/yeekee/:round" element={<YeekeeBet />} />
+          <Route path="lottery/yeekee-bet" element={<YeekeeBet />} />
+          <Route path="lottery/yeekee-bet/:round" element={<YeekeeBet />} />
+          <Route path="lottery/yeekee-:round" element={<YeekeeBet />} />
+          <Route path="lottery/yeekee/rounds" element={<YeekeeList />} />
+          <Route path="lottery/yeekee/list" element={<YeekeeList />} />
 
           {/* ★ กติกา + วิธีเล่น หวย 20 ช่อง 6 หลัก */}
           <Route path="lottery/game20" element={<Game20Bet />} />
