@@ -127,7 +127,7 @@ export function isAllowedOpenLottery(nameOrId: string): boolean {
   return SYSTEM_OPEN_LOTTERIES.some(allowed => 
     n === allowed || 
     n.toLowerCase() === allowed.toLowerCase() ||
-    (allowed === 'หวยรัฐบาลไทย' && n.includes('รัฐบาล')) ||
+    (allowed === 'หวยรัฐบาลไทย' && n.includes('รัฐบาล') && !n.includes('ชุด')) ||
     (allowed === 'หุ้นไทยเช้า' && (n.includes('หุ้นไทยเช้า') || n.includes('thai-morning'))) ||
     (allowed === 'หวยยี่กี 88 รอบ' && (n.includes('ยี่กี') || n.includes('yeekee')))
   );
