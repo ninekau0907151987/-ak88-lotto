@@ -420,15 +420,21 @@ export default function YeekeeBet() {
         {/* ------------------------------------------------------------------- */}
         <div className="bg-[#0b173e]/95 border-2 border-cyan-400/80 rounded-2xl p-2.5 sm:p-3.5 shadow-[0_0_25px_rgba(6,182,212,0.35)] flex items-center justify-between gap-3 flex-wrap">
           
-          {/* ฝั่งซ้าย: ปุ่มย้อนกลับ */}
+          {/* ฝั่งซ้าย: ปุ่มย้อนกลับ + เครดิตผู้ใช้ */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate('/lottery/yeekee')}
+              onClick={() => navigate('/lottery')}
               className="bg-blue-900/80 hover:bg-blue-800 text-cyan-300 hover:text-white px-3 sm:px-4 py-1.5 rounded-xl border border-cyan-400/50 font-bold text-xs sm:text-sm flex items-center gap-1 transition active:scale-95 shadow-sm"
             >
               <span className="material-symbols-outlined text-sm">arrow_back</span>
               <span>ย้อนกลับ</span>
             </button>
+
+            {/* เครดิตคงเหลือ (แสดงบนหัวเพื่อให้ดูง่ายบนมือถือ) */}
+            <div className="bg-emerald-950/80 border border-emerald-400/60 px-2.5 py-1 rounded-xl text-emerald-300 font-mono font-bold text-xs flex items-center gap-1.5 shadow-sm">
+              <span className="text-[10px] text-slate-400 font-sans font-normal">เครดิต:</span>
+              <span className="font-black text-emerald-400">฿{credit.toLocaleString('th-TH', { minimumFractionDigits: 2 })}</span>
+            </div>
           </div>
 
           {/* ตรงกลาง: ชื่อหวยยี่กี + เวลานับถอยหลัง + ปิดรับ */}
@@ -477,7 +483,7 @@ export default function YeekeeBet() {
             </button>
 
             <button
-              onClick={() => navigate('/lottery/yeekee')}
+              onClick={() => navigate('/lottery/yeekee/rounds')}
               className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/80 text-emerald-300 border border-emerald-400/40 text-xs font-bold transition flex items-center gap-1 active:scale-95"
             >
               <span className="material-symbols-outlined text-xs">calendar_month</span>
@@ -493,8 +499,9 @@ export default function YeekeeBet() {
 
           {/* ================================================================= */}
           {/* คอลัมน์ 1: ซ้ายสุด (ข้อมูลบัญชี, เครดิต, เติมเงิน, ตารางเงินรางวัล) [lg:col-span-2] */}
+          {/* บนมือถือ: order-4 (อยู่ล่างสุด) | บนจอคอม: lg:order-1 */}
           {/* ================================================================= */}
-          <div className="lg:col-span-2 space-y-3">
+          <div className="order-4 lg:order-1 lg:col-span-2 space-y-3">
             
             {/* กล่อง 1: บัญชีผู้ใช้ & เครดิต */}
             <div className="bg-[#0b173e]/90 border border-cyan-400/40 rounded-2xl p-3 shadow-md space-y-2">
@@ -528,7 +535,7 @@ export default function YeekeeBet() {
             </div>
 
             {/* กล่อง 2: ปุ่มด่วน เติมเงิน & ถอนเงิน */}
-            <div className="space-y-1.5">
+            <div className="grid grid-cols-2 lg:grid-cols-1 gap-1.5">
               <Link
                 to="/deposit"
                 className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:brightness-110 text-white font-black text-xs shadow-md shadow-red-600/30 flex items-center justify-center gap-1.5 transition active:scale-95"
@@ -545,8 +552,8 @@ export default function YeekeeBet() {
               </Link>
             </div>
 
-            {/* กล่อง 3: ตารางเงินรางวัลหวยยี่กี (Payout Table) */}
-            <div className="rounded-2xl overflow-hidden border border-cyan-400/40 shadow-md bg-[#0a163d]/90">
+            {/* กล่อง 3: ตารางเงินรางวัลหวยยี่กี (Payout Table) - ซ่อนบนมือถือเนื่องจากมีปุ่มอัตราจ่ายด้านบนแล้ว */}
+            <div className="hidden lg:block rounded-2xl overflow-hidden border border-cyan-400/40 shadow-md bg-[#0a163d]/90">
               <div className="bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white font-black text-xs py-2 px-3 text-center border-b border-red-500 shadow-sm">
                 เงินรางวัลหวยยี่กี
               </div>
@@ -600,8 +607,9 @@ export default function YeekeeBet() {
 
           {/* ================================================================= */}
           {/* คอลัมน์ 2: รายการแทง (โพยแทงหวย) [lg:col-span-2] */}
+          {/* บนมือถือ: order-2 (อยู่ต่อจากแป้นกดแทง) | บนจอคอม: lg:order-2 */}
           {/* ================================================================= */}
-          <div className="lg:col-span-2 bg-[#0b173e]/90 border border-cyan-400/40 rounded-2xl p-3 shadow-md flex flex-col justify-between h-full min-h-[520px]">
+          <div id="bet-slip-container" className="order-2 lg:order-2 lg:col-span-2 bg-[#0b173e]/90 border border-cyan-400/40 rounded-2xl p-3 shadow-md flex flex-col justify-between min-h-[380px] lg:min-h-[520px]">
             <div>
               <div className="flex items-center justify-between border-b border-cyan-500/20 pb-2 mb-2">
                 <span className="text-xs font-black text-cyan-300">
@@ -672,8 +680,9 @@ export default function YeekeeBet() {
 
           {/* ================================================================= */}
           {/* คอลัมน์ 3: แป้นกดแทงหวย (Keypad & Bet Types) [lg:col-span-4] */}
+          {/* บนมือถือ: order-1 (ขึ้นมาบนสุด เข้าแทงได้ทันทีตามคำขอของผู้ใช้!) | บนจอคอม: lg:order-3 */}
           {/* ================================================================= */}
-          <div className="lg:col-span-4 bg-[#0b173e]/90 border border-cyan-400/40 rounded-2xl p-3 shadow-md space-y-3">
+          <div className="order-1 lg:order-3 lg:col-span-4 bg-[#0b173e]/90 border-2 border-cyan-400/70 lg:border-cyan-400/40 rounded-2xl p-3 sm:p-4 shadow-lg shadow-cyan-900/20 space-y-3">
             
             {/* 1. ปุ่มเลือกประเภทหวย */}
             <div>
@@ -708,12 +717,12 @@ export default function YeekeeBet() {
               <div className="text-[11px] font-bold text-slate-400 mb-1.5">
                 เลือกรูดเลข ({selectedType}) :
               </div>
-              <div className="grid grid-cols-3 gap-1.5">
-                {['รูดหลักร้อย', 'รูดหลักสิบ', 'รูดหลักหน่วย', 'รูดสูง', 'รูดต่ำ', '19 ประตู', 'รูดคู่', 'รูดคี่'].map(m => (
+              <div className="grid grid-cols-4 gap-1 sm:gap-1.5">
+                {['รูดหลักร้อย', 'รูดหลักสิบ', 'รูดหลักหน่วย', '19 ประตู', 'รูดสูง', 'รูดต่ำ', 'รูดคู่', 'รูดคี่'].map(m => (
                   <button
                     key={m}
                     onClick={() => handleQuickGenerator(m)}
-                    className="py-1 px-1 rounded-lg text-[11px] font-bold bg-[#14295e] hover:bg-[#1a357a] text-cyan-200 border border-cyan-400/30 transition active:scale-95"
+                    className="py-1.5 px-0.5 rounded-lg text-[10px] sm:text-xs font-bold bg-[#14295e] hover:bg-[#1a357a] text-cyan-200 border border-cyan-400/30 transition active:scale-95 text-center truncate"
                   >
                     {m}
                   </button>
@@ -863,8 +872,9 @@ export default function YeekeeBet() {
 
           {/* ================================================================= */}
           {/* คอลัมน์ 4: ขวาสุด (ยิงเลข 5 หลัก + ผลรวมเลขยี่กีสด) [lg:col-span-4] */}
+          {/* บนมือถือ: order-3 | บนจอคอม: lg:order-4 */}
           {/* ================================================================= */}
-          <div className="lg:col-span-4 space-y-3">
+          <div className="order-3 lg:order-4 lg:col-span-4 space-y-3">
             
             {/* กล่องยิงเลข (Number Shooter) */}
             <div className="rounded-2xl overflow-hidden border border-cyan-400/50 shadow-md bg-[#0a163d]/90">
@@ -1020,6 +1030,40 @@ export default function YeekeeBet() {
         </div>
 
       </div>
+
+      {/* ------------------------------------------------------------------- */}
+      {/* แถบสรุปโพยลอยขอบล่างสำหรับมือถือ (Mobile Sticky Bet Cart) */}
+      {/* ------------------------------------------------------------------- */}
+      {betsList.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#0b173e]/95 backdrop-blur-md border-t-2 border-cyan-400 px-4 py-2.5 flex items-center justify-between shadow-[0_-5px_25px_rgba(0,0,0,0.85)] lg:hidden">
+          <div>
+            <div className="text-[11px] text-slate-300 font-bold">
+              โพย: <span className="text-amber-400 font-mono font-black">{betsList.length}</span> รายการ
+            </div>
+            <div className="text-sm font-mono font-black text-emerald-400">
+              ฿{totalBetAmount.toLocaleString('th-TH', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const slipEl = document.getElementById('bet-slip-container');
+                slipEl?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="px-3 py-2 rounded-xl bg-blue-900/90 hover:bg-blue-800 text-cyan-200 border border-cyan-400/50 text-xs font-bold active:scale-95 shadow-sm"
+            >
+              ดูโพย
+            </button>
+            <button
+              onClick={handleSubmitTicket}
+              disabled={isSubmitting}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:brightness-110 text-white text-xs font-black shadow-md shadow-red-600/40 active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <span>{isSubmitting ? 'กำลังส่ง...' : 'ส่งโพยทันที ➔'}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------------- */}
       {/* โมดอลป๊อปอัป: กฎกติกา / อัตราจ่าย / คู่มือการเล่น */}
