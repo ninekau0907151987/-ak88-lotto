@@ -130,7 +130,7 @@ export default function App() {
           <Route path="financial-report" element={<FinancialReport />} />
 
           {/* ---- อื่นๆ ---- */}
-          <Route path="results" element={<LotteryResults />} />
+          <Route path="results" element={<Navigate to="/tickets?tab=results" replace />} />
           <Route path="profile" element={<Profile />} />
           <Route path="tickets" element={<LotteryTickets />} />
           <Route path="number-set" element={<NumberSetCreate />} />
