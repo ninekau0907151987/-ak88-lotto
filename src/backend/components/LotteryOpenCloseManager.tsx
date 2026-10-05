@@ -21,12 +21,22 @@ export default function LotteryOpenCloseManager({
   lotterySettings,
   onToggleStatus,
   onApplyOnlyThree,
+  onOpenAddModal,
 }: Props) {
   const [selectedLottery, setSelectedLottery] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [isApplyingPreset, setIsApplyingPreset] = useState(false);
 
-  const lottoKeys = Object.keys(lotterySettings).sort();
+  // 🌟 เรียงลำดับหวย: หวยที่เปิดรับแทงต้องอยู่บนสุดเสมอ ("ตัวเปิดใหม่อยู่บน" & "ปิดแล้วให้รัยมาอยูบน")
+  const lottoKeys = Object.keys(lotterySettings).sort((a, b) => {
+    const aOpen = Boolean(lotterySettings[a]?.isOpen && !lotterySettings[a]?.isPaused && lotterySettings[a]?.status !== 'closed');
+    const bOpen = Boolean(lotterySettings[b]?.isOpen && !lotterySettings[b]?.isPaused && lotterySettings[b]?.status !== 'closed');
+    // 1. หวยที่เปิดรับแทง อยู่ด้านบนสุดเสมอ
+    if (aOpen && !bOpen) return -1;
+    if (!aOpen && bOpen) return 1;
+    // 2. หากสถานะเหมือนกัน ให้เรียงตามชื่อภาษาไทย
+    return a.localeCompare(b, 'th');
+  });
 
   // Statistics
   const totalCount = lottoKeys.length;
@@ -75,13 +85,25 @@ export default function LotteryOpenCloseManager({
               ระบบหวยเปิด-ปิด (Lottery Open-Close Status)
             </h2>
             <p className="text-xs text-slate-500">
-              ตรวจสอบรายชื่อหวยและควบคุมสถานะการเปิดรับ-ปิดรับแทงได้ทันที
+              ตรวจสอบรายชื่อหวยและควบคุมสถานะการเปิดรับ-ปิดรับแทงได้ทันที (หวยที่เปิดจะอยู่ด้านบนสุดเสมอ)
             </p>
           </div>
         </div>
 
         {/* Action Button & Status Counter Badges */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {onOpenAddModal && (
+            <button
+              type="button"
+              onClick={onOpenAddModal}
+              className="px-4 py-2 rounded-xl font-black text-xs bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:brightness-110 text-white shadow-md flex items-center gap-1.5 transition active:scale-95"
+              title="เพิ่มประเภทหวยใหม่เข้าสู่ระบบ พร้อมกำหนดหมวดหมู่และอัตราจ่าย"
+            >
+              <span className="material-symbols-outlined text-base">add_circle</span>
+              <span>➕ เพิ่มประเภทหวยใหม่</span>
+            </button>
+          )}
+
           <button
             onClick={handleApplyOnlyThree}
             disabled={isApplyingPreset}
@@ -149,22 +171,33 @@ export default function LotteryOpenCloseManager({
         </div>
       </div>
 
-      {/* Main Table Card (แสดงเพียงรายชื่อหวยและสถานะการรับแทง) */}
+      {/* Main Table Card (ตารางแถวยาวตามคำสั่งผู้ใช้ จัดเรียงหวยเปิดไว้บนสุด) */}
       <div className="admin-card bg-white overflow-hidden shadow-sm border border-slate-200">
         {/* Search Bar & Reset Selection */}
         <div className="p-4 border-b border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-xs font-black text-slate-800">
-              ตารางข้อมูลประเภทหวย ({filteredKeys.length} รายการ)
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-sm text-blue-600">table_rows</span>
+              <span>ตารางข้อมูลประเภทหวย ({filteredKeys.length} รายการ)</span>
             </h3>
             {selectedLottery && (
-              <button
-                onClick={() => setSelectedLottery('')}
-                className="px-2.5 py-1 text-[11px] font-black text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition flex items-center gap-1"
-              >
-                <span>แสดงทุกหวย</span>
-                <span>✕</span>
-              </button>
+              <div className="flex items-center gap-1.5 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-lg">
+                <span className="text-[11px] font-bold text-blue-800">
+                  กำลังกรอง: <span className="font-black text-blue-900">{selectedLottery}</span>
+                </span>
+                <button
+                  onClick={() => setSelectedLottery('')}
+                  className="ml-1 text-[11px] font-black text-blue-700 hover:text-red-600 transition flex items-center gap-0.5"
+                  title="ยกเลิกการกรอง แสดงตารางยาวทั้งหมด"
+                >
+                  <span>✕ แสดงทุกหวย (ตารางยาว)</span>
+                </button>
+              </div>
+            )}
+            {!selectedLottery && (
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                ✓ กำลังแสดงตารางยาวทั้งหมด (หวยเปิดอยู่บนสุด)
+              </span>
             )}
           </div>
 
@@ -219,8 +252,8 @@ export default function LotteryOpenCloseManager({
                       key={type}
                       className={`transition ${
                         isOpen
-                          ? 'hover:bg-blue-50/20 bg-white'
-                          : 'bg-slate-50/70 opacity-75 hover:opacity-100'
+                          ? 'bg-emerald-50/25 hover:bg-emerald-50/50 border-l-4 border-l-emerald-500'
+                          : 'bg-white hover:bg-slate-50 opacity-75 hover:opacity-100'
                       }`}
                     >
                       <td className="py-4 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
@@ -230,8 +263,13 @@ export default function LotteryOpenCloseManager({
                         <div className="flex items-center gap-3">
                           <span className="text-2xl">{item?.icon || '🎯'}</span>
                           <div>
-                            <span className={isOpen ? 'text-slate-900 font-black text-sm' : 'text-slate-500 font-bold text-sm'}>
-                              {type}
+                            <span className={isOpen ? 'text-slate-900 font-black text-sm flex items-center gap-2' : 'text-slate-500 font-bold text-sm'}>
+                              <span>{type}</span>
+                              {isOpen && (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-white font-black shadow-xs animate-pulse">
+                                  🟢 เปิดรับแทง (อันดับบน)
+                                </span>
+                              )}
                             </span>
                             {!isOpen && (
                               <span className="ml-2 text-[9px] px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 font-black">

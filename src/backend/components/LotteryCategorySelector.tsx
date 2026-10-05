@@ -25,7 +25,7 @@ export default function LotteryCategorySelector({
   allOptionLabel = '⭐ ทุกหวยในระบบ (หวยทั้งหมด)',
   allOptionValue = 'all',
 }: Props) {
-  const [selectedCategory, setSelectedCategory] = useState<LotteryCategoryKey>('all');
+  const [selectedCategory, setSelectedCategory] = useState<LotteryCategoryKey>('thai');
   const [showOnlyOpen, setShowOnlyOpen] = useState(false);
 
   // Combine MASTER_LOTTERY_CATALOG with any dynamic lotteries in lotterySettings
@@ -135,9 +135,9 @@ export default function LotteryCategorySelector({
         </label>
       </div>
 
-      {/* 2. แท็บหมวดหมู่ด้านบน (Category Tabs on Top) */}
+      {/* 2. แท็บหมวดหมู่ด้านบน (Category Tabs on Top - เอา "ทั้งหมด" ออกตามคำสั่งผู้ใช้ที่มีกากบาท) */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-        {LOTTERY_CATEGORIES.map(cat => {
+        {LOTTERY_CATEGORIES.filter(c => c.id !== 'all').map(cat => {
           const isActive = selectedCategory === cat.id;
           const stat = categoryStats[cat.id] || { total: 0, open: 0 };
           const hasOpen = stat.open > 0;
@@ -146,7 +146,11 @@ export default function LotteryCategorySelector({
             <button
               key={cat.id}
               type="button"
-              onClick={() => setSelectedCategory(cat.id)}
+              onClick={() => {
+                setSelectedCategory(cat.id);
+                // ไม่บังคับล็อคหวยย่อย ให้แสดงตารางแถวยาว
+                onSelectLottery('');
+              }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition whitespace-nowrap flex items-center gap-1.5 border ${
                 isActive
                   ? 'bg-blue-700 text-white border-blue-700 shadow-sm shadow-blue-700/20'
@@ -168,7 +172,7 @@ export default function LotteryCategorySelector({
         })}
       </div>
 
-      {/* 3. รายชื่อหวยย่อยด้านล่างเป็นปุ่มขนาดเล็ก (Small Sub-lottery Buttons) */}
+      {/* 3. รายชื่อหวยย่อยด้านล่างเป็นปุ่มขนาดเล็ก (หวยเปิดอยู่หน้าสุด + ปุ่ม "แสดงทั้งหมด" อยู่ตำแหน่งวงกลมขวาสุด) */}
       <div className="pt-1">
         {filteredSubLotteries.length === 0 && !allowAllOption ? (
           <div className="p-4 text-center text-xs font-bold text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
@@ -178,21 +182,7 @@ export default function LotteryCategorySelector({
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-1.5 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
-            {allowAllOption && (
-              <button
-                type="button"
-                onClick={() => onSelectLottery(allOptionValue)}
-                className={`px-3 py-1 text-xs font-black rounded-lg border flex items-center gap-1.5 transition active:scale-95 ${
-                  selectedLottery === allOptionValue || (allOptionValue === '' && !selectedLottery)
-                    ? 'bg-amber-500 text-slate-900 border-amber-400 shadow-sm ring-2 ring-amber-300'
-                    : 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100 hover:border-amber-300'
-                }`}
-                title="เลือกทุกหวยในระบบพร้อมกัน"
-              >
-                <span className="text-xs">⭐</span>
-                <span className="whitespace-nowrap">{allOptionLabel}</span>
-              </button>
-            )}
+            {/* รายชื่อหวยย่อยในกลุ่มนี้ */}
             {filteredSubLotteries.map(lotto => {
               const isSelected = selectedLottery === lotto.name;
               const isOpen = lotto.isOpen;
@@ -201,22 +191,22 @@ export default function LotteryCategorySelector({
                 <button
                   key={lotto.name}
                   type="button"
-                  onClick={() => onSelectLottery(lotto.name)}
+                  onClick={() => onSelectLottery(isSelected ? '' : lotto.name)}
                   className={`px-2.5 py-1 text-xs font-bold rounded-lg border flex items-center gap-1.5 transition active:scale-95 ${
                     isSelected
                       ? 'bg-blue-700 text-white border-blue-700 shadow-sm shadow-blue-700/25 ring-2 ring-blue-300'
                       : isOpen
-                      ? 'bg-white text-slate-800 border-slate-200 hover:border-blue-400 hover:bg-blue-50/40'
+                      ? 'bg-white text-slate-800 border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/40 shadow-xs'
                       : 'bg-slate-100 text-slate-400 border-slate-200 opacity-60 hover:opacity-100 hover:bg-slate-200'
                   }`}
-                  title={`${lotto.name} (${isOpen ? '🟢 กำลังเปิดรับแทง' : '⚪ ปิดรับแทง'})`}
+                  title={`${lotto.name} (${isOpen ? '🟢 กำลังเปิดรับแทง' : '⚪ ปิดรับแทง'}) - คลิกเพื่อกรอง/คลิกซ้ำเพื่อยกเลิก`}
                 >
                   <span className="text-xs">{lotto.icon}</span>
                   <span className="whitespace-nowrap">{lotto.name}</span>
                   
                   {/* Status Indicator */}
                   {isOpen ? (
-                    <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-300' : 'bg-emerald-500'}`}></span>
+                    <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-300' : 'bg-emerald-500'} animate-pulse`}></span>
                   ) : (
                     <span className="text-[9px] px-1 py-0.2 rounded bg-slate-200 text-slate-500 font-black">
                       ปิด
@@ -225,6 +215,26 @@ export default function LotteryCategorySelector({
                 </button>
               );
             })}
+
+            {/* 🌟 ปุ่ม "แสดงทั้งหมด" ย้ายมาไว้ที่ตำแหน่งวงกลม (ท้ายแถว) ตามคำสั่งผู้ใช้ */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedCategory('all');
+                onSelectLottery('');
+              }}
+              className={`px-3 py-1 text-xs font-black rounded-lg border flex items-center gap-1.5 transition active:scale-95 ${
+                !selectedLottery && selectedCategory === 'all'
+                  ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-md ring-2 ring-amber-300'
+                  : 'bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-900 border-amber-300 hover:bg-amber-100 hover:border-amber-400'
+              }`}
+              title="แสดงทุกหวยในระบบพร้อมกันทั้งหมด (ตารางยาว)"
+            >
+              <span className="text-xs">🌐</span>
+              <span className="whitespace-nowrap font-black">
+                แสดงทั้งหมด ({allLotteries.length} รายการ)
+              </span>
+            </button>
           </div>
         )}
       </div>
