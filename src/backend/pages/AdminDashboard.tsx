@@ -52,6 +52,26 @@ type AdminTab =
   | 'history'
   | 'staff';
 
+// Preset Flags with direct CDN URLs and Country Flags
+const PRESET_FLAGS = [
+  { label: '🇹🇭 ไทย (TH)', flag: '🇹🇭', url: 'https://flagcdn.com/w80/th.png' },
+  { label: '🇱🇦 ลาว (LA)', flag: '🇱🇦', url: 'https://flagcdn.com/w80/la.png' },
+  { label: '🇻🇳 เวียดนาม / ฮานอย (VN)', flag: '🇻🇳', url: 'https://flagcdn.com/w80/vn.png' },
+  { label: '🇯🇵 ญี่ปุ่น / นิเคอิ (JP)', flag: '🇯🇵', url: 'https://flagcdn.com/w80/jp.png' },
+  { label: '🇰🇷 เกาหลี (KR)', flag: '🇰🇷', url: 'https://flagcdn.com/w80/kr.png' },
+  { label: '🇨🇳 จีน (CN)', flag: '🇨🇳', url: 'https://flagcdn.com/w80/cn.png' },
+  { label: '🇭🇰 ฮ่องกง / ฮั่งเส็ง (HK)', flag: '🇭🇰', url: 'https://flagcdn.com/w80/hk.png' },
+  { label: '🇹🇼 ไต้หวัน (TW)', flag: '🇹🇼', url: 'https://flagcdn.com/w80/tw.png' },
+  { label: '🇸🇬 สิงคโปร์ (SG)', flag: '🇸🇬', url: 'https://flagcdn.com/w80/sg.png' },
+  { label: '🇺🇸 สหรัฐฯ / ดาวโจนส์ (US)', flag: '🇺🇸', url: 'https://flagcdn.com/w80/us.png' },
+  { label: '🇬🇧 อังกฤษ (GB)', flag: '🇬🇧', url: 'https://flagcdn.com/w80/gb.png' },
+  { label: '🇩🇪 เยอรมัน (DE)', flag: '🇩🇪', url: 'https://flagcdn.com/w80/de.png' },
+  { label: '🇮🇳 อินเดีย (IN)', flag: '🇮🇳', url: 'https://flagcdn.com/w80/in.png' },
+  { label: '🇲🇾 มาเลเซีย (MY)', flag: '🇲🇾', url: 'https://flagcdn.com/w80/my.png' },
+  { label: '🎁 หวยชุด 4 ตัว', flag: '🎁', url: '' },
+  { label: '🎯 กำหนดเอง / อื่นๆ', flag: '🎯', url: '' },
+];
+
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<AdminTab>('finance');
   const [isMasterUnlocked, setIsMasterUnlocked] = useState<boolean>(() => {
@@ -86,6 +106,9 @@ export default function AdminDashboard() {
   const [resultCategoryFilter, setResultCategoryFilter] = useState<LotteryCategoryKey>('all');
   const [newLotteryCategory, setNewLotteryCategory] = useState<LotteryCategoryKey>('thai');
   const [newLotteryIsOpen, setNewLotteryIsOpen] = useState(true);
+  const [editingLottery, setEditingLottery] = useState<any | null>(null);
+  const [lotteryFormFlagUrl, setLotteryFormFlagUrl] = useState('');
+  const [lotteryFormIcon, setLotteryFormIcon] = useState('🎯');
   const [autoBlockCount, setAutoBlockCount] = useState(50);
   // ★ Rules Management State
   const [rulesSubTab, setRulesSubTab] = useState<'general' | 'lottery'>('general');
@@ -1115,19 +1138,79 @@ export default function AdminDashboard() {
   };
 
   const toggleLotteryStatus = async (type: string, status: boolean) => {
+    // 1. Optimistic update
+    setLotterySettings((prev: any) => ({
+      ...prev,
+      [type]: {
+        ...(prev[type] || {}),
+        id: type,
+        name: prev[type]?.name || type,
+        isOpen: status,
+        is_open: status,
+        status: status ? 'open' : 'closed',
+        isPaused: false
+      }
+    }));
+
     try {
-      await setDoc(doc(db, 'lotteryTypes', type), { isOpen: status }, { merge: true });
+      const existing = lotterySettings[type] || {};
+      await setDoc(doc(db, 'lotteryTypes', type), {
+        id: type,
+        name: existing.name || type,
+        category: existing.category || 'thai',
+        isOpen: status,
+        is_open: status,
+        status: status ? 'open' : 'closed',
+        isPaused: false,
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
       await logActivity(status ? 'เปิดรับแทง' : 'ปิดรับแทง', `เปลี่ยนสถานะ ${type} เป็น ${status ? 'เปิด' : 'ปิด'}`, 'lottery');
-    } catch (e) { console.error(e); }
+    } catch (e: any) {
+      console.error('toggleLotteryStatus error:', e);
+      // Revert if error
+      setLotterySettings((prev: any) => ({
+        ...prev,
+        [type]: {
+          ...(prev[type] || {}),
+          isOpen: !status,
+          is_open: !status,
+          status: !status ? 'open' : 'closed'
+        }
+      }));
+      alert(`ไม่สามารถเปลี่ยนสถานะ ${type} ได้: ${e?.message || e}`);
+    }
   };
 
   const toggleAllLotteryStatus = async (status: boolean) => {
     if(!window.confirm(`ระบบจะทำการ${status ? 'เปิด' : 'ปิด'}หวยทั้งหมดทุกประเภท คุณต้องการดำเนินการต่อหรือไม่?`)) return;
     try {
       const types = Object.keys(lotterySettings);
-      await Promise.all(types.map(type => 
-        setDoc(doc(db, 'lotteryTypes', type), { isOpen: status }, { merge: true })
-      ));
+      setLotterySettings((prev: any) => {
+        const next = { ...prev };
+        types.forEach(t => {
+          next[t] = {
+            ...(next[t] || {}),
+            isOpen: status,
+            is_open: status,
+            status: status ? 'open' : 'closed',
+            isPaused: false
+          };
+        });
+        return next;
+      });
+      await Promise.all(types.map(type => {
+        const existing = lotterySettings[type] || {};
+        return setDoc(doc(db, 'lotteryTypes', type), {
+          id: type,
+          name: existing.name || type,
+          category: existing.category || 'thai',
+          isOpen: status,
+          is_open: status,
+          status: status ? 'open' : 'closed',
+          isPaused: false,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+      }));
       await logActivity(status ? 'เปิดหวยทั้งหมด' : 'ปิดหวยทั้งหมด', `เปลี่ยนสถานะหวยทุกประเภทเป็น ${status ? 'เปิด' : 'ปิด'}`, 'lottery');
       alert(`ทำรายการ${status ? 'เปิด' : 'ปิด'}หวยทั้งหมดสำเร็จแล้ว!`);
     } catch (e) {
@@ -1160,16 +1243,104 @@ export default function AdminDashboard() {
     } catch (e) { console.error(e); }
   };
 
-  // ★ ลบประเภทหวยที่ไม่ต้องการออกจากระบบ
+  // ★ ลบประเภทหวยที่ไม่ต้องการออกจากระบบ (ลบ 44444 หรือหวยทดสอบ)
   const handleDeleteLottery = async (type: string) => {
     if (!window.confirm(`⚠️ ยืนยันการลบ "${type}" ออกจากระบบหรือไม่?\nข้อมูลรอบและอัตราจ่ายของหวยนี้จะถูกลบออกจากฐานข้อมูลทันที`)) return;
     try {
+      setLotterySettings((prev: any) => {
+        const next = { ...prev };
+        delete next[type];
+        return next;
+      });
       await deleteDoc(doc(db, 'lotteryTypes', type));
+      await supabaseClient.from('lottery_types').delete().or(`id.eq.${type},name.eq.${type}`);
       await logActivity('ลบประเภทหวย', `ลบหวย ${type} ออกจากระบบ`, 'lottery');
-      alert(`ลบ ${type} ออกจากระบบสำเร็จ`);
-    } catch (e) {
-      console.error(e);
-      alert('ไม่สามารถลบประเภทหวยนี้ได้');
+      alert(`ลบ "${type}" ออกจากระบบสำเร็จ!`);
+    } catch (e: any) {
+      console.error('handleDeleteLottery error:', e);
+      alert('ไม่สามารถลบประเภทหวยนี้ได้: ' + (e?.message || e));
+    }
+  };
+
+  // ★ เปิดฟอร์มแก้ไขข้อมูลประเภทหวย (ชื่อ, ธง, หมวดหมู่, อัตราจ่าย)
+  const handleEditLottery = (lottery: any) => {
+    setEditingLottery(lottery);
+    setNewLotteryName(lottery.name || lottery.id || '');
+    setNewLotteryCategory(lottery.category || 'thai');
+    setNewLotteryIsOpen(lottery.isOpen !== undefined ? Boolean(lottery.isOpen) : true);
+    const flag = lottery.flagUrl || lottery.flag_url || (lottery.icon?.startsWith('http') ? lottery.icon : '');
+    setLotteryFormFlagUrl(flag || '');
+    setLotteryFormIcon(lottery.icon && !lottery.icon.startsWith('http') ? lottery.icon : '🎯');
+    setShowAddLotteryModal(true);
+  };
+
+  // ★ เปิดฟอร์มเพิ่มประเภทหวยใหม่
+  const handleOpenAddModal = () => {
+    setEditingLottery(null);
+    setNewLotteryName('');
+    setNewLotteryCategory('thai');
+    setNewLotteryIsOpen(true);
+    setLotteryFormFlagUrl('https://flagcdn.com/w80/th.png');
+    setLotteryFormIcon('🇹🇭');
+    setShowAddLotteryModal(true);
+  };
+
+  // ★ บันทึกข้อมูลหวย (ทั้งสร้างใหม่ และแก้ไขหวยเดิม)
+  const handleSaveLottery = async () => {
+    const trimmed = newLotteryName.trim();
+    if (!trimmed) {
+      alert('กรุณากรอกชื่อประเภทหวย');
+      return;
+    }
+
+    // กฎเหล็กตามคำสั่งผู้ใช้: "ถ้าห้ามเพิ่ม ยี่กี่ ห้ามเพิ่ม ลบออก"
+    if (trimmed.includes('ยี่กี') || trimmed.toLowerCase().includes('yeekee')) {
+      alert('⚠️ ระบบห้ามเพิ่มหวยยี่กี!\n\nหวยจับยี่กีเป็นระบบคำนวณสด 88 รอบต่อวันโดยอัตโนมัติอยู่แล้ว จึงไม่อนุญาตให้เพิ่มเป็นหวยกำหนดเอง');
+      return;
+    }
+
+    const targetId = editingLottery ? (editingLottery.id || editingLottery.name) : trimmed;
+    const finalIcon = lotteryFormFlagUrl ? lotteryFormFlagUrl : (lotteryFormIcon || '🎯');
+
+    const payload: any = {
+      id: targetId,
+      name: trimmed,
+      category: newLotteryCategory,
+      icon: finalIcon,
+      isOpen: newLotteryIsOpen,
+      is_open: newLotteryIsOpen,
+      status: newLotteryIsOpen ? 'open' : 'closed',
+      isHidden: false,
+      is_hidden: false,
+      rates: editingLottery?.rates || defaultRates,
+      updatedAt: new Date().toISOString()
+    };
+    if (lotteryFormFlagUrl) {
+      payload.flagUrl = lotteryFormFlagUrl;
+    }
+
+    try {
+      setLotterySettings((prev: any) => ({
+        ...prev,
+        [targetId]: {
+          ...(prev[targetId] || {}),
+          ...payload
+        }
+      }));
+
+      await setDoc(doc(db, 'lotteryTypes', targetId), payload, { merge: true });
+      await logActivity(
+        editingLottery ? 'แก้ไขประเภทหวย' : 'เพิ่มประเภทหวย',
+        `${editingLottery ? 'แก้ไข' : 'เพิ่ม'} ${trimmed} (${newLotteryCategory})`,
+        'lottery'
+      );
+      setShowAddLotteryModal(false);
+      setEditingLottery(null);
+      setNewLotteryName('');
+      alert(`บันทึกข้อมูล ${trimmed} สำเร็จ!`);
+    } catch (err: any) {
+      console.error('handleSaveLottery error:', err);
+      alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + (err?.message || err));
     }
   };
 
@@ -2614,8 +2785,9 @@ export default function AdminDashboard() {
                 onApplyOnlyThree={applyOnlyThreeLotteries}
                 onUpdateClosingTime={updateLotterySession}
                 onDeleteLottery={handleDeleteLottery}
+                onEditLottery={handleEditLottery}
                 onSyncAllLotteries={syncAllLotteries}
-                onOpenAddModal={() => setShowAddLotteryModal(true)}
+                onOpenAddModal={handleOpenAddModal}
                 onOpenResistance={(type) => {
                   setSelectedResistanceLottery(type);
                   setActiveTab('settings');
@@ -2984,8 +3156,9 @@ export default function AdminDashboard() {
                   onApplyOnlyThree={applyOnlyThreeLotteries}
                   onUpdateClosingTime={updateLotterySession}
                   onDeleteLottery={handleDeleteLottery}
+                  onEditLottery={handleEditLottery}
                   onSyncAllLotteries={syncAllLotteries}
-                  onOpenAddModal={() => setShowAddLotteryModal(true)}
+                  onOpenAddModal={handleOpenAddModal}
                   onOpenResistance={(type) => {
                     setSelectedResistanceLottery(type);
                     setActiveSettingsSubTab('resistance');
@@ -6009,49 +6182,115 @@ export default function AdminDashboard() {
         </div>
       </main>
 
-      {/* Add Lottery Modal */}
+      {/* Add / Edit Lottery Modal */}
       {showAddLotteryModal && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="bg-[var(--navy-deep)] p-4 flex justify-between items-center text-white">
-              <h3 className="font-black flex items-center gap-2">
-                <span className="material-symbols-outlined">add_circle</span>
-                เพิ่มประเภทหวยใหม่
+              <h3 className="font-black flex items-center gap-2 text-sm sm:text-base">
+                <span className="material-symbols-outlined">{editingLottery ? 'edit' : 'add_circle'}</span>
+                <span>{editingLottery ? `แก้ไขประเภทหวย: ${editingLottery.name || editingLottery.id}` : 'เพิ่มประเภทหวยใหม่'}</span>
               </h3>
-              <button onClick={() => setShowAddLotteryModal(false)} className="text-white/50 hover:text-white transition">
+              <button 
+                onClick={() => {
+                  setShowAddLotteryModal(false);
+                  setEditingLottery(null);
+                }} 
+                className="text-white/50 hover:text-white transition"
+              >
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="space-y-2">
+            <div className="p-6 space-y-4 max-h-[85vh] overflow-y-auto">
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">ชื่อประเภทหวย</label>
                 <input 
                   type="text" 
                   value={newLotteryName}
                   onChange={(e) => setNewLotteryName(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition"
+                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition font-bold"
                   placeholder="เช่น หวยลาวประตูชัย, นิเคอิ VIP (เช้า)"
                 />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <label className="text-xs font-bold text-gray-500 uppercase">หมวดหมู่หวย (Category)</label>
                 <select
                   value={newLotteryCategory}
                   onChange={(e) => setNewLotteryCategory(e.target.value as LotteryCategoryKey)}
-                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition text-sm bg-white"
+                  className="w-full border border-gray-200 rounded-xl p-3 outline-none focus:border-[var(--gold-vibrant)] transition text-sm bg-white font-bold"
                 >
-                  <option value="thai">🇹🇭 หวยไทย / ธนาคาร</option>
+                  <option value="thai">🇹🇭 หวยไทย / รัฐบาล / ธนาคาร</option>
                   <option value="foreign">🌏 หวยต่างประเทศ (ลาว/ฮานอย/มาเลย์)</option>
-                  <option value="stock">📈 หวยหุ้น VIP</option>
-                  <option value="yeekee">⏱️ หวยยี่กี 88 รอบ</option>
-                  <option value="set">🎁 หวยชุด</option>
+                  <option value="stock">📈 หวยหุ้น VIP & ตลาด</option>
+                  <option value="set">🎁 หวยชุด 4 ตัว</option>
                   <option value="other">🎯 อื่นๆ / กำหนดเอง</option>
                 </select>
+                <p className="text-[11px] text-slate-400">
+                  *ห้ามเพิ่มหวยยี่กี เนื่องจากยี่กีเป็นระบบคำนวณสด 88 รอบอัตโนมัติของระบบ
+                </p>
+              </div>
+
+              {/* ธงชาติ / รูปภาพไอคอน */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-gray-500 uppercase flex items-center justify-between">
+                  <span>ธงชาติ / รูปภาพประจำหวย</span>
+                  <span className="text-[11px] text-blue-600 font-normal">เลือกดึงภาพสำเร็จรูปหรือใส่ URL</span>
+                </label>
+                
+                {/* ดึงธงสำเร็จรูป */}
+                <select
+                  onChange={(e) => {
+                    const found = PRESET_FLAGS.find(p => p.label === e.target.value);
+                    if (found) {
+                      if (found.url) setLotteryFormFlagUrl(found.url);
+                      if (found.flag) setLotteryFormIcon(found.flag);
+                    }
+                  }}
+                  className="w-full border border-gray-200 rounded-xl p-2.5 outline-none focus:border-[var(--gold-vibrant)] text-xs bg-white font-bold"
+                >
+                  <option value="">-- เลือกธงประเทศสำเร็จรูป (ดึงภาพอัตโนมัติ) --</option>
+                  {PRESET_FLAGS.map(p => (
+                    <option key={p.label} value={p.label}>{p.label}</option>
+                  ))}
+                </select>
+
+                {/* กรอก URL ภาพเอง */}
+                <input 
+                  type="url" 
+                  value={lotteryFormFlagUrl}
+                  onChange={(e) => setLotteryFormFlagUrl(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl p-2.5 outline-none focus:border-[var(--gold-vibrant)] text-xs font-mono"
+                  placeholder="URL รูปภาพ เช่น https://flagcdn.com/w80/la.png"
+                />
+
+                {/* Live Image Preview (ภาพให้ภาพมา) */}
+                <div className="flex items-center gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <div className="w-14 h-9 rounded-lg overflow-hidden border-2 border-amber-400 bg-slate-900 flex items-center justify-center shadow-xs shrink-0">
+                    {lotteryFormFlagUrl ? (
+                      <img
+                        src={lotteryFormFlagUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <span className="text-2xl">{lotteryFormIcon || '🎯'}</span>
+                    )}
+                  </div>
+                  <div className="text-xs">
+                    <div className="font-bold text-slate-800">ตัวอย่างรูปภาพ / ธง</div>
+                    <div className="text-slate-500 text-[11px]">
+                      {lotteryFormFlagUrl ? 'แสดงตามรูปภาพ URL' : `แสดงไอคอน ${lotteryFormIcon || '🎯'}`}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-                <span className="text-xs font-bold text-gray-700">สถานะเริ่มต้น</span>
+                <span className="text-xs font-bold text-gray-700">สถานะการรับแทง</span>
                 <button
                   type="button"
                   onClick={() => setNewLotteryIsOpen(!newLotteryIsOpen)}
@@ -6065,34 +6304,21 @@ export default function AdminDashboard() {
 
               <div className="pt-4 flex gap-3">
                 <button 
-                  onClick={() => setShowAddLotteryModal(false)}
+                  type="button"
+                  onClick={() => {
+                    setShowAddLotteryModal(false);
+                    setEditingLottery(null);
+                  }}
                   className="flex-1 py-3 rounded-xl font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition"
                 >
                   ยกเลิก
                 </button>
                 <button 
-                  onClick={async () => {
-                    const trimmed = newLotteryName.trim();
-                    if (!trimmed) {
-                      alert('กรุณากรอกชื่อประเภทหวย');
-                      return;
-                    }
-                    await setDoc(doc(db, 'lotteryTypes', trimmed), {
-                      id: trimmed,
-                      name: trimmed,
-                      category: newLotteryCategory,
-                      rates: defaultRates,
-                      isOpen: newLotteryIsOpen,
-                      isHidden: false,
-                      updatedAt: new Date().toISOString()
-                    }, { merge: true });
-                    await logActivity('เพิ่มประเภทหวย', `เพิ่ม ${trimmed} (${newLotteryCategory})`, 'lottery');
-                    setShowAddLotteryModal(false);
-                    setNewLotteryName('');
-                  }}
-                  className="flex-1 py-3 rounded-xl font-black text-[var(--navy-deep)] bg-[var(--gold-vibrant)] hover:bg-opacity-90 transition"
+                  type="button"
+                  onClick={handleSaveLottery}
+                  className="flex-1 py-3 rounded-xl font-black text-[var(--navy-deep)] bg-[var(--gold-vibrant)] hover:bg-opacity-90 transition shadow-md active:scale-95"
                 >
-                  บันทึกข้อมูล
+                  {editingLottery ? '💾 บันทึกการแก้ไข' : '➕ บันทึกข้อมูล'}
                 </button>
               </div>
             </div>

@@ -12,6 +12,7 @@ interface Props {
   onApplyOnlyThree?: () => Promise<void>;
   onUpdateClosingTime?: (type: string, timeStr: string) => Promise<void>;
   onDeleteLottery?: (type: string) => Promise<void>;
+  onEditLottery?: (lottery: any) => void;
   onSyncAllLotteries?: () => Promise<void>;
   onOpenAddModal?: () => void;
   onOpenResistance?: (type: string) => void;
@@ -22,6 +23,8 @@ export default function LotteryOpenCloseManager({
   onToggleStatus,
   onApplyOnlyThree,
   onOpenAddModal,
+  onEditLottery,
+  onDeleteLottery,
 }: Props) {
   const [selectedLottery, setSelectedLottery] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -227,16 +230,18 @@ export default function LotteryOpenCloseManager({
           <table className="w-full text-left text-xs admin-table">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-100/80 text-slate-700">
-                <th className="py-3.5 px-4 font-black w-14 text-center">#</th>
-                <th className="py-3.5 px-6 font-black">ชื่อประเภทหวย</th>
+                <th className="py-3.5 px-3 font-black w-10 text-center">#</th>
+                <th className="py-3.5 px-3 font-black w-14 text-center">ธง/ภาพ</th>
+                <th className="py-3.5 px-5 font-black">ชื่อประเภทหวย</th>
                 <th className="py-3.5 px-4 font-black">หมวดหมู่</th>
-                <th className="py-3.5 px-6 font-black text-center w-36">สถานะการรับแทง</th>
+                <th className="py-3.5 px-4 font-black text-center w-32">เปิด-ปิดรับแทง</th>
+                <th className="py-3.5 px-4 font-black text-center w-36">จัดการ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredKeys.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="py-12 text-center text-slate-400 text-xs font-bold bg-slate-50">
+                  <td colSpan={6} className="py-12 text-center text-slate-400 text-xs font-bold bg-slate-50">
                     ไม่พบประเภทหวยตามเงื่อนไขที่เลือก
                   </td>
                 </tr>
@@ -246,6 +251,7 @@ export default function LotteryOpenCloseManager({
                   const isOpen = Boolean(item?.isOpen && !item?.isPaused && item?.status !== 'closed');
                   const catKey = getLotteryCategory(type, item?.category);
                   const catLabel = getCategoryLabel(catKey);
+                  const flagSrc = item?.flagUrl || item?.flag_url || (item?.icon && (String(item.icon).startsWith('http') || String(item.icon).startsWith('/')) ? item.icon : null);
 
                   return (
                     <tr
@@ -253,42 +259,56 @@ export default function LotteryOpenCloseManager({
                       className={`transition ${
                         isOpen
                           ? 'bg-emerald-50/25 hover:bg-emerald-50/50 border-l-4 border-l-emerald-500'
-                          : 'bg-white hover:bg-slate-50 opacity-75 hover:opacity-100'
+                          : 'bg-white hover:bg-slate-50 opacity-80 hover:opacity-100'
                       }`}
                     >
-                      <td className="py-4 px-4 text-center font-bold text-slate-400">{idx + 1}</td>
+                      <td className="py-3.5 px-3 text-center font-bold text-slate-400">{idx + 1}</td>
+
+                      {/* ธง / รูปภาพ */}
+                      <td className="py-3.5 px-3 text-center">
+                        <div className="w-10 h-7 mx-auto rounded-md overflow-hidden border border-slate-300 bg-slate-100 flex items-center justify-center shadow-xs">
+                          {flagSrc ? (
+                            <img
+                              src={flagSrc}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          ) : (
+                            <span className="text-xl">{item?.icon || '🎯'}</span>
+                          )}
+                        </div>
+                      </td>
                       
                       {/* ชื่อประเภทหวย */}
-                      <td className="py-4 px-6 font-black text-slate-900">
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{item?.icon || '🎯'}</span>
-                          <div>
-                            <span className={isOpen ? 'text-slate-900 font-black text-sm flex items-center gap-2' : 'text-slate-500 font-bold text-sm'}>
-                              <span>{type}</span>
-                              {isOpen && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-white font-black shadow-xs animate-pulse">
-                                  🟢 เปิดรับแทง (อันดับบน)
-                                </span>
-                              )}
+                      <td className="py-3.5 px-5 font-black text-slate-900">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={isOpen ? 'text-slate-900 font-black text-sm' : 'text-slate-500 font-bold text-sm'}>
+                            {type}
+                          </span>
+                          {isOpen ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500 text-white font-black shadow-xs animate-pulse">
+                              🟢 เปิดรับแทง (อันดับบน)
                             </span>
-                            {!isOpen && (
-                              <span className="ml-2 text-[9px] px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 font-black">
-                                ปิดรับแทง
-                              </span>
-                            )}
-                          </div>
+                          ) : (
+                            <span className="text-[9px] px-2 py-0.5 rounded-md bg-slate-200 text-slate-600 font-bold">
+                              ปิดรับ
+                            </span>
+                          )}
                         </div>
                       </td>
 
                       {/* หมวดหมู่ */}
-                      <td className="py-4 px-4">
+                      <td className="py-3.5 px-4">
                         <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                           {catLabel}
                         </span>
                       </td>
 
                       {/* สวิตช์เปิด-ปิดสถานะรับแทง */}
-                      <td className="py-4 px-6 text-center">
+                      <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
                           onClick={() => onToggleStatus(type, !isOpen)}
@@ -309,6 +329,34 @@ export default function LotteryOpenCloseManager({
                             ปิดรับ
                           </span>
                         </button>
+                      </td>
+
+                      {/* จัดการ (แก้ไข / ลบ) */}
+                      <td className="py-3.5 px-4 text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {onEditLottery && (
+                            <button
+                              type="button"
+                              onClick={() => onEditLottery({ id: type, name: item?.name || type, ...item })}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 flex items-center gap-1 transition shadow-xs active:scale-95"
+                              title={`แก้ไขชื่อ หมวดหมู่ ธง หรือข้อมูลของ ${type}`}
+                            >
+                              <span className="material-symbols-outlined text-sm">edit</span>
+                              <span>แก้ไข</span>
+                            </button>
+                          )}
+                          {onDeleteLottery && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteLottery(type)}
+                              className="px-2 py-1.5 rounded-lg text-xs font-bold bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 flex items-center gap-0.5 transition shadow-xs active:scale-95"
+                              title={`ลบ "${type}" ออกจากระบบ`}
+                            >
+                              <span className="material-symbols-outlined text-sm">delete</span>
+                              <span>ลบ</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

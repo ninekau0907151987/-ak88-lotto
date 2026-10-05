@@ -365,21 +365,74 @@ export default function LotteryList() {
     }
   }, [now]);
 
+  // ★ รวมหวยมาตรฐาน (BASE_LOTTERIES) เข้ากับหวยที่แอดมินสร้าง/แก้ไขในหลังบ้าน (lotteryConfigs)
+  const allLotteries = useMemo<LotteryItem[]>(() => {
+    const map = new Map<string, LotteryItem>();
+
+    // 1. เพิ่มจาก BASE_LOTTERIES
+    BASE_LOTTERIES.forEach(item => {
+      map.set(item.id, { ...item });
+      if (item.name) map.set(item.name, { ...item });
+    });
+
+    // 2. ผสานจาก lotteryConfigs (Supabase / Firestore)
+    Object.entries(lotteryConfigs).forEach(([key, cfg]) => {
+      if (!cfg || typeof cfg !== 'object') return;
+      const id = String(cfg.id || key);
+      const name = String(cfg.name || key);
+      const rawCat = cfg.category || 'thai';
+      const cat = (['thai', 'foreign', 'yeekee', 'stock', 'set'].includes(rawCat) ? rawCat : 'thai') as LotteryItem['category'];
+      const flag = cfg.flagUrl || cfg.flag_url || (cfg.icon && (String(cfg.icon).startsWith('http') || String(cfg.icon).startsWith('/')) ? cfg.icon : undefined);
+
+      const existing = map.get(id) || map.get(name);
+      if (existing) {
+        existing.name = name;
+        if (flag) existing.flagUrl = flag;
+        if (cfg.path) existing.path = cfg.path;
+        if (cat) existing.category = cat;
+        map.set(existing.id, existing);
+        map.set(existing.name, existing);
+      } else {
+        // หวยใหม่ที่แอดมินเพิ่มผ่านหลังบ้าน (เช่น หวยลาวประตูชัย หรือหวยทดสอบ)
+        let betPath = cfg.path;
+        if (!betPath) {
+          if (cat === 'set') {
+            betPath = `/lottery/set/${encodeURIComponent(id)}`;
+          } else {
+            betPath = `/lottery/bet/${encodeURIComponent(id)}`;
+          }
+        }
+
+        const newItem: LotteryItem = {
+          id,
+          name,
+          category: cat,
+          flagUrl: flag,
+          path: betPath,
+          defaultCloseTime: cfg.openTime || cfg.open_time || cfg.defaultCloseTime || '18:00:00',
+        };
+        map.set(id, newItem);
+        map.set(name, newItem);
+      }
+    });
+
+    return Array.from(new Set(map.values()));
+  }, [lotteryConfigs]);
+
   // คำนวณวันและเวลาปิดรับแทง "YYYY-MM-DD HH:mm:ss" เชื่อมกับข้อมูลหลังบ้าน
   const getClosingInfo = (item: LotteryItem) => {
     const isAllowed = isAllowedOpenLottery(item.name) || isAllowedOpenLottery(item.id);
     const cfg = lotteryConfigs[item.name] || lotteryConfigs[item.id] || null;
     
-    // กฎเหล็ก: ปิดทุกหวย เปิด 3 อย่าง (หวยไทย, หุ้นไทยเช้า, ยี่กี)
-    // หากไม่ใช่ 3 หวยนี้ และไม่ได้ถูกเปิดเจาะจงในระบบ -> ปิดรับแทง 100%
-    const isDbOpen = cfg?.isOpen === true || cfg?.is_open === true;
-    const isDbClosed = cfg?.isOpen === false || cfg?.is_open === false;
+    // สถานะเปิด-ปิดจากฐานข้อมูลหลังบ้าน
+    const isDbOpen = cfg?.isOpen === true || cfg?.is_open === true || cfg?.status === 'open';
+    const isDbClosed = cfg?.isOpen === false || cfg?.is_open === false || cfg?.status === 'closed';
     
+    // ถ้าถูกปิดจากหลังบ้าน หรือถ้าไม่ได้รับอนุญาตและไม่ได้ถูกเปิดเจาะจง
     if (isDbClosed || (!isAllowed && !isDbOpen)) {
-      // คำนวณเวลาแสดงผลอ้างอิง
-      const [h, m, s] = item.defaultCloseTime.split(':').map(Number);
+      const [h, m, s] = (item.defaultCloseTime || '18:00:00').split(':').map(Number);
       const targetDate = new Date(now);
-      targetDate.setHours(h, m, s || 0, 0);
+      targetDate.setHours(h || 18, m || 0, s || 0, 0);
       return {
         dateTimeStr: cfg?.closingTime || cfg?.closeTime || cfg?.close_time 
           ? formatFullDateTime(new Date(cfg.closingTime || cfg.closeTime || cfg.close_time))
@@ -416,11 +469,11 @@ export default function LotteryList() {
       const targetDate = new Date(timeVal);
       if (!isNaN(targetDate.getTime())) {
         const diffMs = targetDate.getTime() - now.getTime();
-        const isOpen = diffMs > 0;
+        const isOpen = isDbOpen && diffMs > 0;
         return {
           dateTimeStr: formatFullDateTime(targetDate),
           isOpen,
-          countdownText: formatCountdown(diffMs),
+          countdownText: isOpen ? formatCountdown(diffMs) : 'ปิดรับแทง',
         };
       }
     }
@@ -457,25 +510,25 @@ export default function LotteryList() {
       const targetDate = calculateWeeklyDraw(now, item.defaultCloseTime, item.drawDays);
       const diffMs = targetDate.getTime() - now.getTime();
       const isTodayDraw = item.drawDays.includes(now.getDay());
-      const isOpen = isAllowed && diffMs > 0 && isTodayDraw;
+      const isOpen = isDbOpen ? true : (isAllowed && diffMs > 0 && isTodayDraw);
       return {
         dateTimeStr: formatFullDateTime(targetDate),
         isOpen,
-        countdownText: isOpen ? formatCountdown(diffMs) : 'ปิดรับแทง',
+        countdownText: isOpen ? (diffMs > 0 ? formatCountdown(diffMs) : 'เปิดรับแทง') : 'ปิดรับแทง',
       };
     }
 
     // 6. กรณีหวยอื่นๆ
-    const [h, m, s] = item.defaultCloseTime.split(':').map(Number);
+    const [h, m, s] = (item.defaultCloseTime || '18:00:00').split(':').map(Number);
     const targetDate = new Date(now);
-    targetDate.setHours(h, m, s || 0, 0);
+    targetDate.setHours(h || 18, m || 0, s || 0, 0);
     const diffMs = targetDate.getTime() - now.getTime();
-    const isOpen = isAllowed && diffMs > 0;
+    const isOpen = isDbOpen ? true : (isAllowed && diffMs > 0);
 
     return {
       dateTimeStr: formatFullDateTime(targetDate),
       isOpen,
-      countdownText: isOpen ? formatCountdown(diffMs) : 'ปิดรับแทง',
+      countdownText: isOpen ? (diffMs > 0 ? formatCountdown(diffMs) : 'เปิดรับแทง') : 'ปิดรับแทง',
     };
   };
 
@@ -564,13 +617,13 @@ export default function LotteryList() {
     return fallback;
   };
 
-  // 🌟 หวยที่เปิดรับแทงขณะนี้ (3 หวยหลัก: หวยรัฐบาลไทย, หุ้นไทยเช้า, หวยยี่กี 88 รอบ)
+  // 🌟 หวยที่เปิดรับแทงขณะนี้ (คำนวณจากทั้ง BASE_LOTTERIES และหวยที่แอดมินเปิดในระบบ)
   const openLotteries = useMemo(() => {
-    return BASE_LOTTERIES.filter(item => {
+    return allLotteries.filter(item => {
       const info = getClosingInfo(item);
       return info.isOpen;
     });
-  }, [now, lotteryConfigs, currentYeekeeRound]);
+  }, [allLotteries, now, lotteryConfigs, currentYeekeeRound]);
 
   // จัดกลุ่มหวยตามหมวดหมู่ (การ์ดกลุ่มที่ 1, 2, 3...)
   const displayedCategories = useMemo(() => {
@@ -580,14 +633,14 @@ export default function LotteryList() {
         title: '🔥 หวยที่กำลังเปิดรับแทงขณะนี้ (เข้าแทงได้ทันที)',
         badge: `${openLotteries.length} รายการ`,
         icon: '🔥',
-        desc: 'เปิดรับแทง 3 หวยหลัก อัตราจ่ายสูงสุด บาทละ 900 ยี่กี 88 รอบ และหุ้นไทยเช้า',
+        desc: 'เปิดรับแทงหวยที่เปิดรับในระบบ อัตราจ่ายสูงสุด บาทละ 900 ยี่กี 88 รอบ และหุ้นไทยเช้า',
         accentBorder: 'border-amber-400 shadow-[0_0_25px_rgba(245,197,24,0.35)]',
         items: openLotteries
       }];
     }
 
     const list = CATEGORY_SECTIONS.map(cat => {
-      const items = BASE_LOTTERIES.filter(item => {
+      const items = allLotteries.filter(item => {
         if (item.category !== cat.id) return false;
         const cfg = lotteryConfigs[item.name] || lotteryConfigs[item.id];
         if (cfg?.is_hidden === true || cfg?.isHidden === true) return false;
@@ -603,7 +656,18 @@ export default function LotteryList() {
       return list.filter(c => c.id === 'thai' || c.id === 'foreign');
     }
     return list.filter(c => c.id === activeTab);
-  }, [activeTab, lotteryConfigs, openLotteries]);
+  }, [activeTab, lotteryConfigs, openLotteries, allLotteries]);
+
+  // หมวดหมู่แท็บนำทางคำนวณสด
+  const navTabs = useMemo(() => [
+    { id: 'open-only' as MainCategoryTab, label: `🔥 เปิดรับแทง (${openLotteries.length})`, badge: String(openLotteries.length), icon: 'local_fire_department' },
+    { id: 'all' as MainCategoryTab, label: 'ทั้งหมด', badge: String(allLotteries.length), icon: 'apps' },
+    { id: 'thai' as MainCategoryTab, label: 'หวยไทย', badge: String(allLotteries.filter(l => l.category === 'thai').length), icon: '🇹🇭' },
+    { id: 'foreign' as MainCategoryTab, label: 'ต่างประเทศ', badge: String(allLotteries.filter(l => l.category === 'foreign').length), icon: '🌏' },
+    { id: 'yeekee' as MainCategoryTab, label: 'ยี่กี 88 รอบ', badge: '88', icon: '⏱️' },
+    { id: 'stock' as MainCategoryTab, label: 'หุ้น VIP', badge: String(allLotteries.filter(l => l.category === 'stock').length), icon: '📈' },
+    { id: 'set' as MainCategoryTab, label: 'หวยชุด', badge: String(allLotteries.filter(l => l.category === 'set').length), icon: '🎁' },
+  ], [openLotteries.length, allLotteries]);
 
   // หัวข้อตามหมวดหมู่ที่เลือก
   const sectionTitle = useMemo(() => {
@@ -795,7 +859,7 @@ export default function LotteryList() {
 
           {/* กลาง: ทางลัดหมวดหมู่ (Quick Shortcut Buttons) */}
           <div className="flex items-center gap-1 overflow-x-auto py-1 max-w-full scrollbar-none">
-            {NAV_TABS.map(tab => {
+            {navTabs.map(tab => {
               const isActive = activeTab === tab.id || (activeTab === 'thai-foreign' && (tab.id === 'thai' || tab.id === 'foreign'));
               return (
                 <button

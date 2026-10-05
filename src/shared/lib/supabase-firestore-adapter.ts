@@ -185,6 +185,58 @@ function toSnake(data: any, table: string): any {
     return outTx;
   }
 
+  // ★ ตาราง lottery_types ใน Supabase
+  if (table === 'lottery_types') {
+    const outLot: Record<string, any> = {};
+    const lotId = data.id || data.name;
+    if (lotId) outLot.id = String(lotId);
+    outLot.name = String(data.name || data.title || lotId || 'หวยทั่วไป');
+    outLot.category = data.category || 'thai';
+    
+    // Store image URL or icon emoji in icon column
+    if (data.flagUrl || data.flag_url) {
+      outLot.icon = String(data.flagUrl || data.flag_url);
+    } else if (data.icon) {
+      outLot.icon = String(data.icon);
+    }
+    
+    if (data.path) outLot.path = String(data.path);
+    
+    // is_open handling
+    if (data.isOpen !== undefined) outLot.is_open = Boolean(data.isOpen);
+    else if (data.is_open !== undefined) outLot.is_open = Boolean(data.is_open);
+    else if (data.status !== undefined) outLot.is_open = data.status === 'open';
+
+    if (data.isHidden !== undefined) outLot.is_hidden = Boolean(data.isHidden);
+    else if (data.is_hidden !== undefined) outLot.is_hidden = Boolean(data.is_hidden);
+
+    const ct = data.closingTime || data.closeTime || data.close_time;
+    if (ct) {
+      try {
+        outLot.close_time = new Date(ct).toISOString();
+      } catch {
+        outLot.close_time = null;
+      }
+    }
+    if (data.openTime || data.open_time) outLot.open_time = String(data.openTime || data.open_time);
+    if (data.bgGradient || data.bg_gradient) outLot.bg_gradient = String(data.bgGradient || data.bg_gradient);
+    
+    if (data.rates && typeof data.rates === 'object') {
+      const ratesCopy = { ...data.rates };
+      if (data.flagUrl || data.flag_url) ratesCopy.flagUrl = data.flagUrl || data.flag_url;
+      outLot.rates = ratesCopy;
+    } else if (data.flagUrl || data.flag_url) {
+      outLot.rates = { flagUrl: data.flagUrl || data.flag_url };
+    }
+    
+    if (data.medianRates || data.median_rates) outLot.median_rates = data.medianRates || data.median_rates;
+    if (data.minBet ?? data.min_bet) outLot.min_bet = Number(data.minBet ?? data.min_bet);
+    if (data.maxBet ?? data.max_bet) outLot.max_bet = Number(data.maxBet ?? data.max_bet);
+    if (data.maxPerTicket ?? data.max_per_ticket) outLot.max_per_ticket = Number(data.maxPerTicket ?? data.max_per_ticket);
+    outLot.updated_at = new Date().toISOString();
+    return outLot;
+  }
+
   for (const [k, v] of Object.entries(data)) {
     if (k === 'isOpen') out.is_open = v;
     else if (k === 'isHidden') out.is_hidden = v;
@@ -255,6 +307,27 @@ function fromSnake(row: any, table: string): any {
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };
+  }
+
+  // ★ ตาราง lottery_types ใน Supabase
+  if (table === 'lottery_types') {
+    const outLot: Record<string, any> = { ...row };
+    outLot.isOpen = row.is_open !== undefined ? Boolean(row.is_open) : true;
+    outLot.isHidden = row.is_hidden !== undefined ? Boolean(row.is_hidden) : false;
+    outLot.closeTime = row.close_time;
+    outLot.closingTime = row.close_time;
+    outLot.openTime = row.open_time;
+    outLot.bgGradient = row.bg_gradient;
+    outLot.medianRates = row.median_rates || {};
+    outLot.minBet = Number(row.min_bet || 1);
+    outLot.maxBet = Number(row.max_bet || 5000);
+    outLot.maxPerTicket = Number(row.max_per_ticket || 50000);
+    if (row.icon && (String(row.icon).startsWith('http') || String(row.icon).startsWith('/'))) {
+      outLot.flagUrl = row.icon;
+    } else if (row.rates && typeof row.rates === 'object' && row.rates.flagUrl) {
+      outLot.flagUrl = row.rates.flagUrl;
+    }
+    return outLot;
   }
 
   const out = { ...row };
@@ -574,8 +647,31 @@ export async function setDoc(
     return;
   }
 
-  const snakeData = toSnake(data, table);
+  // ★ ตารางอื่นๆ (รวม lottery_types): ดึงข้อมูลเดิมมาผสานถ้ามี options.merge
+  let mergedData = data;
+  if (options?.merge) {
+    try {
+      const existing = await getDoc(docRef);
+      if (existing.exists()) {
+        mergedData = { ...existing.data(), ...data };
+      }
+    } catch (e) {
+      console.warn(`[adapter] setDoc merge fetch warning on ${table}/${docRef.id}:`, e);
+    }
+  }
+
+  const snakeData = toSnake(mergedData, table);
   if (!snakeData.id) snakeData.id = docRef.id;
+
+  // สำหรับ lottery_types: name ห้ามเป็น null (Postgres NOT NULL constraint)
+  if (table === 'lottery_types') {
+    if (!snakeData.name) {
+      snakeData.name = mergedData.name || mergedData.title || docRef.id;
+    }
+    if (!snakeData.category) {
+      snakeData.category = mergedData.category || 'thai';
+    }
+  }
 
   const uuidTables = ['transactions', 'ticket_items', 'blocked_numbers', 'permission_logs'];
   if (uuidTables.includes(table)) {
@@ -585,10 +681,14 @@ export async function setDoc(
   }
 
   // แยก bets ออกหากเป็นตาราง tickets
-  const bets = data.bets;
+  const bets = mergedData.bets;
   delete snakeData.bets;
 
-  await supabaseClient.from(table).upsert(snakeData);
+  const { error: upsertErr } = await supabaseClient.from(table).upsert(snakeData);
+  if (upsertErr) {
+    console.error(`[adapter] setDoc error on ${table}:`, upsertErr);
+    throw upsertErr;
+  }
 
   if (table === 'tickets' && Array.isArray(bets) && bets.length > 0) {
     const parentTicketId = snakeData.ticket_id || docRef.id;
@@ -704,6 +804,10 @@ export async function deleteDoc(docRef: DocumentReference): Promise<void> {
   const table = mapCollectionToTable(docRef.collectionName);
   if (table === 'system_settings') {
     await supabaseClient.from('system_settings').delete().or(`id.eq.${docRef.id},key.eq.${docRef.id}`);
+    return;
+  }
+  if (table === 'lottery_types') {
+    await supabaseClient.from('lottery_types').delete().or(`id.eq.${docRef.id},name.eq.${docRef.id}`);
     return;
   }
   await supabaseClient.from(table).delete().eq('id', docRef.id);
