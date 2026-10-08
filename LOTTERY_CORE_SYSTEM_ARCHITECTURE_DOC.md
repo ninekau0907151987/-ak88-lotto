@@ -479,3 +479,77 @@ docker logs -f ak88-lotto-production
 # 4. หยุดการทำงานอย่างปลอดภัย
 docker-compose down
 ```
+
+---
+
+## 10. สถาปัตยกรรมระบบที่รองรับการขยายตัวโดยไม่กระทบส่วนเดิม (Scalability & Extensibility Blueprint)
+
+เพื่อให้ระบบแทงหวยและระบบมอนิเตอร์ความเสี่ยงสามารถขยายตัวได้อย่างต่อเนื่อง โดยไม่มีข้อผิดพลาดถดถอย (Zero Regression) ระบบได้ถูกออกแบบตามหลักการวิศวกรรมซอฟต์แวร์ 4 ประการ ดังนี้:
+
+### 10.1 หลักการ Open-Closed Principle (OCP) ด้วย Data-Driven Master Registry
+- **ไม่ Hardcode เงื่อนไขหวยในโค้ดทั่วไป**: ไม่เขียนคำสั่ง `if (lottery === 'X')` กระจัดกระจายตามหน้าบ้านหรือหลังบ้าน
+- **ศูนย์กลาง Master Registry เดี่ยว (`lotteryRates.ts`)**: รวมข้อมูลอัตราจ่าย 14 ชนิดหลัก, กฎตัวกรอง `isThaiOnly` (หวยไทย 14 ประเภท, หวยอื่นและยี่กี 12 ประเภท), และฟังก์ชัน `getAvailableBetTypesForLottery(lotteryName)` ไว้ที่จุดเดียว
+- **ผลลัพธ์**: เมื่อมีการเพิ่มหวยชนิดใหม่ในอนาคต (เช่น ฮานอยกาชาด หรือ หวยดาวโจนส์รอบพิเศษ) ระบบจะคำนวณอัตราจ่าย ลิมิตความเสี่ยง และฟอร์มหน้าแทงให้โดยอัตโนมัติ โดยไม่ต้องแก้ไข Logic การคำนวณเงินหรือฐานข้อมูล
+
+### 10.2 การแยกสถาปัตยกรรม 3 ชั้นอย่างอิสระ (Decoupled 3-Layer Architecture)
+```mermaid
+flowchart TD
+    subgraph Layer1["1. Data & Realtime Sync Layer"]
+        DB[(Supabase PostgreSQL / Firestore)]
+        Adapter["supabase-firestore-adapter.ts"]
+    end
+
+    subgraph Layer2["2. Core Domain & Business Logic"]
+        MasterConfig["lotteryRates.ts (Master Catalog)"]
+        RiskEngine["Risk Intake Calculator"]
+        DrawScheduler["Round Scheduler & Closing Logic"]
+    end
+
+    subgraph Layer3["3. Presentation Layer"]
+        NeonFrame["<NeonCategoryFrame /> (กรอบนีออน)"]
+        SwipeTabs["<HorizontalSwipeTabs /> (แท็บปัดซ้าย-ขวา)"]
+        MobileGrid["Mobile 2-Col Grid ('ซ้ายขวา ซ้ายขวา')"]
+        RiskTable["5-Column Live Risk Monitor"]
+    end
+
+    DB --> Adapter
+    Adapter --> MasterConfig
+    MasterConfig --> RiskEngine
+    MasterConfig --> DrawScheduler
+    RiskEngine --> RiskTable
+    DrawScheduler --> NeonFrame
+    DrawScheduler --> MobileGrid
+```
+
+1. **Data Layer (ชั้นข้อมูล)**: จัดเก็บ Schema ฟิลด์ `lottery_types`, `bet_rates_config`, `lottery_draws` มี Adapter สองทางรองรับทั้ง Supabase และ Firestore
+2. **Business Engine (ชั้นคำนวณ)**: Pure Functions คำนวณเวลาปิดรับ, กรองประเภท 14 vs 12, คำนวณความเสี่ยงสะสม แยกขาดจาก UI อย่างสิ้นเชิง (สามารถรัน Automated Unit Tests ได้ 100%)
+3. **Presentation Layer (ชั้นแสดงผล)**: คอมโพเนนต์ React รับข้อมูลผ่าน Props และ Hook เท่านั้น การปรับเปลี่ยนธีม กรอบนีออน หรือสีปุ่มไม่มีผลต่อความแม่นยำของการคำนวณเงิน
+
+### 10.3 กลยุทธ์การรับมือความล้มเหลว (Graceful Fallback & Resilient Configuration)
+- หากการเชื่อมต่ออินเทอร์เน็ตหรือฐานข้อมูล Supabase ขัดข้อง ระบบจะ Fallback ดึงค่าเริ่มต้นจาก `BASE_LOTTERIES` และ `DEFAULT_BET_RATES` ทันที ผู้ใช้จะไม่มีวันพบเจอหน้าจอขาว (White Screen of Death)
+
+---
+
+## 11. การออกแบบหน้ากระดานหวยและเลย์เอาต์มือถือ (UI Design System: media_1791498651902_22375f74.png)
+
+### 11.1 กรอบนีออนสีฟ้าเรืองแสง (Glowing Neon Frame)
+- ขอบคอนเทนเนอร์: `border-2 border-cyan-400 rounded-xl sm:rounded-2xl`
+- เอฟเฟกต์แสงเรือง: `shadow-[0_0_24px_rgba(6,182,212,0.65)]`
+- สีพื้นหลัง: สีกรมท่าเข้มเรียบหรู `bg-[#030c2e]`
+
+### 11.2 แถบแท็บทางลัดด้านบนและการปัดบนมือถือ (Perched Swipeable Shortcut Tabs)
+- ตำแหน่ง: วางลอยกึ่งกลางเหนือขอบบนของกรอบนีออนพอดี (`-mb-2.5 z-10 relative flex justify-center`)
+- ตัวเลือก 5 หมวด: `[ไทย-นอก] [มาเลย์] [ยี่กี] [ชุด] [หุ้น]`
+- สีสถานะ: แท็บประจำกรอบเป็นสีแดง (`bg-red-600 text-white`), แท็บอื่นเป็นสีน้ำเงิน (`bg-blue-600 text-white`)
+- พฤติกรรมบนมือถือ: รองรับการเลื่อนปัดซ้าย-ขวาได้อย่างลื่นไหล (`overflow-x-auto scrollbar-none touch-pan-x whitespace-nowrap`) ตอบโจทย์คำสั่ง *"แต้วบนแล้วเลือกซ้ายขวาเลือกประเภท"*
+
+### 11.3 แถบส่วนหัวด้านในกรอบ (Inner Header Bar)
+- **ฝั่งซ้าย**: ปุ่มรีโหลด 🔄 สีน้ำเงินสี่เหลี่ยม (`bg-blue-600 hover:bg-blue-500 text-white w-8 h-8 rounded-md`)
+- **ตรงกลาง**: ชื่อหมวดหมู่ตัวหนังสือสีขาวเด่นชัด พร้อมป้ายสีแดง `มาใหม่` สำหรับหวยมาเลย์
+- **ฝั่งขวา**: ปุ่ม `ย้อนกลับ` สีแดงสดใส (`bg-red-600 hover:bg-red-700 text-white rounded-md`)
+
+### 11.4 เลย์เอาต์การ์ดหวยแบบ 2 คอลัมน์บนมือถือ ("ซ้ายขวา ซ้ายขวา")
+- หน้าจอมือถือ: แสดง 2 คอลัมน์เคียงข้างกัน (`grid-cols-2 gap-2 sm:gap-3.5`) ทำให้เห็นการ์ดคู่เรียงกัน ซ้าย-ขวา ลดความยาวหน้าจอลง 50%
+- หน้าจอคอมพิวเตอร์: แสดง 4 คอลัมน์เคียงข้างกัน (`md:grid-cols-4`) ตรงตามภาพตัวอย่าง 100%
+- การ์ดสีขาวคลาสสิก: ตัวการ์ดสีขาว ด้านซ้ายเป็นธงชาติ/โลโก้ ด้านขวาเป็นชื่อหวย (หวยรัฐบาลไทยมีกล่องแดง, หวยมาเลย์มีกล่องสีกรมท่าและขอบการ์ดส้มเรืองแสง `border-2 border-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.45)]`)
+

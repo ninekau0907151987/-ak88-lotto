@@ -5,12 +5,12 @@ import { db, supabaseClient } from '@/shared/lib/firebase';
 import * as YK from '@/shared/lib/yeekeeEngine';
 import { isAllowedOpenLottery } from '@/shared/lib/lotteryCatalog';
 
-export type MainCategoryTab = 'open-only' | 'all' | 'thai' | 'foreign' | 'yeekee' | 'stock' | 'set' | 'thai-foreign';
+export type MainCategoryTab = 'open-only' | 'all' | 'thai-foreign' | 'malay' | 'yeekee' | 'stock' | 'set' | 'thai' | 'foreign';
 
 interface LotteryItem {
   id: string;
   name: string;
-  category: 'thai' | 'foreign' | 'yeekee' | 'stock' | 'set';
+  category: 'thai' | 'foreign' | 'yeekee' | 'stock' | 'set' | 'malay';
   flagUrl?: string;
   path: string;
   isThaiGov?: boolean;
@@ -21,10 +21,10 @@ interface LotteryItem {
 }
 
 // -------------------------------------------------------------
-// รายการหวยจริงของระบบ AK88 (เชื่อมโยงกับฐานข้อมูล Supabase ไม่มีหวยมาเลย์ 4D)
+// รายการหวยจริงของระบบ AK88 (เชื่อมโยงกับฐานข้อมูล Supabase ตามรูปเรฟ 100%)
 // -------------------------------------------------------------
 const BASE_LOTTERIES: LotteryItem[] = [
-  // --- 1. หวยไทย ---
+  // --- 1. หวยไทยและหวยต่างประเทศ (จัดเรียงตามภาพเรฟเป๊ะ) ---
   {
     id: 'หวยรัฐบาลไทย',
     name: 'หวยรัฐบาลไทย',
@@ -34,6 +34,80 @@ const BASE_LOTTERIES: LotteryItem[] = [
     isThaiGov: true,
     defaultCloseTime: '15:20:00',
     monthlyDays: [1, 16],
+  },
+  {
+    id: 'ฮานอยสตาร์',
+    name: 'ฮานอยสตาร์',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/vn.png',
+    path: '/lottery/hanoi-star',
+    defaultCloseTime: '12:15:00',
+  },
+  {
+    id: 'ลาวสตาร์',
+    name: 'ลาวสตาร์',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/la.png',
+    path: '/lottery/lao-star',
+    defaultCloseTime: '15:45:00',
+  },
+  {
+    id: 'ฮานอยพิเศษ',
+    name: 'ฮานอยพิเศษ',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/vn.png',
+    path: '/lottery/hanoi-special',
+    defaultCloseTime: '17:00:00',
+  },
+  {
+    id: 'หวยมาเลย์',
+    name: 'หวยมาเลย์',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/my.png',
+    path: '/lottery/malay',
+    defaultCloseTime: '18:00:00',
+    drawDays: [0, 3, 6],
+  },
+  {
+    id: 'หวยฮานอย',
+    name: 'หวยฮานอย',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/vn.png',
+    path: '/lottery/hanoi',
+    defaultCloseTime: '18:00:00',
+  },
+  {
+    id: 'ฮานอย(VIP)',
+    name: 'ฮานอย(VIP)',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/vn.png',
+    path: '/lottery/hanoi-vip',
+    defaultCloseTime: '19:00:00',
+  },
+  {
+    id: 'หวยลาว',
+    name: 'หวยลาว',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/la.png',
+    path: '/lottery/lao',
+    defaultCloseTime: '20:00:00',
+    drawDays: [1, 3, 5],
+  },
+  {
+    id: 'ลาวสามัคคี',
+    name: 'ลาวสามัคคี',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/la.png',
+    path: '/lottery/lao-samakkhi',
+    defaultCloseTime: '20:30:00',
+  },
+  {
+    id: 'ฮานอย(4D)',
+    name: 'ฮานอย(4D)',
+    category: 'foreign',
+    flagUrl: 'https://flagcdn.com/w80/vn.png',
+    path: '/lottery/hanoi-4d',
+    defaultCloseTime: '18:00:00',
   },
   {
     id: 'หวยออมสิน',
@@ -53,39 +127,14 @@ const BASE_LOTTERIES: LotteryItem[] = [
     defaultCloseTime: '09:00:00',
     monthlyDays: [16],
   },
-
-  // --- 2. หวยต่างประเทศ ---
   {
-    id: 'หวยฮานอย',
-    name: 'หวยฮานอย',
+    id: 'หวยลาวพัฒนา',
+    name: 'หวยลาวพัฒนา',
     category: 'foreign',
-    flagUrl: 'https://flagcdn.com/w80/vn.png',
-    path: '/lottery/hanoi',
-    defaultCloseTime: '18:00:00',
-  },
-  {
-    id: 'ฮานอยพิเศษ',
-    name: 'ฮานอยพิเศษ',
-    category: 'foreign',
-    flagUrl: 'https://flagcdn.com/w80/vn.png',
-    path: '/lottery/hanoi-special',
-    defaultCloseTime: '17:00:00',
-  },
-  {
-    id: 'ฮานอย(VIP)',
-    name: 'ฮานอย(VIP)',
-    category: 'foreign',
-    flagUrl: 'https://flagcdn.com/w80/vn.png',
-    path: '/lottery/hanoi-vip',
-    defaultCloseTime: '19:00:00',
-  },
-  {
-    id: 'ฮานอยสตาร์',
-    name: 'ฮานอยสตาร์',
-    category: 'foreign',
-    flagUrl: 'https://flagcdn.com/w80/vn.png',
-    path: '/lottery/hanoi-star',
-    defaultCloseTime: '12:15:00',
+    flagUrl: 'https://flagcdn.com/w80/la.png',
+    path: '/lottery/lao',
+    defaultCloseTime: '20:00:00',
+    drawDays: [1, 3, 5],
   },
   {
     id: 'ฮานอยสามัคคี',
@@ -95,33 +144,36 @@ const BASE_LOTTERIES: LotteryItem[] = [
     path: '/lottery/hanoi-samakkhi',
     defaultCloseTime: '17:30:00',
   },
+
+  // --- 2.5 หวยมาเลย์ มาใหม่ 4D ตามรูปเรฟเป๊ะ ---
   {
-    id: 'หวยลาวพัฒนา',
-    name: 'หวยลาวพัฒนา',
-    category: 'foreign',
-    flagUrl: 'https://flagcdn.com/w80/la.png',
-    path: '/lottery/lao',
-    defaultCloseTime: '20:00:00',
-    drawDays: [1, 3, 5], // จันทร์, พุธ, ศุกร์
+    id: 'หวย-MagNum 4D',
+    name: 'หวย-MagNum 4D',
+    category: 'malay',
+    flagUrl: 'https://flagcdn.com/w80/my.png',
+    path: '/lottery/bet/หวย-MagNum%204D',
+    defaultCloseTime: '18:00:00',
+    drawDays: [0, 3, 6],
   },
   {
-    id: 'หวยลาวสตาร์',
-    name: 'หวยลาวสตาร์',
-    category: 'foreign',
-    flagUrl: 'https://flagcdn.com/w80/la.png',
-    path: '/lottery/lao-star',
-    defaultCloseTime: '15:45:00',
+    id: 'หวย Grand Dragon Lotto',
+    name: 'หวย Grand Dragon Lotto',
+    category: 'malay',
+    flagUrl: 'https://flagcdn.com/w80/my.png',
+    path: '/lottery/bet/หวย%20Grand%20Dragon%20Lotto',
+    defaultCloseTime: '18:00:00',
   },
   {
-    id: 'ลาวสามัคคี',
-    name: 'ลาวสามัคคี',
-    category: 'foreign',
-    flagUrl: 'https://flagcdn.com/w80/la.png',
-    path: '/lottery/lao-samakkhi',
-    defaultCloseTime: '20:30:00',
+    id: 'หวย Singapore 4D',
+    name: 'หวย Singapore 4D',
+    category: 'malay',
+    flagUrl: 'https://flagcdn.com/w80/sg.png',
+    path: '/lottery/bet/หวย%20Singapore%204D',
+    defaultCloseTime: '18:00:00',
+    drawDays: [0, 3, 6],
   },
 
-  // --- 3. หวยยี่กี (การ์ดรวม 88 รอบ แสดงในหน้ารวมตามคำสั่งผู้ใช้) ---
+  // --- 3. หวยยี่กี (การ์ดรวม 88 รอบ) ---
   {
     id: 'หวยยี่กี 88 รอบ',
     name: 'หวยยี่กี 88 รอบ',
@@ -202,66 +254,80 @@ const BASE_LOTTERIES: LotteryItem[] = [
 ];
 
 // หมวดหมู่และข้อมูลของแต่ละกลุ่ม (การ์ดกลุ่มที่ 1, 2, 3...)
+// หมวดหมู่และข้อมูลของแต่ละกลุ่มตามรูปเรฟ (การ์ดกลุ่มที่ 1, 2, 3...)
 export interface CategorySection {
-  id: 'thai' | 'foreign' | 'yeekee' | 'stock' | 'set';
+  id: 'thai-foreign' | 'malay' | 'yeekee' | 'stock' | 'set';
   title: string;
   badge: string;
+  subtitleBadge?: string;
   icon: string;
   desc: string;
   accentBorder: string;
+  isMalayOrange?: boolean;
 }
 
 export const CATEGORY_SECTIONS: CategorySection[] = [
   {
-    id: 'thai',
-    title: 'หวยรัฐบาลไทย และ หวยสถาบันการเงิน',
-    badge: '3 รายการ',
+    id: 'thai-foreign',
+    title: 'หวยไทย-นอก',
+    badge: '11 รายการ',
     icon: '🇹🇭',
-    desc: 'หวยรัฐบาลไทย, สลากออมสิน, สลาก ธ.ก.ส. (อัตราจ่ายสูงสุด บาทละ 900)',
-    accentBorder: 'border-red-500/60 shadow-[0_0_20px_rgba(239,68,68,0.25)]',
+    desc: 'หวยรัฐบาลไทย, สลากออมสิน, สลาก ธ.ก.ส., ฮานอย และหวยลาวทุกรอบ',
+    accentBorder: 'border-2 border-cyan-400 shadow-[0_0_22px_rgba(6,182,212,0.6)]',
   },
   {
-    id: 'foreign',
-    title: 'หวยต่างประเทศ (ฮานอย & ลาว)',
-    badge: '8 รายการ',
-    icon: '🌏',
-    desc: 'ฮานอย 5 รายการ, ลาว 3 รายการ (ออกผลทุกวัน / จันทร์ พุธ ศุกร์)',
-    accentBorder: 'border-cyan-400/60 shadow-[0_0_20px_rgba(6,182,212,0.25)]',
+    id: 'malay',
+    title: 'หวยมาเลย์',
+    subtitleBadge: 'มาใหม่',
+    badge: '3 รายการ',
+    icon: '🇲🇾',
+    desc: 'หวย-MagNum 4D, หวย Grand Dragon Lotto, หวย Singapore 4D',
+    accentBorder: 'border-2 border-cyan-400 shadow-[0_0_22px_rgba(6,182,212,0.6)]',
+    isMalayOrange: true,
   },
   {
     id: 'yeekee',
-    title: 'หวยจับยี่กี VIP 88 รอบสด',
+    title: 'หวยจับยี่กี VIP 88 รอบ',
     badge: '88 รอบ/วัน',
     icon: '⏱️',
-    desc: 'ออกผลทุก 15 นาที ตลอด 24 ชม. (06:00 - 03:45 น.) พร้อมระบบยิงเลข 5 หลักฟรี',
-    accentBorder: 'border-amber-400/60 shadow-[0_0_20px_rgba(245,197,24,0.25)]',
+    desc: 'ออกผลทุก 15 นาที ตลอด 24 ชม. พร้อมกระดานยิงเลข 5 หลัก',
+    accentBorder: 'border-2 border-cyan-400 shadow-[0_0_22px_rgba(6,182,212,0.6)]',
+  },
+  {
+    id: 'set',
+    title: 'หวยชุด 4 ตัว',
+    subtitleBadge: '฿120,000',
+    badge: '6 รายการ',
+    icon: '🎁',
+    desc: 'หวยรัฐบาลชุด, ฮานอยชุด, ลาวพัฒนาชุด ลุ้นรางวัลใหญ่',
+    accentBorder: 'border-2 border-cyan-400 shadow-[0_0_22px_rgba(6,182,212,0.6)]',
   },
   {
     id: 'stock',
     title: 'หวยหุ้น VIP & ตลาดรอบวัน',
-    badge: '12 รายการ',
+    badge: '13 รายการ',
     icon: '📈',
-    desc: 'นิเคอิ VIP เช้า/บ่าย, จีน VIP, ฮั่งเส็ง VIP, ไต้หวัน, เกาหลี, สิงคโปร์, ไทยปิดเย็น, ดาวน์โจนส์, ยุโรป',
-    accentBorder: 'border-blue-500/60 shadow-[0_0_20px_rgba(59,130,246,0.25)]',
+    desc: 'นิเคอิ VIP, จีน VIP, ฮั่งเส็ง VIP, ไต้หวัน, เกาหลี, หุ้นไทย, ดาวน์โจนส์',
+    accentBorder: 'border-2 border-cyan-400 shadow-[0_0_22px_rgba(6,182,212,0.6)]',
   },
-  {
-    id: 'set',
-    title: 'หวยชุด 4 ตัว (ลุ้นรางวัลสูงสุด ฿120,000)',
-    badge: '6 รายการ',
-    icon: '🎁',
-    desc: 'หวยรัฐบาลชุด, ฮานอยชุด, ฮานอยพิเศษชุด, ฮานอย VIP ชุด, ลาวพัฒนาชุด, ลาวสตาร์ชุด',
-    accentBorder: 'border-purple-500/60 shadow-[0_0_20px_rgba(168,85,247,0.25)]',
-  },
+];
+
+// แถบแท็บทางลัด 5 ตัวเลือกตรงตามรูปเรฟเป๊ะ
+export const FRAME_SHORTCUT_TABS: { id: 'thai-foreign' | 'malay' | 'yeekee' | 'set' | 'stock'; label: string }[] = [
+  { id: 'thai-foreign', label: 'ไทย-นอก' },
+  { id: 'malay', label: 'มาเลย์' },
+  { id: 'yeekee', label: 'ยี่กี' },
+  { id: 'set', label: 'ชุด' },
+  { id: 'stock', label: 'หุ้น' },
 ];
 
 // หมวดหมู่แท็บนำทางและทางลัดด้านบน
 const NAV_TABS: { id: MainCategoryTab; label: string; badge?: string; icon?: string }[] = [
-  { id: 'open-only', label: '🔥 เปิดรับแทง (3)', badge: '3', icon: 'local_fire_department' },
-  { id: 'all', label: 'ทั้งหมด', badge: '30', icon: 'apps' },
-  { id: 'thai', label: 'หวยไทย', badge: '3', icon: '🇹🇭' },
-  { id: 'foreign', label: 'ต่างประเทศ', badge: '8', icon: '🌏' },
+  { id: 'all', label: 'ทั้งหมด', badge: '33', icon: 'apps' },
+  { id: 'thai-foreign', label: 'ไทย-นอก', badge: '11', icon: '🇹🇭' },
+  { id: 'malay', label: 'มาเลย์ (มาใหม่)', badge: '3', icon: '🇲🇾' },
   { id: 'yeekee', label: 'ยี่กี 88 รอบ', badge: '88', icon: '⏱️' },
-  { id: 'stock', label: 'หุ้น VIP', badge: '12', icon: '📈' },
+  { id: 'stock', label: 'หุ้น VIP', badge: '13', icon: '📈' },
   { id: 'set', label: 'หวยชุด', badge: '6', icon: '🎁' },
 ];
 
@@ -642,7 +708,10 @@ export default function LotteryList() {
 
     const list = CATEGORY_SECTIONS.map(cat => {
       const items = allLotteries.filter(item => {
-        if (item.category !== cat.id) return false;
+        const matchesCategory = cat.id === 'thai-foreign'
+          ? (item.category === 'thai' || item.category === 'foreign')
+          : item.category === cat.id;
+        if (!matchesCategory) return false;
         const cfg = lotteryConfigs[item.name] || lotteryConfigs[item.id];
         if (cfg?.is_hidden === true || cfg?.isHidden === true) return false;
         return true;
@@ -654,352 +723,189 @@ export default function LotteryList() {
       return list;
     }
     if (activeTab === 'thai-foreign') {
-      return list.filter(c => c.id === 'thai' || c.id === 'foreign');
+      return list.filter(c => c.id === 'thai-foreign');
     }
     return list.filter(c => c.id === activeTab);
   }, [activeTab, lotteryConfigs, openLotteries, allLotteries]);
 
-  // หมวดหมู่แท็บนำทางคำนวณสด
-  const navTabs = useMemo(() => [
-    { id: 'open-only' as MainCategoryTab, label: `🔥 เปิดรับแทง (${openLotteries.length})`, badge: String(openLotteries.length), icon: 'local_fire_department' },
-    { id: 'all' as MainCategoryTab, label: 'ทั้งหมด', badge: String(allLotteries.length), icon: 'apps' },
-    { id: 'thai' as MainCategoryTab, label: 'หวยไทย', badge: String(allLotteries.filter(l => l.category === 'thai').length), icon: '🇹🇭' },
-    { id: 'foreign' as MainCategoryTab, label: 'ต่างประเทศ', badge: String(allLotteries.filter(l => l.category === 'foreign').length), icon: '🌏' },
-    { id: 'yeekee' as MainCategoryTab, label: 'ยี่กี 88 รอบ', badge: '88', icon: '⏱️' },
-    { id: 'stock' as MainCategoryTab, label: 'หุ้น VIP', badge: String(allLotteries.filter(l => l.category === 'stock').length), icon: '📈' },
-    { id: 'set' as MainCategoryTab, label: 'หวยชุด', badge: String(allLotteries.filter(l => l.category === 'set').length), icon: '🎁' },
-  ], [openLotteries.length, allLotteries]);
-
-  // หัวข้อตามหมวดหมู่ที่เลือก
-  const sectionTitle = useMemo(() => {
-    switch (activeTab) {
-      case 'open-only':
-        return '🔥 หวยที่กำลังเปิดรับแทงขณะนี้ (3 รายการ)';
-      case 'thai':
-        return '🇹🇭 หวยรัฐบาลไทย และ หวยสถาบันการเงิน';
-      case 'foreign':
-        return '🌏 หวยต่างประเทศ (ฮานอย / ลาว)';
-      case 'yeekee':
-        return '⏱️ หวยจับยี่กี VIP 88 รอบสด';
-      case 'stock':
-        return '📈 หวยหุ้น VIP & ตลาดหุ้นรอบวัน';
-      case 'set':
-        return '🎁 หวยชุด 4 ตัว (ลุ้นรางวัลสูงสุด ฿120,000)';
-      case 'thai-foreign':
-        return 'หวยรัฐบาล และ หวยต่างประเทศ';
-      default:
-        return 'ศูนย์รวมแทงหวยออนไลน์ทุกประเภท';
+  // ทางลัดเปลี่ยนหมวดหมู่/เลื่อนไปหากลุ่มที่ต้องการ
+  const handleShortcutClick = (tabId: string) => {
+    if (tabId === 'yeekee') {
+      navigate('/lottery/yeekee');
+      return;
     }
-  }, [activeTab]);
-
-  // ป้ายอัตราจ่ายดึงดูดใจ
-  const getPayoutBadge = (item: LotteryItem) => {
-    if (item.category === 'set') return '🎁 รางวัลชุด ฿120,000';
-    if (item.isThaiGov) return '💰 3ตัว ฿900 | 2ตัว ฿92';
-    if (item.isYeekee) return '⚡ 3ตัว ฿900 | 88 รอบ/วัน';
-    if (item.category === 'stock') return '📈 3ตัว ฿850 | 2ตัว ฿92';
-    return '💰 3ตัว ฿900 | 2ตัว ฿92';
+    if (activeTab !== 'all') {
+      setActiveTab('all');
+      setSearchParams({});
+    }
+    setTimeout(() => {
+      const el = document.getElementById(`group-${tabId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
   };
 
-  // เรนเดอร์การ์ดหวย: เปิดรับแทง = สีทอง/มรกตดึงดูดใจน่าแทง, ปิดรับแทง = มืดเรียบกุญแจล็อค
-  const renderLotteryCard = (item: LotteryItem, isHero: boolean = false) => {
+  // เรนเดอร์การ์ดหวยตามแบบเรฟในภาพ 100%:
+  // - การ์ดสีขาว คลาสสิก สะอาดตา
+  // - ส่วนหัว: ธงชาติ/โลโก้ทางซ้าย, ป้ายชื่อหวยทางขวา
+  // - ตัวการ์ดกลาง: วันและเวลา
+  // - ท้ายการ์ด: แถบสถานะ ปิดรับแทง / เปิดรับแทง
+  // - หมวดมาเลย์: ขอบการ์ดสีส้มเรืองแสงตามรูปเรฟ
+  const renderLotteryCard = (item: LotteryItem, isMalayOrange: boolean = false) => {
     const info = getClosingInfo(item);
+    const isMalayCard = isMalayOrange || item.category === 'malay';
 
-    if (info.isOpen) {
-      // 🌟 สไตล์การ์ดหวยที่เปิดรับแทง: สีสันสดใส น่าดึงดูด น่าแทง มีแสงสีทอง/มรกต อัตราจ่าย และปุ่มกดแทงชัดเจน
-      return (
-        <Link
-          key={item.id}
-          to={item.path}
-          className={`relative rounded-2xl overflow-hidden flex flex-col transition-all duration-200 group border-2 ${
-            isHero
-              ? 'border-amber-400 bg-gradient-to-b from-[#142654] via-[#0d1c42] to-[#07112b] shadow-[0_0_25px_rgba(245,197,24,0.3)] hover:shadow-[0_0_35px_rgba(245,197,24,0.5)] hover:scale-[1.03]'
-              : 'border-amber-400/80 bg-gradient-to-b from-[#102046] via-[#0b1735] to-[#060e22] shadow-[0_0_20px_rgba(245,197,24,0.2)] hover:shadow-[0_0_30px_rgba(245,197,24,0.4)] hover:scale-[1.02]'
-          }`}
-        >
-          {/* Header แถบหัวการ์ด: สีสันระดับพรีเมียม */}
-          <div className="px-3.5 py-2.5 flex items-center justify-between bg-gradient-to-r from-red-600 via-rose-600 to-amber-600 text-white border-b border-amber-400/30">
-            {/* ฝั่งซ้าย: ธงหรือไอคอนพร้อมขอบทอง */}
-            <div className="flex items-center gap-2 shrink-0">
-              {item.flagUrl ? (
-                <img
-                  src={item.flagUrl}
-                  alt=""
-                  className="w-7 h-5 object-cover rounded shadow-md border-2 border-amber-300"
-                />
-              ) : (
-                <span className="text-lg">🎯</span>
-              )}
-              <span className="bg-emerald-500/90 text-slate-950 font-black text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
-                เปิดรับแทง
-              </span>
-            </div>
-
-            {/* ฝั่งขวา: ชื่อหวย */}
-            <div className="font-black text-sm sm:text-base text-right text-white tracking-wide drop-shadow-sm truncate pl-2">
-              {item.name}
-            </div>
-          </div>
-
-          {/* Card Body: อัตราจ่าย วันเวลาปิด และเวลานับถอยหลัง */}
-          <div className="p-3.5 flex flex-col justify-between flex-1 space-y-2.5">
-            {/* แถบไฮไลท์อัตราจ่าย ฿900 */}
-            <div className="bg-gradient-to-r from-amber-500/20 via-yellow-400/30 to-amber-500/20 border border-amber-400/60 rounded-xl px-2.5 py-1 text-center font-black text-amber-300 text-xs shadow-inner flex items-center justify-center gap-1">
-              <span>{getPayoutBadge(item)}</span>
-            </div>
-
-            {/* วันเวลาปิดรับแทง */}
-            <div className="text-center">
-              <div className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
-                ปิดรับแทงงวดนี้
-              </div>
-              <div className="text-xs font-mono font-bold text-slate-200 mt-0.5 truncate">
-                {info.dateTimeStr}
-              </div>
-            </div>
-
-            {/* กล่องนับเวลาถอยหลัง (วัน ชั่วโมง นาที วินาที) กล่องสีมรกตเปล่งประกาย */}
-            <div className="bg-gradient-to-r from-emerald-950/90 via-teal-950/90 to-emerald-950/90 border border-emerald-400/70 rounded-xl py-2 px-2.5 text-center shadow-[0_0_15px_rgba(16,185,129,0.25)]">
-              <div className="text-[10px] text-emerald-400 font-bold flex items-center justify-center gap-1 mb-0.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                เวลาที่เหลือในการแทง
-              </div>
-              <div className="text-xs sm:text-sm font-black font-mono text-emerald-300 tracking-wide">
-                {info.countdownText}
-              </div>
-            </div>
-
-            {/* ปุ่มกดเข้าแทงหวยสีทองดึงดูดใจ */}
-            <div className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-amber-500/30 flex items-center justify-center gap-1.5 transition-all group-hover:shadow-amber-400/50 group-hover:scale-[1.02] active:scale-95">
-              <span>🎯 กดเข้าแทงหวย</span>
-              <span className="material-symbols-outlined text-base font-bold">arrow_forward</span>
-            </div>
-          </div>
-        </Link>
-      );
-    }
-
-    // 🔒 สไตล์การ์ดหวยที่ปิดรับแทง: โทนมืดเรียบ สงบ มีกุญแจล็อค
     return (
-      <div
+      <Link
         key={item.id}
-        className="rounded-2xl overflow-hidden border border-slate-700/50 bg-[#09112a]/70 opacity-60 hover:opacity-80 transition-all flex flex-col"
+        to={item.path}
+        className={`rounded-lg overflow-hidden flex flex-col justify-between transition-all duration-150 group shadow-sm text-slate-800 ${
+          isMalayCard
+            ? 'border-2 border-orange-500 bg-white shadow-[0_0_12px_rgba(249,115,22,0.45)] hover:shadow-[0_0_18px_rgba(249,115,22,0.65)] hover:scale-[1.01]'
+            : 'border border-slate-200 bg-white hover:border-cyan-400 hover:shadow-md hover:scale-[1.01]'
+        }`}
       >
-        {/* ส่วนหัวการ์ดหวยปิด */}
-        <div className="px-3.5 py-2 flex items-center justify-between bg-slate-800/80 text-slate-300 border-b border-slate-700/60">
-          <div className="flex items-center gap-1.5 shrink-0 grayscale">
-            {item.flagUrl ? (
+        {/* Header แถวบน: ด้านซ้ายธงชาติ/โลโก้, ด้านขวาป้ายชื่อหวย */}
+        <div className={`px-2 py-1.5 flex items-center justify-between gap-1.5 border-b border-slate-100 ${isMalayCard ? 'bg-slate-50' : 'bg-white'}`}>
+          {/* ฝั่งซ้าย: ธง หรือ โลโก้ */}
+          <div className="shrink-0 flex items-center">
+            {item.id === 'หวย-MagNum 4D' ? (
+              <div className="w-7 h-5 sm:w-8 sm:h-5 bg-black rounded flex items-center justify-center border border-amber-400 font-black text-amber-400 text-[10px] tracking-tighter shadow-sm">
+                M
+              </div>
+            ) : item.id === 'หวย Grand Dragon Lotto' ? (
+              <div className="w-7 h-5 sm:w-8 sm:h-5 bg-red-700 rounded flex items-center justify-center border border-amber-400 font-black text-amber-300 text-[9px] shadow-sm">
+                GD
+              </div>
+            ) : item.id === 'หวย Singapore 4D' ? (
+              <div className="w-7 h-5 sm:w-8 sm:h-5 bg-blue-700 rounded flex items-center justify-center border border-cyan-300 font-black text-white text-[9px] shadow-sm">
+                SG
+              </div>
+            ) : item.flagUrl ? (
               <img
                 src={item.flagUrl}
                 alt=""
-                className="w-6 h-4 object-cover rounded border border-slate-600 opacity-60"
+                className="w-6 h-4 sm:w-7 sm:h-5 object-cover rounded shadow-sm border border-slate-200"
               />
             ) : (
-              <span className="text-sm">🎯</span>
+              <span className="text-base">🎯</span>
             )}
           </div>
-          <div className="font-bold text-xs sm:text-sm text-right text-slate-400 truncate pl-2">
-            {item.name}
+
+          {/* ฝั่งขวา: ชื่อหวย */}
+          <div className="text-right truncate flex justify-end">
+            {item.isThaiGov ? (
+              <span className="bg-red-600 text-white font-black text-[10px] sm:text-xs px-2 py-0.5 rounded shadow-sm tracking-tight truncate">
+                {item.name}
+              </span>
+            ) : isMalayCard ? (
+              <span className="bg-[#0b1b4f] text-white font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded shadow-sm tracking-tight truncate">
+                {item.name}
+              </span>
+            ) : (
+              <span className="text-slate-800 font-bold text-[11px] sm:text-xs tracking-tight truncate">
+                {item.name}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* ตัวการ์ดหวยปิด */}
-        <div className="p-3 text-center flex flex-col justify-between flex-1 space-y-2">
-          <div className="text-[11px] font-mono text-slate-500 truncate">
+        {/* ตัวการ์ดกลาง: วันและเวลา */}
+        <div className="py-2.5 px-1 text-center bg-white flex flex-col justify-center items-center">
+          <div className="text-[10px] sm:text-[11px] font-mono text-slate-600 tracking-tight truncate">
             {info.dateTimeStr}
           </div>
-          <div className="py-2 px-2 rounded-xl bg-slate-800/50 border border-slate-700/50 text-slate-400 text-xs font-bold flex items-center justify-center gap-1.5">
-            <span className="material-symbols-outlined text-sm">lock</span>
-            <span>ปิดรับแทงชั่วคราว</span>
-          </div>
         </div>
-      </div>
+
+        {/* ท้ายการ์ด: สถานะ ปิดรับแทง / เปิดรับแทง */}
+        <div className="border-t border-slate-100">
+          {info.isOpen ? (
+            <div className="bg-emerald-600 text-white font-bold text-[10px] sm:text-xs py-1 px-1 text-center flex items-center justify-center gap-1 shadow-inner">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+              <span>เปิดรับ ({info.countdownText})</span>
+            </div>
+          ) : (
+            <div className="bg-slate-100 text-slate-600 font-bold text-[10px] sm:text-xs py-1 px-1 text-center">
+              ปิดรับแทง
+            </div>
+          )}
+        </div>
+      </Link>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#060c2b] via-[#09123f] to-[#04081c] text-white pb-24 px-3 sm:px-6 pt-3 font-sans">
+    <div className="min-h-screen bg-gradient-to-b from-[#060c2b] via-[#09123f] to-[#04081c] text-white pb-24 px-2 sm:px-4 md:px-6 pt-4 font-sans">
       
       {/* Container หลัก: จำกัดความกว้าง */}
-      <div className="max-w-6xl mx-auto space-y-5">
+      <div className="max-w-6xl mx-auto space-y-8">
 
-        {/* แถบหัวกระดานหลัก + ทางลัดหมวดหมู่ (Sticky Shortcut Navigation Bar) */}
-        <div className="sticky top-2 z-30 bg-[#060c2b]/95 backdrop-blur-md border border-cyan-500/30 rounded-2xl p-2.5 sm:p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.5)] flex items-center justify-between gap-2.5 flex-wrap">
-          
-          {/* ซ้าย: ปุ่มรีโหลด 🔄 & ชื่อหัวข้อ */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={handleReload}
-              className="bg-blue-600 hover:bg-blue-500 text-white w-9 h-9 rounded-xl flex items-center justify-center shadow transition active:scale-95 shrink-0"
-              title="รีโหลดสถานะรอบ"
-            >
-              <span className="material-symbols-outlined text-lg">sync</span>
-            </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-white font-black text-sm sm:text-base md:text-lg tracking-wide leading-tight">
-                  {sectionTitle}
-                </h2>
-                {activeTab !== 'all' && (
-                  <button
-                    onClick={() => handleTabChange('all')}
-                    className="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full hover:bg-amber-300 transition"
-                  >
-                    ดูทุกหมวด
-                  </button>
-                )}
+        {/* รายการกล่องหวยตามหมวดหมู่ พร้อมกรอบนีออนฟ้าเรืองแสง และแท็บทางลัดด้านบน */}
+        {displayedCategories.map((group) => (
+          <div key={group.id} id={`group-${group.id}`} className="space-y-0">
+            
+            {/* แถบแท็บทางลัด 5 ตัวเลือก เหนือกรอบนีออน (ตรงตามรูปเรฟเป๊ะ) */}
+            <div className="flex justify-center -mb-2.5 z-10 relative">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none px-2 py-0.5 touch-pan-x">
+                {FRAME_SHORTCUT_TABS.map(tab => {
+                  const isActive = (group.id === tab.id);
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => handleShortcutClick(tab.id)}
+                      className={`text-xs font-bold px-3 sm:px-3.5 py-1 rounded-t-md transition shadow active:scale-95 whitespace-nowrap ${
+                        isActive
+                          ? 'bg-red-600 text-white shadow-md'
+                          : 'bg-blue-600 hover:bg-blue-500 text-white'
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
               </div>
-              <p className="text-[10px] sm:text-xs text-cyan-300">
-                {activeTab === 'all' 
-                  ? 'แสดงหวยแยกตามการ์ดกลุ่ม (สไลด์ลงมาเพื่อดูกลุ่มถัดไป)' 
-                  : `กำลังแสดงเฉพาะหมวด: ${sectionTitle}`}
-              </p>
             </div>
-          </div>
 
-          {/* กลาง: ทางลัดหมวดหมู่ (Quick Shortcut Buttons) */}
-          <div className="flex items-center gap-1 overflow-x-auto py-1 max-w-full scrollbar-none">
-            {navTabs.map(tab => {
-              const isActive = activeTab === tab.id || (activeTab === 'thai-foreign' && (tab.id === 'thai' || tab.id === 'foreign'));
-              return (
+            {/* กรอบนีออนฟ้าเรืองแสง คมชัด สไตล์ AK88 */}
+            <div className="border-2 border-cyan-400 rounded-xl sm:rounded-2xl shadow-[0_0_24px_rgba(6,182,212,0.65)] bg-[#030c2e] p-3 sm:p-5 relative transition-all space-y-3.5 sm:space-y-4">
+              
+              {/* แถบหัวด้านใน: ซ้าย 🔄, กลาง ชื่อกลุ่ม (+ ป้ายแดงถ้ามี), ขวา ย้อนกลับ */}
+              <div className="flex items-center justify-between pb-1 gap-2">
+                {/* ซ้าย: ปุ่ม 🔄 รีโหลด */}
                 <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`font-black text-xs px-3 sm:px-4 py-1.5 rounded-xl transition shadow flex items-center gap-1.5 whitespace-nowrap active:scale-95 ${
-                    isActive
-                      ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white border border-red-500 shadow-md shadow-red-600/30'
-                      : 'bg-[#0a192f] hover:bg-[#0f2744] text-slate-300 border border-cyan-500/30'
-                  }`}
+                  type="button"
+                  onClick={handleReload}
+                  className="bg-blue-600 hover:bg-blue-500 text-white w-8 h-8 rounded-md flex items-center justify-center shadow transition active:scale-95 shrink-0"
+                  title="รีโหลดสถานะ"
                 >
-                  {tab.icon && <span className="text-sm">{tab.icon}</span>}
-                  <span>{tab.label}</span>
-                  {tab.badge && (
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                      isActive ? 'bg-white text-red-600' : 'bg-white/10 text-slate-300'
-                    }`}>
-                      {tab.badge}
-                    </span>
-                  )}
+                  <span className="material-symbols-outlined text-lg">sync</span>
                 </button>
-              );
-            })}
-          </div>
 
-          {/* ขวา: ปุ่มย้อนกลับ */}
-          <button
-            onClick={() => navigate('/')}
-            className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm px-4 py-2 rounded-xl shadow transition active:scale-95 shrink-0"
-          >
-            ย้อนกลับ
-          </button>
-        </div>
-
-        {/* ------------------------------------------------------------------- */}
-        {/* 🌟 HERO SHOWCASE: 3 หวยที่กำลังเปิดรับแทงขณะนี้ (เข้าแทงได้ทันที) 🌟 */}
-        {/* ------------------------------------------------------------------- */}
-        {activeTab === 'all' && openLotteries.length > 0 && (
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#1a0f2e]/90 via-[#0e173a]/95 to-[#1a1408]/90 border-2 border-amber-400 p-4 sm:p-5 shadow-[0_0_35px_rgba(245,197,24,0.3)] space-y-4">
-            {/* Header banner */}
-            <div className="flex items-center justify-between flex-wrap gap-2.5 border-b border-amber-400/30 pb-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-red-500 flex items-center justify-center text-xl shadow-lg shadow-amber-500/30">
-                  🔥
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-white font-black text-base sm:text-lg md:text-xl tracking-wide flex items-center gap-2">
-                      3 หวยยอดนิยมที่กำลังเปิดรับแทงขณะนี้
-                    </h3>
-                    <span className="bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 text-white text-[11px] font-black px-2.5 py-0.5 rounded-full shadow-md animate-pulse">
-                      เปิดสด {openLotteries.length} หวย
-                    </span>
-                  </div>
-                  <p className="text-amber-200/80 text-xs mt-0.5">
-                    อัตราจ่ายสูงสุด บาทละ 900 • เข้าแทงได้ทันที ไม่ต้องค้นหา
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1.5 bg-emerald-950/80 border border-emerald-500/50 px-3 py-1 rounded-xl shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                  ระบบเปิดรับปกติ 100%
-                </span>
-              </div>
-            </div>
-
-            {/* Grid 3 หวยเปิดรับแทงเคียงข้างกัน */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 pt-1">
-              {openLotteries.map(item => renderLotteryCard(item, true))}
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------------- */}
-        {/* รายการการ์ดกลุ่มหวย เรียงตามลำดับ (การ์ดที่ 1, สไลด์ลงมาเป็นการ์ดที่ 2, 3...) */}
-        {/* ------------------------------------------------------------------- */}
-        <div className="space-y-6">
-          {displayedCategories.map((group, groupIndex) => (
-            <div
-              key={group.id}
-              id={`group-${group.id}`}
-              className={`border-2 rounded-2xl bg-[#08103a]/95 p-3.5 sm:p-5 transition-all space-y-4 ${group.accentBorder}`}
-            >
-              {/* ส่วนหัวการ์ดกลุ่ม: มีหมายเลขกลุ่ม ไอคอน ชื่อกลุ่ม จำนวน และทางลัด */}
-              <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3 gap-2 flex-wrap">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center font-black text-xs text-amber-300 shadow-inner">
-                    #{groupIndex + 1}
-                  </div>
-                  <span className="text-2xl sm:text-3xl">{group.icon}</span>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-white font-black text-base sm:text-lg md:text-xl tracking-wide">
-                        {group.title}
-                      </h3>
-                      <span className="bg-amber-400 text-slate-950 text-[10px] sm:text-xs font-black px-2.5 py-0.5 rounded-full shadow-sm">
-                        {group.badge}
+                {/* กลาง: ชื่อกลุ่ม */}
+                <div className="flex items-center justify-center gap-2">
+                  <h3 className="text-white font-black text-base sm:text-lg md:text-xl tracking-wide flex items-center">
+                    {group.title}
+                    {group.subtitleBadge && (
+                      <span className="bg-red-600 text-white font-black text-[11px] sm:text-xs px-2 py-0.5 rounded shadow ml-2">
+                        {group.subtitleBadge}
                       </span>
-                    </div>
-                    <p className="text-slate-400 text-xs mt-0.5 hidden xs:block">
-                      {group.desc}
-                    </p>
-                  </div>
+                    )}
+                  </h3>
                 </div>
 
-                {/* ทางลัดตรงหัวการ์ดกลุ่ม */}
-                <div className="flex items-center gap-2">
-                  {group.id === 'yeekee' ? (
-                    <button
-                      onClick={() => navigate('/lottery/yeekee')}
-                      className="bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-slate-950 font-black text-xs sm:text-sm px-4 py-2 rounded-xl shadow-lg transition active:scale-95 flex items-center gap-1.5"
-                    >
-                      <span className="material-symbols-outlined text-base">schedule</span>
-                      <span>เปิดกระดาน 88 รอบสด ↗</span>
-                    </button>
-                  ) : activeTab === 'all' ? (
-                    <button
-                      onClick={() => handleTabChange(group.id)}
-                      className="text-xs text-cyan-300 hover:text-white bg-blue-600/30 hover:bg-blue-600/60 border border-cyan-400/40 px-3 py-1.5 rounded-xl transition active:scale-95 flex items-center gap-1 font-bold shadow-sm"
-                      title={`ดูเฉพาะ ${group.title}`}
-                    >
-                      <span>ดูเฉพาะกลุ่มนี้</span>
-                      <span className="material-symbols-outlined text-xs">arrow_forward</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleTabChange('all')}
-                      className="text-xs text-amber-300 hover:text-white bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 px-3 py-1.5 rounded-xl transition active:scale-95 flex items-center gap-1 font-bold shadow-sm"
-                    >
-                      <span className="material-symbols-outlined text-xs">grid_view</span>
-                      <span>แสดงทุกกลุ่ม (ทั้งหมด)</span>
-                    </button>
-                  )}
-                </div>
+                {/* ขวา: ปุ่ม ย้อนกลับ สีแดง */}
+                <button
+                  type="button"
+                  onClick={() => navigate('/')}
+                  className="bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm px-3 sm:px-4 py-1.5 rounded-md shadow transition active:scale-95 shrink-0"
+                >
+                  ย้อนกลับ
+                </button>
               </div>
 
-              {/* กรณีเป็นกลุ่มหวยยี่กี: มีแบนเนอร์แสดงรอบสดและปุ่มกดเข้ากระดาน 88 รอบ */}
+              {/* กรณีหวยยี่กี: แบนเนอร์แสดงรอบสดและปุ่มกระดาน 88 รอบ */}
               {group.id === 'yeekee' && (
                 <div className="bg-gradient-to-r from-blue-950/80 via-[#0a1f44] to-blue-950/80 border border-cyan-400/40 rounded-xl p-3 sm:p-4 flex flex-col md:flex-row items-center justify-between gap-3 shadow-lg">
                   <div className="flex items-center gap-3">
@@ -1021,6 +927,7 @@ export default function LotteryList() {
                     </div>
                   </div>
                   <button
+                    type="button"
                     onClick={() => navigate('/lottery/yeekee')}
                     className="w-full md:w-auto bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:brightness-110 text-white font-black text-xs sm:text-sm px-5 py-2.5 rounded-xl shadow-lg shadow-red-600/30 flex items-center justify-center gap-2 transition active:scale-95 whitespace-nowrap"
                   >
@@ -1030,10 +937,10 @@ export default function LotteryList() {
                 </div>
               )}
 
-              {/* Grid 4 คอลัมน์ของการ์ดในกลุ่มนี้ (ตรงตามแบบเรฟ media_1791061693301.png) */}
+              {/* Grid การ์ดหวย: มือถือ 2 คอลัมน์ (ซ้ายขวา ซ้ายขวา), จอคอม 4 คอลัมน์ */}
               {group.items.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
-                  {group.items.map(item => renderLotteryCard(item))}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3.5 pt-1">
+                  {group.items.map(item => renderLotteryCard(item, group.isMalayOrange))}
                 </div>
               ) : (
                 <div className="py-6 text-center text-slate-400 text-xs font-bold">
@@ -1041,14 +948,14 @@ export default function LotteryList() {
                 </div>
               )}
             </div>
-          ))}
+          </div>
+        ))}
 
-          {displayedCategories.length === 0 && (
-            <div className="border-2 border-cyan-400/40 rounded-2xl bg-[#08103a]/95 p-12 text-center text-slate-400 font-bold text-sm">
-              ไม่พบรายการหวยในหมวดหมู่ที่เลือก
-            </div>
-          )}
-        </div>
+        {displayedCategories.length === 0 && (
+          <div className="border-2 border-cyan-400 rounded-2xl bg-[#030c2e] p-12 text-center text-slate-400 font-bold text-sm shadow-[0_0_20px_rgba(6,182,212,0.5)]">
+            ไม่พบรายการหวยในหมวดหมู่ที่เลือก
+          </div>
+        )}
 
       </div>
     </div>
