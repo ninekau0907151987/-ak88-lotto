@@ -104,7 +104,7 @@ function toSnake(data: any, table: string): any {
     return data;
   }
 
-  // ★ ตาราง users ใน Supabase มี 9 คอลัมน์มาตรฐาน — คัดแยกฟิลด์ที่ตรงกับ schema
+  // ★ ตาราง users ใน Supabase มีคอลัมน์มาตรฐาน + ข้อมูลธนาคารและตัวแทน
   if (table === 'users') {
     const outUser: Record<string, any> = {};
     if (data.id) outUser.id = String(data.id);
@@ -116,6 +116,14 @@ function toSnake(data: any, table: string): any {
     outUser.role = data.role || 'member';
     outUser.balance = Number(data.balance) || 0;
     outUser.status = data.status || 'active';
+    if (data.first_name || data.firstName) outUser.first_name = String(data.first_name || data.firstName);
+    if (data.last_name || data.lastName) outUser.last_name = String(data.last_name || data.lastName);
+    if (data.name) outUser.name = String(data.name);
+    else if (outUser.first_name) outUser.name = `${outUser.first_name} ${outUser.last_name || ''}`.trim();
+    if (data.bank_name || data.bankName) outUser.bank_name = String(data.bank_name || data.bankName);
+    if (data.bank_account || data.bankAccount || data.accountNumber) outUser.bank_account = String(data.bank_account || data.bankAccount || data.accountNumber);
+    if (data.agent_id || data.agentId) outUser.agent_id = String(data.agent_id || data.agentId);
+    if (data.line_id || data.lineId) outUser.line_id = String(data.line_id || data.lineId);
     if (data.createdAt || data.created_at) {
       outUser.created_at = data.createdAt ? (typeof data.createdAt === 'string' ? data.createdAt : new Date().toISOString()) : data.created_at;
     }
@@ -143,6 +151,9 @@ function toSnake(data: any, table: string): any {
     outTkt.gross_win_amount = Number(data.gross_win_amount ?? data.grossWinAmount ?? outTkt.win_amount);
     outTkt.tax_amount = Number(data.tax_amount ?? data.taxAmount ?? 0);
     outTkt.tax_rate = Number(data.tax_rate ?? data.taxRate ?? 0);
+    if (data.bets) outTkt.bets = Array.isArray(data.bets) ? data.bets : [];
+    if (data.winning_bets || data.winningBets) outTkt.winning_bets = data.winning_bets || data.winningBets || [];
+    if (data.note || data.description) outTkt.note = String(data.note || data.description);
     if (data.settled_at || data.settledAt) outTkt.settled_at = data.settled_at || data.settledAt;
     if (data.created_at || data.createdAt) outTkt.created_at = data.created_at || data.createdAt;
     if (data.expires_at || data.expiresAt) outTkt.expires_at = data.expires_at || data.expiresAt;
@@ -160,6 +171,7 @@ function toSnake(data: any, table: string): any {
     outRes.result_3bottom = data.result_3bottom || data.result3Bottom || null;
     outRes.result_3front = data.result_3front || data.result3Front || null;
     outRes.summary = data.summary || {};
+    if (data.settled_by || data.settledBy) outRes.settled_by = String(data.settled_by || data.settledBy);
     outRes.created_at = data.created_at || data.createdAt || new Date().toISOString();
     return outRes;
   }
@@ -177,11 +189,15 @@ function toSnake(data: any, table: string): any {
     if (data.gross_amount ?? data.grossAmount) outTx.gross_amount = Number(data.gross_amount ?? data.grossAmount);
     if (data.tax_amount ?? data.taxAmount) outTx.tax_amount = Number(data.tax_amount ?? data.taxAmount);
     if (data.tax_rate ?? data.taxRate) outTx.tax_rate = Number(data.tax_rate ?? data.taxRate);
+    if (data.bank_name || data.bankName) outTx.bank_name = String(data.bank_name || data.bankName);
+    if (data.bank_account || data.bankAccount) outTx.bank_account = String(data.bank_account || data.bankAccount);
+    if (data.trans_ref || data.transRef) outTx.trans_ref = String(data.trans_ref || data.transRef);
     outTx.status = data.status || 'pending';
     if (data.slip_url || data.slipUrl) outTx.slip_url = data.slip_url || data.slipUrl;
     const desc = data.description || data.note;
     if (desc) outTx.description = String(desc);
     outTx.created_at = data.created_at || data.createdAt || new Date().toISOString();
+    if (data.updated_at || data.updatedAt) outTx.updated_at = data.updated_at || data.updatedAt;
     return outTx;
   }
 
@@ -196,8 +212,12 @@ function toSnake(data: any, table: string): any {
     // Store image URL or icon emoji in icon column
     if (data.flagUrl || data.flag_url) {
       outLot.icon = String(data.flagUrl || data.flag_url);
+      outLot.flag_url = String(data.flagUrl || data.flag_url);
     } else if (data.icon) {
       outLot.icon = String(data.icon);
+      if (String(data.icon).startsWith('http') || String(data.icon).startsWith('/')) {
+        outLot.flag_url = String(data.icon);
+      }
     }
     
     if (data.path) outLot.path = String(data.path);
@@ -229,12 +249,43 @@ function toSnake(data: any, table: string): any {
       outLot.rates = { flagUrl: data.flagUrl || data.flag_url };
     }
     
+    if (data.discounts && typeof data.discounts === 'object') outLot.discounts = data.discounts;
     if (data.medianRates || data.median_rates) outLot.median_rates = data.medianRates || data.median_rates;
+    if (data.minBets || data.min_bets) outLot.min_bets = data.minBets || data.min_bets;
+    if (data.maxBets || data.max_bets) outLot.max_bets = data.maxBets || data.max_bets;
+    if (data.maxPerUsers || data.max_per_users) outLot.max_per_users = data.maxPerUsers || data.max_per_users;
+    if (data.subItems || data.sub_items) outLot.sub_items = data.subItems || data.sub_items;
+
     if (data.minBet ?? data.min_bet) outLot.min_bet = Number(data.minBet ?? data.min_bet);
     if (data.maxBet ?? data.max_bet) outLot.max_bet = Number(data.maxBet ?? data.max_bet);
     if (data.maxPerTicket ?? data.max_per_ticket) outLot.max_per_ticket = Number(data.maxPerTicket ?? data.max_per_ticket);
     outLot.updated_at = new Date().toISOString();
     return outLot;
+  }
+
+  // ★ ตาราง risk_intake_configs ใน Supabase
+  if (table === 'risk_intake_configs') {
+    const outRisk: Record<string, any> = {};
+    const riskId = data.id || data.lotteryId || data.lottery_id;
+    if (riskId) outRisk.id = String(riskId);
+    if (data.lottery_id || data.lotteryId) outRisk.lottery_id = String(data.lottery_id || data.lotteryId);
+    if (data.lottery_type || data.lotteryType) outRisk.lottery_type = String(data.lottery_type || data.lotteryType);
+    if (data.round_id || data.roundId) outRisk.round_id = String(data.round_id || data.roundId);
+    if (data.is_thai !== undefined) outRisk.is_thai = Boolean(data.is_thai);
+    else if (data.isThai !== undefined) outRisk.is_thai = Boolean(data.isThai);
+    if (data.rates && typeof data.rates === 'object') outRisk.rates = data.rates;
+    if (data.discounts && typeof data.discounts === 'object') outRisk.discounts = data.discounts;
+    if (data.min_bets || data.minBets) outRisk.min_bets = data.min_bets || data.minBets;
+    if (data.max_bets || data.maxBets) outRisk.max_bets = data.max_bets || data.maxBets;
+    if (data.max_per_users || data.maxPerUsers) outRisk.max_per_users = data.max_per_users || data.maxPerUsers;
+    if (data.min_bet ?? data.minBet) outRisk.min_bet = Number(data.min_bet ?? data.minBet);
+    if (data.max_bet ?? data.maxBet) outRisk.max_bet = Number(data.max_bet ?? data.maxBet);
+    if (data.max_user_limit ?? data.maxUserLimit) outRisk.max_user_limit = Number(data.max_user_limit ?? data.maxUserLimit);
+    if (data.total_risk_budget ?? data.totalRiskBudget) outRisk.total_risk_budget = Number(data.total_risk_budget ?? data.totalRiskBudget);
+    if (data.sub_items || data.subItems) outRisk.sub_items = data.sub_items || data.subItems;
+    if (data.note) outRisk.note = String(data.note);
+    outRisk.updated_at = data.updated_at || data.updatedAt || new Date().toISOString();
+    return outRisk;
   }
 
   for (const [k, v] of Object.entries(data)) {
@@ -303,9 +354,65 @@ function fromSnake(row: any, table: string): any {
       role: row.role || 'user',
       balance: Number(row.balance) || 0,
       status: row.status || 'active',
-      name: row.username,
+      name: row.name || (row.first_name ? `${row.first_name} ${row.last_name || ''}`.trim() : row.username),
+      firstName: row.first_name,
+      first_name: row.first_name,
+      lastName: row.last_name,
+      last_name: row.last_name,
+      bankName: row.bank_name,
+      bank_name: row.bank_name,
+      bankAccount: row.bank_account,
+      bank_account: row.bank_account,
+      accountNumber: row.bank_account,
+      agentId: row.agent_id,
+      agent_id: row.agent_id,
+      lineId: row.line_id,
+      line_id: row.line_id,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  // ★ ตาราง tickets ใน Supabase
+  if (table === 'tickets') {
+    const rawBets = Array.isArray(row.bets) ? row.bets : [];
+    const rawWinBets = Array.isArray(row.winning_bets) ? row.winning_bets : [];
+    return {
+      ...row,
+      id: row.id || row.ticket_id,
+      ticketId: row.ticket_id || row.id,
+      ticket_id: row.ticket_id || row.id,
+      userId: row.user_id,
+      user_id: row.user_id,
+      customerName: row.customer_name || 'ลูกค้าทั่วไป',
+      customer_name: row.customer_name || 'ลูกค้าทั่วไป',
+      lotteryType: row.lottery_type,
+      lottery_type: row.lottery_type,
+      lotterySlug: row.lottery_slug,
+      lottery_slug: row.lottery_slug,
+      roundId: row.round_id,
+      round_id: row.round_id,
+      totalAmount: Number(row.total_amount || 0),
+      total_amount: Number(row.total_amount || 0),
+      status: row.status || 'pending',
+      winAmount: Number(row.win_amount || 0),
+      win_amount: Number(row.win_amount || 0),
+      grossWinAmount: Number(row.gross_win_amount || 0),
+      gross_win_amount: Number(row.gross_win_amount || 0),
+      taxAmount: Number(row.tax_amount || 0),
+      tax_amount: Number(row.tax_amount || 0),
+      taxRate: Number(row.tax_rate || 0),
+      tax_rate: Number(row.tax_rate || 0),
+      bets: rawBets,
+      winningBets: rawWinBets,
+      winning_bets: rawWinBets,
+      note: row.note || '',
+      settledAt: row.settled_at,
+      settled_at: row.settled_at,
+      createdAt: row.created_at,
+      created_at: row.created_at,
+      expiresAt: row.expires_at,
+      expires_at: row.expires_at,
     };
   }
 
@@ -318,16 +425,61 @@ function fromSnake(row: any, table: string): any {
     outLot.closingTime = row.close_time;
     outLot.openTime = row.open_time;
     outLot.bgGradient = row.bg_gradient;
+    outLot.rates = row.rates || {};
+    outLot.discounts = row.discounts || {};
     outLot.medianRates = row.median_rates || {};
+    outLot.minBets = row.min_bets || {};
+    outLot.min_bets = row.min_bets || {};
+    outLot.maxBets = row.max_bets || {};
+    outLot.max_bets = row.max_bets || {};
+    outLot.maxPerUsers = row.max_per_users || {};
+    outLot.max_per_users = row.max_per_users || {};
+    outLot.subItems = row.sub_items || [];
+    outLot.sub_items = row.sub_items || [];
     outLot.minBet = Number(row.min_bet || 1);
     outLot.maxBet = Number(row.max_bet || 5000);
     outLot.maxPerTicket = Number(row.max_per_ticket || 50000);
-    if (row.icon && (String(row.icon).startsWith('http') || String(row.icon).startsWith('/'))) {
-      outLot.flagUrl = row.icon;
-    } else if (row.rates && typeof row.rates === 'object' && row.rates.flagUrl) {
-      outLot.flagUrl = row.rates.flagUrl;
-    }
+    const flagVal = row.flag_url || (row.icon && (String(row.icon).startsWith('http') || String(row.icon).startsWith('/')) ? row.icon : (row.rates && typeof row.rates === 'object' && row.rates.flagUrl ? row.rates.flagUrl : ''));
+    outLot.flagUrl = flagVal;
+    outLot.flag_url = flagVal;
     return outLot;
+  }
+
+  // ★ ตาราง risk_intake_configs ใน Supabase
+  if (table === 'risk_intake_configs') {
+    return {
+      ...row,
+      id: row.id,
+      lotteryId: row.lottery_id || row.id,
+      lottery_id: row.lottery_id || row.id,
+      lotteryType: row.lottery_type || row.id,
+      lottery_type: row.lottery_type || row.id,
+      roundId: row.round_id,
+      round_id: row.round_id,
+      isThai: Boolean(row.is_thai),
+      is_thai: Boolean(row.is_thai),
+      rates: row.rates || {},
+      discounts: row.discounts || {},
+      minBets: row.min_bets || {},
+      min_bets: row.min_bets || {},
+      maxBets: row.max_bets || {},
+      max_bets: row.max_bets || {},
+      maxPerUsers: row.max_per_users || {},
+      max_per_users: row.max_per_users || {},
+      minBet: Number(row.min_bet || 1),
+      min_bet: Number(row.min_bet || 1),
+      maxBet: Number(row.max_bet || 5000),
+      max_bet: Number(row.max_bet || 5000),
+      maxUserLimit: Number(row.max_user_limit || 50000),
+      max_user_limit: Number(row.max_user_limit || 50000),
+      totalRiskBudget: Number(row.total_risk_budget || 200000),
+      total_risk_budget: Number(row.total_risk_budget || 200000),
+      subItems: row.sub_items || [],
+      sub_items: row.sub_items || [],
+      note: row.note || '',
+      updatedAt: row.updated_at,
+      updated_at: row.updated_at,
+    };
   }
 
   const out = { ...row };
@@ -373,6 +525,15 @@ function fromSnake(row: any, table: string): any {
   if ('tax_amount' in row) out.taxAmount = Number(row.tax_amount);
   if ('tax_rate' in row) out.taxRate = Number(row.tax_rate);
   if ('settled_at' in row) out.settledAt = row.settled_at;
+  if ('bank_name' in row) out.bankName = row.bank_name;
+  if ('bank_account' in row) { out.bankAccount = row.bank_account; out.accountNumber = row.bank_account; }
+  if ('trans_ref' in row) out.transRef = row.trans_ref;
+  if ('first_name' in row) out.firstName = row.first_name;
+  if ('last_name' in row) out.lastName = row.last_name;
+  if ('agent_id' in row) out.agentId = row.agent_id;
+  if ('line_id' in row) out.lineId = row.line_id;
+  if ('created_by' in row) out.createdBy = row.created_by;
+  if ('settled_by' in row) out.settledBy = row.settled_by;
 
   return out;
 }
@@ -680,11 +841,18 @@ export async function setDoc(
     }
   }
 
-  // แยก bets ออกหากเป็นตาราง tickets
-  const bets = mergedData.bets;
-  delete snakeData.bets;
+  // จัดการ bets หากเป็นตาราง tickets
+  const bets = mergedData.bets || snakeData.bets;
+  if (table === 'tickets' && bets) {
+    snakeData.bets = Array.isArray(bets) ? bets : [];
+  }
 
-  const { error: upsertErr } = await supabaseClient.from(table).upsert(snakeData);
+  let { error: upsertErr } = await supabaseClient.from(table).upsert(snakeData);
+  if (upsertErr && (upsertErr as any).code === 'PGRST204' && table === 'tickets' && 'bets' in snakeData) {
+    delete snakeData.bets;
+    const retry = await supabaseClient.from(table).upsert(snakeData);
+    upsertErr = retry.error;
+  }
   if (upsertErr) {
     console.error(`[adapter] setDoc error on ${table}:`, upsertErr);
     throw upsertErr;
@@ -724,10 +892,21 @@ export async function updateDoc(
   }
 
   const snakeData = toSnake(data, table);
-  delete snakeData.bets;
+  const bets = data.bets;
+  if (table === 'tickets' && bets) {
+    snakeData.bets = Array.isArray(bets) ? bets : [];
+  }
   snakeData.updated_at = new Date().toISOString();
 
-  await supabaseClient.from(table).update(snakeData).eq('id', docRef.id);
+  let { error: updateErr } = await supabaseClient.from(table).update(snakeData).eq('id', docRef.id);
+  if (updateErr && (updateErr as any).code === 'PGRST204' && table === 'tickets' && 'bets' in snakeData) {
+    delete snakeData.bets;
+    const retry = await supabaseClient.from(table).update(snakeData).eq('id', docRef.id);
+    updateErr = retry.error;
+  }
+  if (updateErr) {
+    console.error(`[adapter] updateDoc error on ${table}:`, updateErr);
+  }
 }
 
 export async function addDoc(
@@ -769,10 +948,18 @@ export async function addDoc(
     }
   }
 
-  const bets = data.bets;
-  delete snakeData.bets;
+  const bets = data.bets || snakeData.bets;
+  if (table === 'tickets' && bets) {
+    snakeData.bets = Array.isArray(bets) ? bets : [];
+  }
 
-  const { data: inserted, error: insertErr } = await supabaseClient.from(table).insert(snakeData).select();
+  let { data: inserted, error: insertErr } = await supabaseClient.from(table).insert(snakeData).select();
+  if (insertErr && (insertErr as any).code === 'PGRST204' && table === 'tickets' && 'bets' in snakeData) {
+    delete snakeData.bets;
+    const retry = await supabaseClient.from(table).insert(snakeData).select();
+    inserted = retry.data;
+    insertErr = retry.error;
+  }
   if (insertErr) {
     console.error(`[adapter] addDoc error on ${table}:`, insertErr);
     throw insertErr;

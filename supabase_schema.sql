@@ -26,6 +26,13 @@ CREATE TABLE users (
     role TEXT DEFAULT 'member', -- member, agent, staff, master, admin
     balance NUMERIC(14, 2) DEFAULT 0.00,
     status TEXT DEFAULT 'active', -- active, suspended, banned
+    first_name TEXT,
+    last_name TEXT,
+    name TEXT,
+    bank_name TEXT,
+    bank_account TEXT,
+    agent_id TEXT,
+    line_id TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -62,6 +69,12 @@ CREATE TABLE lottery_types (
     bg_gradient TEXT,
     rates JSONB DEFAULT '{}'::jsonb,
     median_rates JSONB DEFAULT '{}'::jsonb,
+    discounts JSONB DEFAULT '{}'::jsonb,
+    min_bets JSONB DEFAULT '{}'::jsonb,
+    max_bets JSONB DEFAULT '{}'::jsonb,
+    max_per_users JSONB DEFAULT '{}'::jsonb,
+    sub_items JSONB DEFAULT '[]'::jsonb,
+    flag_url TEXT,
     min_bet NUMERIC(10, 2) DEFAULT 1.00,
     max_bet NUMERIC(10, 2) DEFAULT 5000.00,
     max_per_ticket NUMERIC(12, 2) DEFAULT 50000.00,
@@ -79,7 +92,8 @@ CREATE TABLE lottery_rounds (
     result_time TIMESTAMPTZ,
     status TEXT DEFAULT 'open', -- open, closed, settled, cancelled
     result TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 5. ตารางผลรางวัลหวย (Lottery Results)
@@ -92,6 +106,7 @@ CREATE TABLE lottery_results (
     result_3bottom TEXT,
     result_3front TEXT,
     summary JSONB DEFAULT '{}'::jsonb,
+    settled_by TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -110,6 +125,9 @@ CREATE TABLE tickets (
     gross_win_amount NUMERIC(12, 2) DEFAULT 0.00,
     tax_amount NUMERIC(12, 2) DEFAULT 0.00,
     tax_rate NUMERIC(5, 2) DEFAULT 0.00,
+    bets JSONB DEFAULT '[]'::jsonb,
+    winning_bets JSONB DEFAULT '[]'::jsonb,
+    note TEXT,
     settled_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ
@@ -156,6 +174,7 @@ CREATE TABLE blocked_numbers (
     max_amount NUMERIC(12, 2) DEFAULT 0.00,
     current_amount NUMERIC(12, 2) DEFAULT 0.00,
     status TEXT DEFAULT 'active',
+    created_by TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -167,7 +186,13 @@ CREATE TABLE risk_intake_configs (
     id TEXT PRIMARY KEY,
     lottery_id TEXT,
     lottery_type TEXT,
+    round_id TEXT,
     is_thai BOOLEAN DEFAULT false,
+    rates JSONB DEFAULT '{}'::jsonb,
+    discounts JSONB DEFAULT '{}'::jsonb,
+    min_bets JSONB DEFAULT '{}'::jsonb,
+    max_bets JSONB DEFAULT '{}'::jsonb,
+    max_per_users JSONB DEFAULT '{}'::jsonb,
     min_bet NUMERIC(10, 2) DEFAULT 1.00,
     max_bet NUMERIC(10, 2) DEFAULT 5000.00,
     max_user_limit NUMERIC(12, 2) DEFAULT 50000.00,
@@ -187,10 +212,14 @@ CREATE TABLE transactions (
     gross_amount NUMERIC(12, 2),
     tax_amount NUMERIC(12, 2),
     tax_rate NUMERIC(5, 2),
+    bank_name TEXT,
+    bank_account TEXT,
+    trans_ref TEXT,
     status TEXT DEFAULT 'pending',
     slip_url TEXT,
     description TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_transactions_user ON transactions(user_id);
