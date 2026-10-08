@@ -22,10 +22,10 @@
  * 14.   | ปักหลักร้อย    | 8.00    | 0
  *
  * กฎกติกาตามคำสั่งผู้ใช้:
- * 1. "ประเภทการซื้อทั้งหมด ครับ หวยไทย ยี่กี่ครับ"
- *    -> หวยไทย และ หวยยี่กี มีครบทั้ง 14 ชนิด
- * 2. "หวยอื่นๆไม่มี 3ตัวล่าง กับ 5ตัวโต๊ดครับ"
- *    -> หวยลาว, ฮานอย, มาเลย์, หุ้น ไม่มี '3 ตัวล่าง' และ '5 ตัวโต๊ด' (เหลือ 12 ชนิด)
+ * 1. "หวยไทย เป็นหวยหลัก มีครบ 14 ประเภทการจ่าย"
+ *    -> หวยรัฐบาลไทย มีครบทั้ง 14 ชนิด (รวม No. 3: 3 ตัวล่าง และ No. 11: 5 ตัวโต๊ด)
+ * 2. "เพิ่มยี่กี่ด้วย 12 ประเภท / หวยอื่นๆ ไม่มี 3ตัวล่าง กับ 5ตัวโต๊ด"
+ *    -> หวยยี่กี, หวยลาว, หวยฮานอย, หวยมาเลย์, หวยหุ้น ไม่มี '3 ตัวล่าง' และ '5 ตัวโต๊ด' (เหลือ 12 ชนิด)
  * 3. "ช่วยทำหลังบ้านหน้าบ้านให้ สอดคลองกันด้วยครับ ออกแบบให้เพิ่มลดได้ มาจากการคำนวนจริงๆ"
  *    -> หลังบ้านแก้ไข จ่าย/ลด ได้ และหน้าบ้านคำนวณยอดเงินจริง / ส่วนลด / เงินรางวัล จากการตั้งค่า
  * =====================================================================
@@ -39,14 +39,15 @@ export interface MasterBetTypeConfig {
   digits: number;
   rate: number;       // อัตราจ่าย (บาท)
   discount: number;   // ส่วนลด (%)
-  isThaiAndYeekeeOnly?: boolean; // หวยอื่นๆ ไม่มี 3ตัวล่าง กับ 5ตัวโต๊ด
+  isThaiOnly?: boolean; // มีเฉพาะหวยไทย 14 ประเภท (ยี่กีและหวยอื่นไม่มี 3 ตัวล่าง กับ 5 ตัวโต๊ด)
+  isThaiAndYeekeeOnly?: boolean; // legacy alias
   hint?: string;
 }
 
 export const MASTER_BET_TYPES: MasterBetTypeConfig[] = [
   { id: 1,  category: '3 ตัว',  key: '3 ตัวบน',      label: '3 ตัวบน',      digits: 3, rate: 900.00,  discount: 0, hint: '3 ตัวท้ายรางวัลที่ 1' },
   { id: 2,  category: '3 ตัว',  key: '3 ตัวโต๊ด',     label: '3 ตัวโต๊ด',     digits: 3, rate: 150.00,  discount: 0, hint: 'สลับตำแหน่ง 3 ตัวท้าย' },
-  { id: 3,  category: '3 ตัว',  key: '3 ตัวล่าง',     label: '3 ตัวล่าง',     digits: 3, rate: 450.00,  discount: 0, isThaiAndYeekeeOnly: true, hint: '3 ตัวท้ายรางวัลหมุนล่าง' },
+  { id: 3,  category: '3 ตัว',  key: '3 ตัวล่าง',     label: '3 ตัวล่าง',     digits: 3, rate: 450.00,  discount: 0, isThaiOnly: true, isThaiAndYeekeeOnly: true, hint: '3 ตัวท้ายรางวัลหมุนล่าง (เฉพาะหวยไทย)' },
   { id: 4,  category: '2 ตัว',  key: '2 ตัวบน',      label: '2 ตัวบน',      digits: 2, rate: 90.00,   discount: 0, hint: '2 ตัวท้ายรางวัลที่ 1' },
   { id: 5,  category: '2 ตัว',  key: '2 ตัวล่าง',     label: '2 ตัวล่าง',     digits: 2, rate: 90.00,   discount: 0, hint: '2 ตัวล่างตรง' },
   { id: 6,  category: '2 ตัว',  key: '2 ตัวโต๊ด',     label: '2 ตัวโต๊ด',     digits: 2, rate: 13.00,   discount: 0, hint: 'สลับตำแหน่ง 2 ตัว' },
@@ -54,7 +55,7 @@ export const MASTER_BET_TYPES: MasterBetTypeConfig[] = [
   { id: 8,  category: 'วิ่ง',   key: 'วิ่งล่าง',       label: 'วิ่งล่าง',       digits: 1, rate: 4.20,    discount: 0, hint: 'มีเลขใน 2 ตัวล่าง' },
   { id: 9,  category: '4 ตัว',  key: '4 ตัวบน',      label: '4 ตัวบน',      digits: 4, rate: 4000.00, discount: 0, hint: '4 ตัวท้ายรางวัลที่ 1' },
   { id: 10, category: '4 ตัว',  key: '4 ตัวโต๊ด',     label: '4 ตัวโต๊ด',     digits: 4, rate: 25.00,   discount: 0, hint: 'สลับตำแหน่ง 4 ตัวท้าย' },
-  { id: 11, category: '5 ตัว',  key: '5 ตัวโต๊ด',     label: '5 ตัวโต๊ด',     digits: 5, rate: 15.00,   discount: 0, isThaiAndYeekeeOnly: true, hint: 'สลับตำแหน่ง 5 ตัว' },
+  { id: 11, category: '5 ตัว',  key: '5 ตัวโต๊ด',     label: '5 ตัวโต๊ด',     digits: 5, rate: 15.00,   discount: 0, isThaiOnly: true, isThaiAndYeekeeOnly: true, hint: 'สลับตำแหน่ง 5 ตัว (เฉพาะหวยไทย)' },
   { id: 12, category: 'ปักหลัก', key: 'ปักหลักร้อย',    label: 'ปักหลักร้อย',    digits: 1, rate: 8.00,    discount: 0, hint: 'ตรงหลักร้อย 3 ตัวบน' },
   { id: 13, category: 'ปักหลัก', key: 'ปักหลักสิบ',    label: 'ปักหลักสิบ',    digits: 1, rate: 8.00,    discount: 0, hint: 'ตรงหลักสิบ 3 ตัวบน' },
   { id: 14, category: 'ปักหลัก', key: 'ปักหลักหน่วย',   label: 'ปักหลักหน่วย',   digits: 1, rate: 8.00,    discount: 0, hint: 'ตรงหลักหน่วย 3 ตัวบน' },
@@ -108,32 +109,45 @@ export const DEFAULT_MASTER_DISCOUNTS: Record<string, number> = {
 };
 
 /**
- * ตรวจสอบว่าเป็นหวยไทย หรือ หวยยี่กี หรือไม่
+ * ตรวจสอบว่าเป็นหวยรัฐบาลไทยหรือไม่ (หวยเดียวที่มีครบ 14 ประเภท)
+ * หวยยี่กี และ หวยอื่นๆ (ฮานอย, ลาว, มาเลย์, หุ้น) จะมีเพียง 12 ประเภท (ไม่มี 3 ตัวล่าง และ 5 ตัวโต๊ด)
  */
-export function isThaiOrYeekee(lotteryName?: string): boolean {
-  if (!lotteryName) return true;
+export function isThaiOnly(lotteryName?: string): boolean {
+  if (!lotteryName) return false;
   const lower = lotteryName.toLowerCase();
+  // ยี่กี มี 12 ประเภทตามข้อกำหนดล่าสุด
+  if (lower.includes('ยี่กี') || lower.includes('yeekee')) {
+    return false;
+  }
   return (
     lower.includes('ไทย') ||
     lower.includes('thai') ||
-    lower.includes('รัฐบาล') ||
-    lower.includes('ยี่กี') ||
-    lower.includes('yeekee') ||
-    lower.includes('88')
+    lower.includes('รัฐบาล')
   );
 }
 
 /**
+ * ฟังก์ชันตรวจสอบประเภทหวยสำหรับ backward compatibility
+ * @deprecated แนะนำให้ใช้ isThaiOnly()
+ */
+export function isThaiOrYeekee(lotteryName?: string): boolean {
+  return isThaiOnly(lotteryName);
+}
+
+/**
  * ดึงรายการประเภทการแทงที่ใช้งานได้ของหวยนั้นๆ
- * - หวยไทย / ยี่กี -> ได้ครบ 14 ประเภท
- * - หวยอื่นๆ -> ตัด 3 ตัวล่าง และ 5 ตัวโต๊ด ออก (เหลือ 12 ประเภท)
+ * - หวยไทย -> ได้ครบทั้ง 14 ประเภท (รวม 3 ตัวล่าง และ 5 ตัวโต๊ด)
+ * - หวยยี่กี & หวยอื่นๆ -> ตัด 3 ตัวล่าง และ 5 ตัวโต๊ด ออก เหลือ 12 ประเภท
  */
 export function getAvailableBetTypesForLottery(lotteryName?: string): MasterBetTypeConfig[] {
-  const allowAll = isThaiOrYeekee(lotteryName);
-  if (allowAll) {
+  if (!lotteryName) {
     return MASTER_BET_TYPES;
   }
-  return MASTER_BET_TYPES.filter(t => !t.isThaiAndYeekeeOnly);
+  const allowAll14 = isThaiOnly(lotteryName);
+  if (allowAll14) {
+    return MASTER_BET_TYPES;
+  }
+  return MASTER_BET_TYPES.filter(t => !t.isThaiOnly);
 }
 
 /**

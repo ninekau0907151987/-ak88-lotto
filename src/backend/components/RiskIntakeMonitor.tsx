@@ -4,6 +4,7 @@ import RiskProbabilityChart from './RiskProbabilityChart';
 import { useRoundCountdown } from '@/shared/lib/roundTimer';
 import { db } from '@/shared/lib/firebase';
 import { collection, getDocs, query, where, limit, addDoc } from 'firebase/firestore';
+import { getAvailableBetTypesForLottery } from '@/shared/lib/lotteryRates';
 
 interface LiveBetNumber {
   number: string;
@@ -245,19 +246,17 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
     setCurrentPage(1);
   }, [selectedLottery]);
 
-  // 10 ประเภทความเสี่ยงที่ต้องมอนิเตอร์แบบแถวเดียวแนวนอน
-  const TARGET_ROW_TYPES = [
-    { key: '3 ตัวบน', label: '3 ตัวบน', defaultRate: 900, short: '3บน', isTop: true },
-    { key: '3 ตัวล่าง', label: '3 ตัวล่าง', defaultRate: 150, short: '3ล่าง' },
-    { key: '3 ตัวโต๊ด', label: '3 ตัวโต๊ด', defaultRate: 120, short: '3โต๊ด' },
-    { key: '2 ตัวบน', label: '2 ตัวบน', defaultRate: 92, short: '2บน', isTop: true },
-    { key: '2 ตัวล่าง', label: '2 ตัวล่าง', defaultRate: 92, short: '2ล่าง' },
-    { key: 'วิ่งบน', label: '1 บน (วิ่งบน)', defaultRate: 3.2, short: '1บน', isTop: true },
-    { key: 'วิ่งล่าง', label: '1 ล่าง (วิ่งล่าง)', defaultRate: 4.2, short: '1ล่าง' },
-    { key: '4 ตัวบน', label: '4 ตัวบน', defaultRate: 5000, short: '4บน', isTop: true },
-    { key: '4 ตัวโต๊ด', label: '4 ตัวโต๊ด', defaultRate: 200, short: '4โต๊ด' },
-    { key: '5 ตัวโต๊ด', label: '5 ตัวโต๊ด', defaultRate: 15, short: '5โต๊ด' },
-  ];
+  // ประเภทความเสี่ยงที่ต้องมอนิเตอร์แบบคอลัมน์แนวนอน (หวยไทย = 14 ประเภท, ยี่กีและอื่นๆ = 12 ประเภท)
+  const targetRowTypes = useMemo(() => {
+    const available = getAvailableBetTypesForLottery(selectedLottery);
+    return available.map(m => ({
+      key: m.key,
+      label: m.label,
+      defaultRate: m.rate,
+      short: m.key.replace('ตัว', '').replace('ปักหลัก', 'ปัก'),
+      isTop: m.key.includes('บน') || m.key.includes('3 ตัว'),
+    }));
+  }, [selectedLottery]);
 
   // Auto-refresh every 15 seconds with active countdown
   const [countdownSec, setCountdownSec] = useState(15);
@@ -284,9 +283,9 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
   const [editingBet, setEditingBet] = useState<{ type: string; number: string; currentRate: number } | null>(null);
   const [newRateInput, setNewRateInput] = useState<string>('500');
 
-  // คำนวณความเสี่ยงและเลขเสี่ยงสูงสุดของแต่ละประเภท (10 ประเภท)
+  // คำนวณความเสี่ยงและเลขเสี่ยงสูงสุดของแต่ละประเภท (หวยไทย = 14 ประเภท, ยี่กีและอื่นๆ = 12 ประเภท)
   const typeRiskSummary = useMemo(() => {
-    return TARGET_ROW_TYPES.map(t => {
+    return targetRowTypes.map(t => {
       const typeBets = liveBets.filter(b => b.type === t.key || b.type.includes(t.short) || b.type.includes(t.key.replace('ตัว', '')));
       const withLiability = typeBets.map(b => {
         const rate = b.customRate || t.defaultRate;
@@ -307,7 +306,7 @@ export default function RiskIntakeMonitor({ lotteryTypes = {}, onLogActivity }: 
         count: typeBets.length
       };
     });
-  }, [liveBets]);
+  }, [liveBets, targetRowTypes]);
 
   // รวบรวมการจ่ายสูงสุด & โอกาสที่จะแพ้สูงสุด (Worst-Case Loss Exposure)
   const exposureSummary = useMemo(() => {
