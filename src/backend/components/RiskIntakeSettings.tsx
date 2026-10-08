@@ -44,16 +44,16 @@ interface Props {
 // สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยไทย & ยี่กี ครบ 14 ประเภท
 const DEFAULT_THAI_ALLOCATIONS: Record<string, number> = {
   '2 ตัวบน': 20,
-  '3 ตัวบน': 30,
-  '3 ตัวโต๊ด': 10,
-  '2 ตัวโต๊ด': 2,
-  'วิ่งบน': 2,
-  'วิ่งล่าง': 2,
   '2 ตัวล่าง': 15,
+  '2 ตัวโต๊ด': 2,
+  '3 ตัวบน': 30,
   '3 ตัวล่าง': 15,
+  '3 ตัวโต๊ด': 10,
   '4 ตัวบน': 1,
   '4 ตัวโต๊ด': 1,
   '5 ตัวโต๊ด': 0.5,
+  'วิ่งบน': 2,
+  'วิ่งล่าง': 2,
   'ปักหลักหน่วย': 0.5,
   'ปักหลักสิบ': 0.5,
   'ปักหลักร้อย': 0.5,
@@ -62,14 +62,14 @@ const DEFAULT_THAI_ALLOCATIONS: Record<string, number> = {
 // สัดส่วนเริ่มต้นรวมกันได้ 100% สำหรับหวยอื่น 12 ประเภท (ไม่มี 3 ตัวล่าง และ 5 ตัวโต๊ด)
 const DEFAULT_OTHER_ALLOCATIONS: Record<string, number> = {
   '2 ตัวบน': 25,
+  '2 ตัวล่าง': 15,
+  '2 ตัวโต๊ด': 3,
   '3 ตัวบน': 35,
   '3 ตัวโต๊ด': 15,
-  '2 ตัวโต๊ด': 3,
-  'วิ่งบน': 2,
-  'วิ่งล่าง': 2,
-  '2 ตัวล่าง': 15,
   '4 ตัวบน': 1,
   '4 ตัวโต๊ด': 1,
+  'วิ่งบน': 2,
+  'วิ่งล่าง': 2,
   'ปักหลักหน่วย': 0.4,
   'ปักหลักสิบ': 0.3,
   'ปักหลักร้อย': 0.3,
@@ -78,9 +78,12 @@ const DEFAULT_OTHER_ALLOCATIONS: Record<string, number> = {
 export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }: Props) {
   const lottoList = Object.keys(lotteryTypes).length > 0
     ? Object.keys(lotteryTypes)
-    : ['หวยรัฐบาลไทย', 'หวยลาวพัฒนา', 'หวยฮานอยพิเศษ', 'หวยมาเลย์ 4D', 'หวยยี่กี 88 รอบ'];
+    : ['หวยธกส.', 'หวยรัฐบาลไทย', 'หวยลาวพัฒนา', 'หวยฮานอยพิเศษ', 'หวยมาเลย์ 4D', 'หวยยี่กี 88 รอบ'];
 
-  const [selectedLottery, setSelectedLottery] = useState<string>(lottoList[0] || 'หวยรัฐบาลไทย');
+  const [selectedLottery, setSelectedLottery] = useState<string>(() => {
+    const foundThak = lottoList.find(l => l.includes('ธกส'));
+    return foundThak || lottoList[0] || 'หวยธกส.';
+  });
   
   // เครื่องมือคำนวณงบประมาณรับกินขั้นสูง (พับเก็บได้)
   const [showBudgetCalculator, setShowBudgetCalculator] = useState(false);
@@ -449,67 +452,33 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
         )}
       </div>
 
-      {/* 2. Lottery Selector Filter Component */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-        <LotteryCategorySelector
-          lotterySettings={lotteryTypes}
-          selectedLottery={selectedLottery}
-          onSelectLottery={(type) => {
-            setSelectedLottery(type);
-          }}
-        />
-
-        {/* เลือกรอบหวย (Round Selector) & กล่องสถานะนับถอยหลัง 3 สี */}
-        <div className="pt-3 border-t border-slate-100 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-bold text-slate-600 flex items-center gap-1.5 whitespace-nowrap">
-              <span className="material-symbols-outlined text-sm text-blue-600">calendar_month</span>
-              เลือกรอบหวย:
-            </span>
-            {loadingRounds ? (
-              <span className="text-xs text-slate-400">กำลังโหลดรอบ...</span>
-            ) : rounds.length > 0 ? (
-              <select
-                value={selectedRoundId}
-                onChange={(e) => setSelectedRoundId(e.target.value)}
-                className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-blue-500 focus:bg-white transition"
-              >
-                {rounds.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.roundNumber} ({r.status === 'open' ? 'เปิดรับ' : r.status === 'resulted' ? 'ออกผลแล้ว' : 'ปิดแล้ว'})
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <span className="text-xs text-slate-500 font-bold bg-slate-100 px-3 py-1.5 rounded-lg">
-                รอบปกติ (ทุกงวด)
-              </span>
-            )}
-          </div>
-
-          {/* กล่องแสดงเวลานับถอยหลัง 3 สถานะสี (รอเปิด / กำลังเปิด / รอออกผล) */}
-          <div className={`px-4 py-2.5 rounded-xl border flex items-center gap-2.5 text-xs font-black shadow-sm ${timerState.boxClass}`}>
-            <span className={`px-2.5 py-1 rounded-lg text-[11px] font-black border ${timerState.badgeClass}`}>
-              {timerState.label}
-            </span>
-            <span>{timerState.countdownText}</span>
-          </div>
+      {/* 2. Unified Single Card Container: Lottery Selector + Rates Table (การ์ดติดกันเป็นใบเดียว ไร้รอยต่อ ไม่มีป้ายแจ้งเตือน/แถบรอบที่กากบาท) */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {/* ส่วนตัวเลือกหมวดหมู่และหวย (นำ หวยธกส. แสดงเด่นบนสุด) */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/50">
+          <LotteryCategorySelector
+            lotterySettings={lotteryTypes}
+            selectedLottery={selectedLottery}
+            embedded={true}
+            onSelectLottery={(type) => {
+              setSelectedLottery(type);
+            }}
+          />
         </div>
-      </div>
 
-      {/* ========================================================================= */}
-      {/* 3. ตารางกำหนดอัตราจ่าย และเพดานเดิมพัน (ไม่มีแท็บสลับ - จ่ายเต็ม 100% ล็อค 10%) */}
-      {/* ========================================================================= */}
-      <div className="space-y-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+        {/* ส่วนหัวตารางอัตราจ่ายและส่วนลด (ต่อติดกันทันที ไม่มีการ์ดแยก ไม่มีช่องว่าง) */}
+        <div className="p-4 sm:p-6 space-y-4">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
             <div>
-              <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+              <h3 className="text-base font-black text-slate-800 flex items-center gap-2 flex-wrap">
                 <span className="material-symbols-outlined text-blue-600">payments</span>
-                กำหนดอัตราจ่ายเต็ม เพดานแทงต่อบิล และแทงสูงสุดต่อยูส: {selectedLottery}
+                <span>กำหนดอัตราจ่ายเต็ม และเพดานเดิมพัน:</span>
+                <span className="text-blue-800 bg-blue-100/80 border border-blue-300 px-3 py-1 rounded-xl font-black text-sm shadow-xs">
+                  🎯 {selectedLottery || 'หวยธกส.'}
+                </span>
               </h3>
-              <p className="text-xs text-slate-500">
-                รอบ {currentRound?.roundNumber || 'งวดปัจจุบัน'} • อัตราจ่ายเต็ม 100% มีผลต่อการคำนวณเงินรางวัลของสมาชิกทันที
+              <p className="text-xs text-slate-500 mt-1">
+                อัตราจ่ายเต็ม 100% มีผลต่อการคำนวณเงินรางวัลของสมาชิกทันที (คำนวณจริง ซิงค์หน้าบ้าน-หลังบ้าน)
               </p>
             </div>
 
@@ -521,24 +490,6 @@ export default function RiskIntakeSettings({ lotteryTypes = {}, onLogActivity }:
               <span className="material-symbols-outlined text-sm">save</span>
               {saving ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าหวย'}
             </button>
-          </div>
-
-          {/* ป้ายแจ้งเตือนระบบอัตราจ่ายและส่วนลด (การคำนวณจริง) */}
-          <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-200 p-3.5 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-2xs">
-            <div className="flex items-center gap-2.5">
-              <span className="material-symbols-outlined text-blue-600 text-xl">calculate</span>
-              <div>
-                <span className="text-xs font-black text-blue-950">
-                  ตารางราคาจ่าย & ส่วนลดมาตรฐาน (คำนวณเงินจริง) • หวยไทยและยี่กีครบ 14 ประเภท • หวยอื่นๆ ไม่มี 3 ตัวล่าง และ 5 ตัวโต๊ด (12 ประเภท)
-                </span>
-                <p className="text-[11px] text-blue-700">
-                  แอดมินสามารถเพิ่ม/ลด "จ่าย" (บาทละ) และ "ลด" (%) ได้อิสระ ระบบหน้าบ้านจะคำนวณยอดแทงสุทธิและเงินรางวัลตามค่าที่ตั้งไว้ทันที
-                </p>
-              </div>
-            </div>
-            <span className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-black tracking-wide whitespace-nowrap shadow-sm">
-              ✨ ซิงค์หน้าบ้าน-หลังบ้าน
-            </span>
           </div>
 
           {/* ตารางอัตราจ่ายและส่วนลดตามภาพเรฟ media_1791239149158.png เป๊ะ 100% */}

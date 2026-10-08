@@ -222,6 +222,25 @@ export default function AdminDashboard() {
   // ★ session สิทธิ์ของพนักงานที่ล็อกอินอยู่ — อ่านจาก localStorage ตั้งแต่ render แรก
   const [session, setSession] = useState<StaffSession | null>(() => loadSession());
 
+  // ★ เมนูนำทางแบบแถบด้านข้างที่สามารถยุบและขยายได้ (Collapsible & Expandable Sidebar)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('adminSidebarCollapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebar = () => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem('adminSidebarCollapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   /** จำนวนสิทธิ์ทั้งหมดในระบบ (ใช้แสดงแถบความคืบหน้า) */
   const ALL_PERMISSIONS_COUNT = ALL_PERMISSIONS.length;
 
@@ -2253,112 +2272,74 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex">
-      {/* Sidebar */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex admin-font-inter">
+      {/* Sidebar - Collapsible & Expandable with Traditional Beveled Relief Buttons */}
       <aside
-        className="w-64 bg-white border-r border-slate-200/90 flex flex-col fixed inset-y-0 shadow-lg shadow-blue-950/5 z-50"
+        className={`bg-white border-r border-slate-300 flex flex-col fixed inset-y-0 shadow-md z-50 transition-all duration-200 ease-in-out ${
+          isSidebarCollapsed ? 'w-20' : 'w-64'
+        }`}
       >
-        <div className="p-4 border-b border-slate-100 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center font-black shadow-xs">
-                <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
+        <div className="p-3.5 border-b border-slate-200 bg-white">
+          <div className="flex items-center justify-between gap-2">
+            {!isSidebarCollapsed ? (
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-blue-700 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+                  <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-blue-700 truncate">Administrator</div>
+                  <div className="text-sm font-black leading-tight text-slate-900 truncate">Lottery Hub</div>
+                </div>
               </div>
-              <div>
-                <div className="text-[9px] font-black uppercase tracking-widest text-blue-700">Administrator</div>
-                <div className="text-sm font-black leading-tight text-slate-900">Lottery Hub</div>
+            ) : (
+              <div className="w-full flex justify-center">
+                <div className="w-9 h-9 rounded-xl bg-blue-700 text-white flex items-center justify-center font-black shadow-xs">
+                  <span className="material-symbols-outlined text-lg">admin_panel_settings</span>
+                </div>
               </div>
-            </div>
+            )}
+
+            {/* Toggle Collapse/Expand Button */}
             <button
-              onClick={() => {
-                const anyClosed = Object.values(expandedSections).some(v => !v);
-                setExpandedSections({
-                  'ภาพรวม & การเงิน': anyClosed,
-                  'จัดการหวย & มอนิเตอร์': anyClosed,
-                  'จัดการเลขอั้น (เลขลด/ปิด)': anyClosed,
-                  'สมาชิก & บุคลากร': anyClosed,
-                  'การตั้งค่าระบบ & ประกาศ': anyClosed,
-                  'API & ความปลอดภัย': anyClosed,
-                  'ศูนย์ควบคุมพิเศษ': anyClosed,
-                });
-              }}
-              className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
-              title="ขยาย/ยุบเมนูทั้งหมด"
+              onClick={toggleSidebar}
+              className={`p-1.5 rounded-lg btn-relief-classic flex items-center justify-center transition shrink-0 ${
+                isSidebarCollapsed ? 'mt-2 w-full' : ''
+              }`}
+              title={isSidebarCollapsed ? 'ขยายแถบเมนูด้านข้าง (Expand)' : 'ยุบแถบเมนูด้านข้าง (Collapse)'}
             >
-              <span className="material-symbols-outlined text-base">unfold_more</span>
+              <span className="material-symbols-outlined text-base">
+                {isSidebarCollapsed ? 'menu' : 'menu_open'}
+              </span>
             </button>
           </div>
         </div>
 
         <nav className="flex-1 p-3 space-y-2 overflow-y-auto">
           {/* 🟢 ส่วนที่ 1: เมนูหลักบริหารจัดการ (7 เมนูตามลำดับ ไม่สลับไปมา) */}
-          <div className="rounded-xl border border-blue-200 overflow-hidden bg-white shadow-sm">
-            <div className="px-3 py-2 bg-blue-50/90 border-b border-blue-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-base text-blue-700">task_alt</span>
-                <span className="text-xs font-black text-blue-900">เมนูหลักการจัดการ (Workflow 1-7)</span>
-              </div>
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-blue-200 text-blue-900">7 เมนูหลัก</span>
-            </div>
-            <div className="p-1.5 space-y-1 bg-white">
-              {tabs.filter(t => t.tier === 'staff').map(tab => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 ${
-                      isActive
-                        ? 'bg-blue-700 text-white font-black shadow-md shadow-blue-700/25 translate-x-0.5'
-                        : 'text-slate-700 hover:text-blue-700 hover:bg-blue-50/70 hover:translate-x-0.5'
-                    }`}
-                  >
-                    <span className={`material-symbols-outlined text-lg ${isActive ? 'text-white' : 'text-slate-400'}`}>
-                      {tab.icon}
-                    </span>
-                    <span className="truncate">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 👑 ส่วนที่ 2: โหมดเจ้าของ (Master Mode) */}
-          {(isMasterUnlocked || session?.role === 'owner' || session?.role === 'master') ? (
-            <div className="rounded-xl border border-amber-300 overflow-hidden bg-white shadow-sm mt-3">
-              <div className="px-3 py-2 bg-gradient-to-r from-amber-50 to-amber-100/80 border-b border-amber-200 flex items-center justify-between">
+          {!isSidebarCollapsed ? (
+            <div className="rounded-xl border border-slate-300 overflow-hidden bg-white shadow-xs">
+              <div className="px-3 py-2 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-base text-amber-700">verified_user</span>
-                  <span className="text-xs font-black text-amber-950">โหมดเจ้าของ (Master Mode)</span>
+                  <span className="material-symbols-outlined text-base text-blue-700">task_alt</span>
+                  <span className="text-xs font-black text-slate-900">เมนูหลัก (Workflow 1-7)</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMasterUnlocked(false);
-                    localStorage.removeItem('masterUnlocked');
-                    setActiveTab('finance');
-                  }}
-                  className="text-[10px] px-2 py-0.5 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-900 font-bold transition flex items-center gap-0.5"
-                  title="คลิกเพื่อล็อคโหมดเจ้าของ"
-                >
-                  <span className="material-symbols-outlined text-[11px]">lock</span>
-                  <span>ล็อค</span>
-                </button>
+                <span className="text-[10px] px-2 py-0.5 rounded-full font-black bg-blue-100 text-blue-900">7 เมนู</span>
               </div>
-              <div className="p-1.5 space-y-1 bg-amber-50/20">
-                {tabs.filter(t => t.tier === 'master').map(tab => {
+              <div className="p-1.5 space-y-1.5 bg-slate-50">
+                {tabs.filter(t => t.tier === 'staff').map(tab => {
                   const isActive = activeTab === tab.id;
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 ${
+                      title={tab.label}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${
                         isActive
-                          ? 'bg-amber-600 text-white font-black shadow-md shadow-amber-600/25 translate-x-0.5'
-                          : 'text-amber-950 hover:text-amber-800 hover:bg-amber-100/60 hover:translate-x-0.5'
+                          ? 'btn-relief-active-blue'
+                          : 'btn-relief-classic'
                       }`}
                     >
-                      <span className={`material-symbols-outlined text-lg ${isActive ? 'text-white' : 'text-amber-600'}`}>
+                      <span className="material-symbols-outlined text-lg">
                         {tab.icon}
                       </span>
                       <span className="truncate">{tab.label}</span>
@@ -2368,180 +2349,270 @@ export default function AdminDashboard() {
               </div>
             </div>
           ) : (
-            <div className="rounded-xl border border-amber-200 bg-gradient-to-b from-amber-50/60 to-white p-3 shadow-2xs mt-3 text-center space-y-2">
-              <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
-                <span className="material-symbols-outlined text-base">lock</span>
+            <div className="space-y-1.5 py-1">
+              {tabs.filter(t => t.tier === 'staff').map(tab => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    title={tab.label}
+                    className={`w-full flex items-center justify-center p-2.5 rounded-xl text-xs font-black transition-all ${
+                      isActive
+                        ? 'btn-relief-active-blue'
+                        : 'btn-relief-classic'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-lg">
+                      {tab.icon}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 👑 ส่วนที่ 2: โหมดเจ้าของ (Master Mode) */}
+          {(isMasterUnlocked || session?.role === 'owner' || session?.role === 'master') ? (
+            !isSidebarCollapsed ? (
+              <div className="rounded-xl border border-amber-300 overflow-hidden bg-white shadow-xs mt-3">
+                <div className="px-3 py-2 bg-amber-100 border-b border-amber-200 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base text-amber-800">verified_user</span>
+                    <span className="text-xs font-black text-amber-950">โหมดเจ้าของ (Master)</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMasterUnlocked(false);
+                      localStorage.removeItem('masterUnlocked');
+                      setActiveTab('finance');
+                    }}
+                    className="text-[10px] px-2 py-0.5 rounded-lg btn-relief-amber font-bold flex items-center gap-0.5"
+                    title="ล็อคโหมดเจ้าของ"
+                  >
+                    <span className="material-symbols-outlined text-[11px]">lock</span>
+                    <span>ล็อค</span>
+                  </button>
+                </div>
+                <div className="p-1.5 space-y-1.5 bg-amber-50/40">
+                  {tabs.filter(t => t.tier === 'master').map(tab => {
+                    const isActive = activeTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        title={tab.label}
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-black transition-all ${
+                          isActive
+                            ? 'btn-relief-active-amber'
+                            : 'btn-relief-amber'
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-lg">
+                          {tab.icon}
+                        </span>
+                        <span className="truncate">{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div>
-                <div className="text-xs font-black text-slate-800">โหมดเจ้าของ (Master)</div>
-                <div className="text-[10px] text-slate-500">เลขอั้น, เรทจ่าย, คุมงบ, ระบบแม่</div>
+            ) : (
+              <div className="space-y-1.5 py-1 border-t border-slate-200 mt-2">
+                {tabs.filter(t => t.tier === 'master').map(tab => {
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveTab(tab.id)}
+                      title={tab.label}
+                      className={`w-full flex items-center justify-center p-2.5 rounded-xl text-xs font-black transition-all ${
+                        isActive
+                          ? 'btn-relief-active-amber'
+                          : 'btn-relief-amber'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        {tab.icon}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
+            )
+          ) : (
+            !isSidebarCollapsed ? (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 shadow-xs mt-3 text-center space-y-2">
+                <div className="w-8 h-8 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center mx-auto">
+                  <span className="material-symbols-outlined text-base">lock</span>
+                </div>
+                <div>
+                  <div className="text-xs font-black text-slate-800">โหมดเจ้าของ (Master)</div>
+                  <div className="text-[10px] text-slate-500">เลขอั้น, เรทจ่าย, คุมงบ</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMasterPinModal(true)}
+                  className="w-full py-1.5 px-3 rounded-lg btn-relief-amber font-black text-xs flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">key</span>
+                  <span>🔐 ปลดล็อก</span>
+                </button>
+              </div>
+            ) : (
+              <div className="py-2 border-t border-slate-200 mt-2 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowMasterPinModal(true)}
+                  title="ปลดล็อกโหมดเจ้าของ (Master PIN)"
+                  className="w-10 h-10 rounded-xl btn-relief-amber flex items-center justify-center"
+                >
+                  <span className="material-symbols-outlined text-base">key</span>
+                </button>
+              </div>
+            )
+          )}
+
+          {/* ศูนย์ควบคุมพิเศษ (Special Control Center) */}
+          {!isSidebarCollapsed ? (
+            <div className="rounded-xl border border-slate-300 overflow-hidden bg-white shadow-xs mt-3">
               <button
                 type="button"
-                onClick={() => setShowMasterPinModal(true)}
-                className="w-full py-1.5 px-3 rounded-lg bg-gradient-to-r from-amber-500 to-amber-600 hover:brightness-105 text-white font-black text-xs shadow-sm flex items-center justify-center gap-1 cursor-pointer transition"
+                onClick={() => toggleSection('ศูนย์ควบคุมพิเศษ')}
+                className="w-full flex items-center justify-between px-3 py-2 text-left bg-slate-100 hover:bg-slate-200 text-slate-900 font-black transition border-b border-slate-200"
               >
-                <span className="material-symbols-outlined text-sm">key</span>
-                <span>🔐 ปลดล็อกโหมดเจ้าของ</span>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-base text-slate-700">stars</span>
+                  <span className="text-xs">ศูนย์ควบคุมพิเศษ</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-slate-200 text-slate-800">
+                    3
+                  </span>
+                  <span className={`material-symbols-outlined text-sm text-slate-600 transition-transform duration-200 ${(expandedSections['ศูนย์ควบคุมพิเศษ'] ?? true) ? 'rotate-180' : ''}`}>
+                    expand_more
+                  </span>
+                </div>
+              </button>
+
+              {(expandedSections['ศูนย์ควบคุมพิเศษ'] ?? true) && (
+                <div className="p-1.5 space-y-1.5 bg-slate-50">
+                  <Link
+                    to="/admin/yeekee"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl font-black text-xs btn-relief-classic"
+                  >
+                    <span className="material-symbols-outlined text-base text-blue-700">timer</span>
+                    <span>★ หวยยี่กี 88 รอบ</span>
+                  </Link>
+                  <Link
+                    to="/admin/game20"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl font-black text-xs btn-relief-classic"
+                  >
+                    <span className="material-symbols-outlined text-base text-slate-700">casino</span>
+                    <span>หวย 20 ช่อง 6 หลัก</span>
+                  </Link>
+                  <Link
+                    to="/admin/manual"
+                    className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl font-black text-xs btn-relief-classic"
+                  >
+                    <span className="material-symbols-outlined text-base text-slate-700">menu_book</span>
+                    <span>คู่มือ & รหัสผ่าน</span>
+                  </Link>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1.5 py-1 border-t border-slate-200 mt-2">
+              <Link
+                to="/admin/yeekee"
+                title="หวยยี่กี 88 รอบ"
+                className="w-full flex items-center justify-center p-2.5 rounded-xl btn-relief-classic"
+              >
+                <span className="material-symbols-outlined text-base text-blue-700">timer</span>
+              </Link>
+              <Link
+                to="/admin/game20"
+                title="หวย 20 ช่อง 6 หลัก"
+                className="w-full flex items-center justify-center p-2.5 rounded-xl btn-relief-classic"
+              >
+                <span className="material-symbols-outlined text-base text-slate-700">casino</span>
+              </Link>
+              <Link
+                to="/admin/manual"
+                title="คู่มือ & รหัสผ่าน"
+                className="w-full flex items-center justify-center p-2.5 rounded-xl btn-relief-classic"
+              >
+                <span className="material-symbols-outlined text-base text-slate-700">menu_book</span>
+              </Link>
+            </div>
+          )}
+        </nav>
+
+        {/* Sidebar Footer: User Info & Logout */}
+        <div className="p-3 border-t border-slate-200 bg-white">
+          {!isSidebarCollapsed ? (
+            <>
+              {session && (
+                <div className="mb-2.5 rounded-xl border border-slate-200 p-2.5 bg-slate-50">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-base text-blue-700">account_circle</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-black truncate text-slate-900">
+                        {session.displayName || session.username}
+                      </div>
+                      <div className="text-[9px] font-bold text-slate-500">
+                        {ROLES[session.role]?.label || session.role}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between text-[9px] font-bold mb-1 text-slate-500">
+                      <span>สิทธิ์ที่ถือ</span>
+                      <span className="tabular-nums">
+                        {effectivePermissions(session).size}/{ALL_PERMISSIONS_COUNT}
+                      </span>
+                    </div>
+                    <div className="h-1.5 rounded-full overflow-hidden bg-slate-200">
+                      <div className="h-full bg-blue-700" style={{ width: `${(effectivePermissions(session).size / ALL_PERMISSIONS_COUNT) * 100}%` }} />
+                    </div>
+                  </div>
+                </div>
+              )}
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-black text-xs btn-relief-classic text-rose-700 hover:text-rose-800"
+              >
+                <span className="material-symbols-outlined text-base">logout</span>
+                <span>ออกจากระบบ</span>
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              {session && (
+                <div
+                  title={`${session.displayName || session.username} (${ROLES[session.role]?.label || session.role})`}
+                  className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-blue-700"
+                >
+                  <span className="material-symbols-outlined text-lg">account_circle</span>
+                </div>
+              )}
+              <button
+                onClick={handleLogout}
+                title="ออกจากระบบ"
+                className="w-9 h-9 rounded-xl btn-relief-classic flex items-center justify-center text-rose-700"
+              >
+                <span className="material-symbols-outlined text-base">logout</span>
               </button>
             </div>
           )}
-
-          {/* Special Control Center Accordion (Hidden from dynamic mapping) */}
-          {false && [].map(sec => {
-            const sectionTabs = tabs.filter(t => t.section === sec.title);
-            if (sectionTabs.length === 0) return null;
-            const isExpanded = expandedSections[sec.title] ?? true;
-            const isCurrentSectionActive = sectionTabs.some(t => t.id === activeTab);
-
-            return (
-              <div key={sec.title} className="rounded-xl border border-slate-100 overflow-hidden bg-white shadow-2xs">
-                {/* Accordion Section Header */}
-                <button
-                  type="button"
-                  onClick={() => toggleSection(sec.title)}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-left transition ${
-                    isCurrentSectionActive
-                      ? 'bg-blue-50/80 text-blue-900 font-black'
-                      : 'hover:bg-slate-50 text-slate-700 font-bold'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`material-symbols-outlined text-base ${isCurrentSectionActive ? 'text-blue-700' : 'text-slate-400'}`}>
-                      {sec.icon}
-                    </span>
-                    <span className="text-xs truncate">{sec.title}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                      isCurrentSectionActive ? 'bg-blue-200 text-blue-800' : 'bg-slate-100 text-slate-500'
-                    }`}>
-                      {sectionTabs.length}
-                    </span>
-                    <span className={`material-symbols-outlined text-sm text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>
-                      expand_more
-                    </span>
-                  </div>
-                </button>
-
-                {/* Accordion Tab Items */}
-                {isExpanded && (
-                  <div className="p-1.5 space-y-1 bg-slate-50/50 border-t border-slate-100">
-                    {sectionTabs.map(tab => {
-                      const isActive = activeTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          onClick={() => setActiveTab(tab.id)}
-                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 ${
-                            isActive
-                              ? 'bg-blue-700 text-white font-black shadow-sm shadow-blue-700/25 translate-x-0.5'
-                              : 'text-slate-600 hover:text-blue-700 hover:bg-white hover:translate-x-0.5'
-                          }`}
-                        >
-                          <span className={`material-symbols-outlined text-base ${isActive ? 'text-white' : 'text-slate-400'}`}>
-                            {tab.icon}
-                          </span>
-                          <span className="truncate">{tab.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Special Control Center Accordion */}
-          <div className="rounded-xl border border-amber-200/80 overflow-hidden bg-white shadow-2xs mt-2">
-            <button
-              type="button"
-              onClick={() => toggleSection('ศูนย์ควบคุมพิเศษ')}
-              className="w-full flex items-center justify-between px-3 py-2 text-left bg-amber-50/80 hover:bg-amber-100/70 text-amber-950 font-black transition"
-            >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-base text-amber-600">stars</span>
-                <span className="text-xs">ศูนย์ควบคุมพิเศษ</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full font-black bg-amber-200 text-amber-900">
-                  3
-                </span>
-                <span className={`material-symbols-outlined text-sm text-amber-600 transition-transform duration-200 ${(expandedSections['ศูนย์ควบคุมพิเศษ'] ?? true) ? 'rotate-180' : ''}`}>
-                  expand_more
-                </span>
-              </div>
-            </button>
-
-            {(expandedSections['ศูนย์ควบคุมพิเศษ'] ?? true) && (
-              <div className="p-1.5 space-y-1 bg-amber-50/30 border-t border-amber-100">
-                <Link
-                  to="/admin/yeekee"
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-bold text-xs transition border border-amber-200 bg-amber-50/80 text-amber-900 hover:bg-amber-100/80"
-                >
-                  <span className="material-symbols-outlined text-base text-amber-600">timer</span>
-                  <span>★ หวยยี่กี 88 รอบ</span>
-                </Link>
-                <Link
-                  to="/admin/game20"
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-bold text-xs transition border border-slate-200 bg-white text-slate-700 hover:bg-blue-50/50 hover:text-blue-700"
-                >
-                  <span className="material-symbols-outlined text-base text-slate-500">casino</span>
-                  <span>หวย 20 ช่อง 6 หลัก</span>
-                </Link>
-                <Link
-                  to="/admin/manual"
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg font-bold text-xs transition text-slate-500 hover:text-slate-800 hover:bg-white"
-                >
-                  <span className="material-symbols-outlined text-base text-slate-400">menu_book</span>
-                  <span>คู่มือ & รหัสผ่าน</span>
-                </Link>
-              </div>
-            )}
-          </div>
-        </nav>
-
-        <div className="p-4 border-t" style={{ borderColor: 'var(--admin-border)' }}>
-          {/* ★ บัตรระบุตัวตนผู้ใช้ที่ล็อกอินอยู่ */}
-          {session && (
-            <div className="mb-3 rounded-xl border p-2.5" style={{ borderColor: 'var(--admin-border)', background: 'var(--admin-subtle)' }}>
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-base" style={{ color: 'var(--admin-accent)' }}>account_circle</span>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-black truncate" style={{ color: 'var(--admin-text)' }}>
-                    {session.displayName || session.username}
-                  </div>
-                  <div className="text-[9px] font-bold" style={{ color: 'var(--admin-text-muted)' }}>
-                    {ROLES[session.role]?.label || session.role}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-2">
-                <div className="flex items-center justify-between text-[9px] font-bold mb-1" style={{ color: 'var(--admin-text-muted)' }}>
-                  <span>สิทธิ์ที่ถือ</span>
-                  <span className="tabular-nums">
-                    {effectivePermissions(session).size}/{ALL_PERMISSIONS_COUNT}
-                  </span>
-                </div>
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#fff' }}>
-                  <div className="h-full" style={{ width: `${(effectivePermissions(session).size / ALL_PERMISSIONS_COUNT) * 100}%`, background: 'var(--admin-accent)' }} />
-                </div>
-              </div>
-            </div>
-          )}
-          <button 
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-black transition"
-            style={{ color: '#b3261e' }}
-          >
-            <span className="material-symbols-outlined">logout</span>
-            <span className="text-sm">ออกจากระบบ</span>
-          </button>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 ml-64 p-6 bg-slate-50 min-h-screen">
+      <main className={`flex-1 p-6 bg-slate-50 min-h-screen transition-all duration-200 ease-in-out ${
+        isSidebarCollapsed ? 'ml-20' : 'ml-64'
+      }`}>
         <header
           className="flex justify-between items-center mb-6 p-5 rounded-2xl shadow-sm border border-slate-200/90 bg-white shadow-blue-900/5"
         >

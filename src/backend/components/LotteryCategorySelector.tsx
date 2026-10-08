@@ -13,6 +13,7 @@ interface Props {
   allowAllOption?: boolean;
   allOptionLabel?: string;
   allOptionValue?: string;
+  embedded?: boolean;
 }
 
 export default function LotteryCategorySelector({
@@ -24,6 +25,7 @@ export default function LotteryCategorySelector({
   allowAllOption = false,
   allOptionLabel = '⭐ ทุกหวยในระบบ (หวยทั้งหมด)',
   allOptionValue = 'all',
+  embedded = false,
 }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<LotteryCategoryKey>('thai');
   const [showOnlyOpen, setShowOnlyOpen] = useState(false);
@@ -44,6 +46,8 @@ export default function LotteryCategorySelector({
     const settingsKeys = Object.keys(lotterySettings);
     if (settingsKeys.length > 0) {
       settingsKeys.forEach(name => {
+        // กรองหวยทดสอบ 44444 หรือตัวเลขทดสอบออกตามคำสั่งผู้ใช้
+        if (name === '44444' || /^\d{4,}$/.test(name) || name.toLowerCase().includes('test')) return;
         const data = lotterySettings[name];
         const catalogItem = catalogMap.get(name);
         const category = getLotteryCategory(name, data?.category);
@@ -63,8 +67,10 @@ export default function LotteryCategorySelector({
       });
     }
 
-    // Sort alphabetically, with currently open lotteries first
+    // จัดเรียง: หวยธกส. อยู่ด้านหน้าสุดตามคำขอของผู้ใช้ และหวยเปิดอยู่ก่อน
     return list.sort((a, b) => {
+      if (a.name.includes('ธกส') && !b.name.includes('ธกส')) return -1;
+      if (!a.name.includes('ธกส') && b.name.includes('ธกส')) return 1;
       if (a.isOpen && !b.isOpen) return -1;
       if (!a.isOpen && b.isOpen) return 1;
       return a.name.localeCompare(b.name, 'th');
@@ -108,7 +114,7 @@ export default function LotteryCategorySelector({
   }, [allLotteries, selectedCategory, showOnlyOpen]);
 
   return (
-    <div className={`admin-card bg-white p-4 shadow-sm border border-slate-200 space-y-3 ${className}`}>
+    <div className={`${embedded ? 'space-y-3' : 'admin-card bg-white p-4 shadow-sm border border-slate-200 space-y-3'} ${className}`}>
       {/* 1. Header with title & filter toggle */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 border-b border-slate-100 pb-2.5">
         <div className="flex items-center gap-2">
@@ -118,7 +124,7 @@ export default function LotteryCategorySelector({
             (เลือก: <span className="text-blue-700 font-black">
               {allowAllOption && (selectedLottery === allOptionValue || (allOptionValue === '' && !selectedLottery))
                 ? allOptionLabel
-                : (selectedLottery || 'ยังไม่ได้เลือก')}
+                : (selectedLottery || 'หวยธกส.')}
             </span>)
           </span>
         </div>
@@ -135,9 +141,9 @@ export default function LotteryCategorySelector({
         </label>
       </div>
 
-      {/* 2. แท็บหมวดหมู่ด้านบน (Category Tabs on Top - เอา "ทั้งหมด" ออกตามคำสั่งผู้ใช้ที่มีกากบาท) */}
+      {/* 2. แท็บหมวดหมู่ด้านบน (ลบ "อื่นๆ / กำหนดเอง" ออกตามภาพที่มีกากบาท) */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-        {LOTTERY_CATEGORIES.filter(c => c.id !== 'all').map(cat => {
+        {LOTTERY_CATEGORIES.filter(c => c.id !== 'all' && c.id !== 'other').map(cat => {
           const isActive = selectedCategory === cat.id;
           const stat = categoryStats[cat.id] || { total: 0, open: 0 };
           const hasOpen = stat.open > 0;
@@ -148,8 +154,11 @@ export default function LotteryCategorySelector({
               type="button"
               onClick={() => {
                 setSelectedCategory(cat.id);
-                // ไม่บังคับล็อคหวยย่อย ให้แสดงตารางแถวยาว
-                onSelectLottery('');
+                // ดึงหวยตัวแรกในหมวดที่เลือกมาแสดงผลทันที (ไม่ปล่อยให้ว่าง)
+                const firstInCat = allLotteries.find(l => l.category === cat.id);
+                if (firstInCat) {
+                  onSelectLottery(firstInCat.name);
+                }
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition whitespace-nowrap flex items-center gap-1.5 border ${
                 isActive

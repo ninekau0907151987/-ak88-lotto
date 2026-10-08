@@ -60,26 +60,26 @@ interface BetTypeOption {
 }
 
 const ALL_YEEKEE_TYPES: BetTypeOption[] = [
-  // 3 ตัว
-  { id: 2,  key: '3 ตัวบน',      label: '3 ตัวบน',      digits: 3, rate: 900.00,  discount: 0, category: '3digits' },
-  { id: 3,  key: '3 ตัวโต๊ด',     label: '3 ตัวโต๊ด',     digits: 3, rate: 150.00,  discount: 0, category: '3digits' },
-  { id: 8,  key: '3 ตัวล่าง',     label: '3 ตัวล่าง',     digits: 3, rate: 450.00,  discount: 0, category: '3digits' },
-  { id: 15, key: '3 กลับ',       label: '3 กลับ',       digits: 3, rate: 900.00,  discount: 0, category: '3digits' },
-
-  // 2 ตัว
+  // 2 ตัว (1, 2, 3) + ตัวช่วยกลับ
   { id: 1,  key: '2 ตัวบน',      label: '2 ตัวบน',      digits: 2, rate: 90.00,   discount: 0, category: '2digits' },
-  { id: 7,  key: '2 ตัวล่าง',     label: '2 ตัวล่าง',     digits: 2, rate: 90.00,   discount: 0, category: '2digits' },
-  { id: 4,  key: '2 ตัวโต๊ด',     label: '2 ตัวโต๊ด',     digits: 2, rate: 13.00,   discount: 0, category: '2digits' },
+  { id: 2,  key: '2 ตัวล่าง',     label: '2 ตัวล่าง',     digits: 2, rate: 90.00,   discount: 0, category: '2digits' },
+  { id: 3,  key: '2 ตัวโต๊ด',     label: '2 ตัวโต๊ด',     digits: 2, rate: 13.00,   discount: 0, category: '2digits' },
   { id: 16, key: '2 กลับ',       label: '2 กลับ',       digits: 2, rate: 90.00,   discount: 0, category: '2digits' },
 
-  // 4-5 ตัว
-  { id: 9,  key: '4 ตัวบน',      label: '4 ตัวบน',      digits: 4, rate: 4000.00, discount: 0, category: 'highdigits' },
-  { id: 10, key: '4 ตัวโต๊ด',     label: '4 ตัวโต๊ด',     digits: 4, rate: 25.00,   discount: 0, category: 'highdigits' },
-  { id: 11, key: '5 ตัวโต๊ด',     label: '5 ตัวโต๊ด',     digits: 5, rate: 15.00,   discount: 0, category: 'highdigits' },
+  // 3 ตัว (4, 5, 6) + ตัวช่วยกลับ
+  { id: 4,  key: '3 ตัวบน',      label: '3 ตัวบน',      digits: 3, rate: 900.00,  discount: 0, category: '3digits' },
+  { id: 5,  key: '3 ตัวล่าง',     label: '3 ตัวล่าง',     digits: 3, rate: 450.00,  discount: 0, category: '3digits' },
+  { id: 6,  key: '3 ตัวโต๊ด',     label: '3 ตัวโต๊ด',     digits: 3, rate: 150.00,  discount: 0, category: '3digits' },
+  { id: 15, key: '3 กลับ',       label: '3 กลับ',       digits: 3, rate: 900.00,  discount: 0, category: '3digits' },
 
-  // วิ่ง & ปักหลัก (1 หลัก)
-  { id: 5,  key: 'วิ่งบน',        label: 'วิ่งบน',        digits: 1, rate: 3.20,    discount: 0, category: 'running_pin' },
-  { id: 6,  key: 'วิ่งล่าง',       label: 'วิ่งล่าง',       digits: 1, rate: 4.20,    discount: 0, category: 'running_pin' },
+  // 4-5 ตัว (7, 8, 9)
+  { id: 7,  key: '4 ตัวบน',      label: '4 ตัวบน',      digits: 4, rate: 4000.00, discount: 0, category: 'highdigits' },
+  { id: 8,  key: '4 ตัวโต๊ด',     label: '4 ตัวโต๊ด',     digits: 4, rate: 25.00,   discount: 0, category: 'highdigits' },
+  { id: 9,  key: '5 ตัวโต๊ด',     label: '5 ตัวโต๊ด',     digits: 5, rate: 15.00,   discount: 0, category: 'highdigits' },
+
+  // วิ่ง & ปักหลัก 1 หลัก (10, 11, 12, 13, 14)
+  { id: 10, key: 'วิ่งบน',        label: 'วิ่งบน',        digits: 1, rate: 3.20,    discount: 0, category: 'running_pin' },
+  { id: 11, key: 'วิ่งล่าง',       label: 'วิ่งล่าง',       digits: 1, rate: 4.20,    discount: 0, category: 'running_pin' },
   { id: 12, key: 'ปักหลักหน่วย',   label: 'ปักหลักหน่วย',   digits: 1, rate: 8.00,    discount: 0, category: 'running_pin' },
   { id: 13, key: 'ปักหลักสิบ',    label: 'ปักหลักสิบ',    digits: 1, rate: 8.00,    discount: 0, category: 'running_pin' },
   { id: 14, key: 'ปักหลักร้อย',    label: 'ปักหลักร้อย',    digits: 1, rate: 8.00,    discount: 0, category: 'running_pin' },

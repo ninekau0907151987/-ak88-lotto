@@ -63,6 +63,79 @@ body.admin-cream {
     border-radius: 0.875rem;
 }
 
+/* ============================================================
+ * ★ ดีไซน์ความนูนแบบดั้งเดิม (Traditional Beveled / Embossed Relief)
+ * ใช้สีทึบแบบราบเรียบ ไม่มีไล่ระดับ 4 สี หรือเงาซับซ้อน
+ * ฟอนต์มาตรฐาน Inter / Helvetica
+ * ============================================================ */
+.admin-font-inter {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* ปุ่มนูนดั้งเดิม - ปกติ / ไม่ได้เลือก (Solid Flat Gray with Classic Beveled Border) */
+.btn-relief-classic {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    border-top: 2px solid #ffffff;
+    border-left: 2px solid #ffffff;
+    border-bottom: 2px solid #94a3b8;
+    border-right: 2px solid #94a3b8;
+    transition: all 0.1s ease-in-out;
+}
+.btn-relief-classic:hover {
+    background-color: #e2e8f0;
+    color: #0f172a;
+}
+.btn-relief-classic:active {
+    border-top: 2px solid #94a3b8;
+    border-left: 2px solid #94a3b8;
+    border-bottom: 2px solid #ffffff;
+    border-right: 2px solid #ffffff;
+    transform: translateY(1px);
+}
+
+/* ปุ่มนูนดั้งเดิม - สีกรมท่า/น้ำเงินสด Solid สำหรับปุ่มที่เลือก (Active Primary) */
+.btn-relief-active-blue {
+    background-color: #1d4ed8;
+    color: #ffffff;
+    border-top: 2px solid #93c5fd;
+    border-left: 2px solid #93c5fd;
+    border-bottom: 2px solid #1e3a8a;
+    border-right: 2px solid #1e3a8a;
+    box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.25), inset -1px -1px 0px rgba(0, 0, 0, 0.35);
+}
+
+/* ปุ่มนูนดั้งเดิม - สีอำพัน/ทองทึบ Solid สำหรับ Master Mode */
+.btn-relief-active-amber {
+    background-color: #b45309;
+    color: #ffffff;
+    border-top: 2px solid #fde68a;
+    border-left: 2px solid #fde68a;
+    border-bottom: 2px solid #78350f;
+    border-right: 2px solid #78350f;
+    box-shadow: inset 1px 1px 0px rgba(255, 255, 255, 0.25), inset -1px -1px 0px rgba(0, 0, 0, 0.35);
+}
+
+.btn-relief-amber {
+    background-color: #fef3c7;
+    color: #78350f;
+    border-top: 2px solid #ffffff;
+    border-left: 2px solid #ffffff;
+    border-bottom: 2px solid #d97706;
+    border-right: 2px solid #d97706;
+    transition: all 0.1s ease-in-out;
+}
+.btn-relief-amber:hover {
+    background-color: #fde68a;
+}
+.btn-relief-amber:active {
+    border-top: 2px solid #d97706;
+    border-left: 2px solid #d97706;
+    border-bottom: 2px solid #ffffff;
+    border-right: 2px solid #ffffff;
+    transform: translateY(1px);
+}
+
 /* หัวข้อหลังบ้าน */
 .admin-title {
     color: var(--admin-text);

@@ -141,38 +141,7 @@ export default function LotteryOpenCloseManager({
         title="เลือกหมวดหมู่หวย (แท็บด้านบน) และเลือกหวยย่อย (ปุ่มขนาดเล็กด้านล่าง)"
       />
 
-      {/* 3 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="admin-card p-4 bg-white border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider">ประเภทหวยทั้งหมด</div>
-            <div className="text-2xl font-black text-slate-900 mt-1">{totalCount} รายการ</div>
-          </div>
-          <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-black">
-            <span className="material-symbols-outlined text-xl">ballot</span>
-          </div>
-        </div>
 
-        <div className="admin-card p-4 bg-white border border-emerald-200 shadow-sm flex items-center justify-between">
-          <div>
-            <div className="text-[11px] font-black text-emerald-600 uppercase tracking-wider">🟢 กำลังเปิดรับแทง</div>
-            <div className="text-2xl font-black text-emerald-700 mt-1">{openCount} รายการ</div>
-          </div>
-          <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">
-            <span className="material-symbols-outlined text-xl">check_circle</span>
-          </div>
-        </div>
-
-        <div className="admin-card p-4 bg-white border border-slate-200 shadow-sm flex items-center justify-between bg-slate-50/40">
-          <div>
-            <div className="text-[11px] font-black text-slate-400 uppercase tracking-wider">⚪ ปิดรับแทง</div>
-            <div className="text-2xl font-black text-slate-500 mt-1">{closedCount} รายการ</div>
-          </div>
-          <div className="w-11 h-11 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center font-black">
-            <span className="material-symbols-outlined text-xl">cancel</span>
-          </div>
-        </div>
-      </div>
 
       {/* Main Table Card (ตารางแถวยาวตามคำสั่งผู้ใช้ จัดเรียงหวยเปิดไว้บนสุด) */}
       <div className="admin-card bg-white overflow-hidden shadow-sm border border-slate-200">
