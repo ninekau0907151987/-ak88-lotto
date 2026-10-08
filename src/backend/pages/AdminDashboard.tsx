@@ -1264,7 +1264,9 @@ export default function AdminDashboard() {
         return next;
       });
       await deleteDoc(doc(db, 'lotteryTypes', type));
-      await supabaseClient.from('lottery_types').delete().or(`id.eq.${type},name.eq.${type}`);
+      if ((db as any)?.client) {
+        await (db as any).client.from('lottery_types').delete().or(`id.eq.${type},name.eq.${type}`);
+      }
       await logActivity('ลบประเภทหวย', `ลบหวย ${type} ออกจากระบบ`, 'lottery');
       alert(`ลบ "${type}" ออกจากระบบสำเร็จ!`);
     } catch (e: any) {

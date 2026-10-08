@@ -376,7 +376,8 @@ export default function LotteryList() {
     });
 
     // 2. ผสานจาก lotteryConfigs (Supabase / Firestore)
-    Object.entries(lotteryConfigs).forEach(([key, cfg]) => {
+    Object.entries(lotteryConfigs).forEach(([key, rawCfg]) => {
+      const cfg = rawCfg as any;
       if (!cfg || typeof cfg !== 'object') return;
       const id = String(cfg.id || key);
       const name = String(cfg.name || key);
