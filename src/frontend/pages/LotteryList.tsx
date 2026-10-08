@@ -283,7 +283,6 @@ export const CATEGORY_SECTIONS: CategorySection[] = [
     icon: '🇲🇾',
     desc: 'หวย-MagNum 4D, หวย Grand Dragon Lotto, หวย Singapore 4D',
     accentBorder: 'border-2 border-cyan-400 shadow-[0_0_22px_rgba(6,182,212,0.6)]',
-    isMalayOrange: true,
   },
   {
     id: 'yeekee',
@@ -746,28 +745,22 @@ export default function LotteryList() {
     }, 50);
   };
 
-  // เรนเดอร์การ์ดหวยตามแบบเรฟในภาพ 100%:
-  // - การ์ดสีขาว คลาสสิก สะอาดตา
+  // เรนเดอร์การ์ดหวยแบบ Unified Base Theme:
+  // - การ์ดสีขาว คลาสสิก สะอาดตา (Uniform Base Theme ทุกลำดับ)
   // - ส่วนหัว: ธงชาติ/โลโก้ทางซ้าย, ป้ายชื่อหวยทางขวา
   // - ตัวการ์ดกลาง: วันและเวลา
   // - ท้ายการ์ด: แถบสถานะ ปิดรับแทง / เปิดรับแทง
-  // - หมวดมาเลย์: ขอบการ์ดสีส้มเรืองแสงตามรูปเรฟ
-  const renderLotteryCard = (item: LotteryItem, isMalayOrange: boolean = false) => {
+  const renderLotteryCard = (item: LotteryItem) => {
     const info = getClosingInfo(item);
-    const isMalayCard = isMalayOrange || item.category === 'malay';
 
     return (
       <Link
         key={item.id}
         to={item.path}
-        className={`rounded-lg overflow-hidden flex flex-col justify-between transition-all duration-150 group shadow-sm text-slate-800 ${
-          isMalayCard
-            ? 'border-2 border-orange-500 bg-white shadow-[0_0_12px_rgba(249,115,22,0.45)] hover:shadow-[0_0_18px_rgba(249,115,22,0.65)] hover:scale-[1.01]'
-            : 'border border-slate-200 bg-white hover:border-cyan-400 hover:shadow-md hover:scale-[1.01]'
-        }`}
+        className="rounded-lg overflow-hidden flex flex-col justify-between transition-all duration-150 group shadow-sm text-slate-800 border border-slate-200 bg-white hover:border-cyan-400 hover:shadow-md hover:scale-[1.01]"
       >
         {/* Header แถวบน: ด้านซ้ายธงชาติ/โลโก้, ด้านขวาป้ายชื่อหวย */}
-        <div className={`px-2 py-1.5 flex items-center justify-between gap-1.5 border-b border-slate-100 ${isMalayCard ? 'bg-slate-50' : 'bg-white'}`}>
+        <div className="px-2 py-1.5 flex items-center justify-between gap-1.5 border-b border-slate-100 bg-white">
           {/* ฝั่งซ้าย: ธง หรือ โลโก้ */}
           <div className="shrink-0 flex items-center">
             {item.id === 'หวย-MagNum 4D' ? (
@@ -797,10 +790,6 @@ export default function LotteryList() {
           <div className="text-right truncate flex justify-end">
             {item.isThaiGov ? (
               <span className="bg-red-600 text-white font-black text-[10px] sm:text-xs px-2 py-0.5 rounded shadow-sm tracking-tight truncate">
-                {item.name}
-              </span>
-            ) : isMalayCard ? (
-              <span className="bg-[#0b1b4f] text-white font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded shadow-sm tracking-tight truncate">
                 {item.name}
               </span>
             ) : (
@@ -940,7 +929,7 @@ export default function LotteryList() {
               {/* Grid การ์ดหวย: มือถือ 2 คอลัมน์ (ซ้ายขวา ซ้ายขวา), จอคอม 4 คอลัมน์ */}
               {group.items.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3.5 pt-1">
-                  {group.items.map(item => renderLotteryCard(item, group.isMalayOrange))}
+                  {group.items.map(item => renderLotteryCard(item))}
                 </div>
               ) : (
                 <div className="py-6 text-center text-slate-400 text-xs font-bold">

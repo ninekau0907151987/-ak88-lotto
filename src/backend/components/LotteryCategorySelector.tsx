@@ -205,7 +205,7 @@ export default function LotteryCategorySelector({
                     isSelected
                       ? 'bg-blue-700 text-white border-blue-700 shadow-sm shadow-blue-700/25 ring-2 ring-blue-300'
                       : isOpen
-                      ? 'bg-white text-slate-800 border-emerald-300 hover:border-emerald-500 hover:bg-emerald-50/40 shadow-xs'
+                      ? 'bg-white text-slate-800 border-slate-300 hover:border-blue-500 hover:bg-blue-50/40 shadow-xs'
                       : 'bg-slate-100 text-slate-400 border-slate-200 opacity-60 hover:opacity-100 hover:bg-slate-200'
                   }`}
                   title={`${lotto.name} (${isOpen ? '🟢 กำลังเปิดรับแทง' : '⚪ ปิดรับแทง'}) - คลิกเพื่อกรอง/คลิกซ้ำเพื่อยกเลิก`}
@@ -234,8 +234,8 @@ export default function LotteryCategorySelector({
               }}
               className={`px-3 py-1 text-xs font-black rounded-lg border flex items-center gap-1.5 transition active:scale-95 ${
                 !selectedLottery && selectedCategory === 'all'
-                  ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-md ring-2 ring-amber-300'
-                  : 'bg-gradient-to-r from-amber-50 to-yellow-50 text-amber-900 border-amber-300 hover:bg-amber-100 hover:border-amber-400'
+                  ? 'bg-blue-700 text-white border-blue-700 shadow-md ring-2 ring-blue-300'
+                  : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200 hover:border-slate-400'
               }`}
               title="แสดงทุกหวยในระบบพร้อมกันทั้งหมด (ตารางยาว)"
             >
